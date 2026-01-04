@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"io/fs"
@@ -17,6 +18,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -81,6 +83,8 @@ type Config struct {
 	UI        UIConfig        `json:"ui"`
 	Playback  PlaybackConfig  `json:"playback"`
 	Blacklist BlacklistConfig `json:"blacklist"`
+	LogLevel  string          `json:"logLevel"`
+	LogFile   string          `json:"logFile"`
 }
 
 type Subtitle struct {
@@ -155,9 +159,12 @@ type Server struct {
 	mediaResp     MediaResponse
 	mediaETag     string
 	mediaBuilding bool
+
+	seenIPs sync.Map
 }
 
 func main() {
+	debug.SetGCPercent(50) // Aggressive GC to keep memory low
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	s := &Server{cfgPath: filepath.Join(mustExeDir(), "config.json")}
@@ -166,6 +173,8 @@ func main() {
 	if err := s.loadOrInitConfig(); err != nil {
 		log.Fatal(err)
 	}
+
+	s.setupLogger()
 
 	webRoot, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
@@ -198,11 +207,13 @@ func main() {
 	}
 
 	log.Println("配置文件:", s.cfgPath)
+	fmt.Println("配置文件:", s.cfgPath)
 	for _, u := range urls {
 		log.Println("访问:", u)
+		fmt.Println("访问:", u)
 	}
 
-	h := withLog(withGzip(mux))
+	h := s.withLog(withGzip(mux))
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           h,
@@ -393,6 +404,66 @@ func (s *Server) saveConfigLocked() error {
 		return err
 	}
 	return os.Rename(tmp, s.cfgPath)
+}
+
+func (s *Server) setupLogger() {
+	s.mu.Lock()
+	if s.cfg.LogFile == "" {
+		s.cfg.LogFile = filepath.Join(mustExeDir(), "msp.log")
+	}
+	logFile := s.cfg.LogFile
+	s.mu.Unlock()
+
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
+		return
+	}
+	log.SetOutput(f)
+}
+
+func (s *Server) logRequest(r *http.Request, status int, start time.Time) {
+	if status == 0 {
+		status = http.StatusOK
+	}
+	ua := strings.TrimSpace(r.UserAgent())
+	duration := time.Since(start).Milliseconds()
+
+	msg := fmt.Sprintf("%s %s status=%d ua=%s ms=%d", r.Method, r.URL.Path, status, ua, duration)
+
+	s.mu.RLock()
+	level := strings.ToLower(s.cfg.LogLevel)
+	s.mu.RUnlock()
+
+	if level != "silent" && level != "none" {
+		log.Println(msg)
+	}
+
+	isSevere := status >= 500
+
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ip == "" {
+		ip = r.RemoteAddr
+	}
+	isNewDevice := false
+	if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+		if _, seen := s.seenIPs.Load(ip); !seen {
+			s.seenIPs.Store(ip, true)
+			isNewDevice = true
+		}
+	}
+
+	if isSevere || isNewDevice {
+		ts := time.Now().Format("2006/01/02 15:04:05.000000")
+		prefix := ""
+		if isSevere {
+			prefix = "[ERROR] "
+		}
+		if isNewDevice {
+			prefix += "[NEW DEVICE] "
+		}
+		fmt.Fprintf(os.Stderr, "%s %s%s\n", ts, prefix, msg)
+	}
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -1590,12 +1661,36 @@ func withGzip(next http.Handler) http.Handler {
 	})
 }
 
-func withLog(next http.Handler) http.Handler {
+func (s *Server) withLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Println(r.Method, r.URL.Path, "ua=", strings.TrimSpace(r.UserAgent()), "ms=", time.Since(start).Milliseconds())
+		sw := &statusWriter{ResponseWriter: w}
+		next.ServeHTTP(sw, r)
+		s.logRequest(r, sw.status, start)
 	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func mustExeDir() string {

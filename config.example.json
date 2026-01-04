@@ -1,4 +1,6 @@
 {
+  "logLevel": "info",
+  "logFile": "msp.log",
   "port": 8099,
   "shares": [],
   "features": {

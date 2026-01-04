@@ -95,7 +95,7 @@ Invoke-Step 'go test ./...' {
 Invoke-Step 'go build -o msp.exe ./cmd/msp' {
   Push-Location $root
   try {
-    & go build -o msp.exe ./cmd/msp
+    & go build -ldflags="-s -w" -o msp.exe ./cmd/msp
     if ($LASTEXITCODE -ne 0) { throw ("go build failed. exitCode=" + $LASTEXITCODE) }
   } finally {
     Pop-Location
