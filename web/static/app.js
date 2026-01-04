@@ -589,6 +589,22 @@ function canPlayMedia(kind, ext, name, mediaEl) {
   return true;
 }
 
+let lastAudioEndedAt = 0;
+function onAudioEnded() {
+  const now = Date.now();
+  if (now - lastAudioEndedAt < 500) return;
+  lastAudioEndedAt = now;
+
+  if (!state.current || state.current.kind !== "audio") return;
+  if (state.playlist.kind !== "audio") return;
+  if (state.playlist.index < 0) return;
+  if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
+    if (state.playlist.loop) playAtIndex(0, true);
+    return;
+  }
+  playAtIndex(state.playlist.index + 1, true);
+}
+
 function applyPlyr(element) {
   destroyPlyr();
 
@@ -625,6 +641,9 @@ function applyPlyr(element) {
 
   opts.fullscreen = { enabled: true, fallback: true };
   state.plyr = new Plyr(element, opts);
+  if (state.current?.kind === "audio") {
+    state.plyr.on("ended", onAudioEnded);
+  }
   try {
     const wrap = element.closest?.(".plyr");
     if (wrap) wrap.style.display = "block";
@@ -825,6 +844,11 @@ function playItem(item, opts) {
     resetMediaEl(audio);
     audio.src = streamUrl(item.id);
     audio.style.display = "block";
+    
+    // Ensure event listener is attached even if DOM or Plyr changes
+    audio.removeEventListener("ended", onAudioEnded);
+    audio.addEventListener("ended", onAudioEnded);
+
     applyPlyr(audio);
     try { audio.load(); } catch {}
 
@@ -1081,17 +1105,6 @@ function bindUI() {
     lastSaveAt = now;
     try { localStorage.setItem(LS.audioLastID, state.current.id); } catch {}
     try { localStorage.setItem(LS.audioLastTime, String(Math.max(0, audio.currentTime || 0))); } catch {}
-  });
-
-  audio.addEventListener("ended", () => {
-    if (!state.current || state.current.kind !== "audio") return;
-    if (state.playlist.kind !== "audio") return;
-    if (state.playlist.index < 0) return;
-    if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
-      if (state.playlist.loop) playAtIndex(0, true);
-      return;
-    }
-    playAtIndex(state.playlist.index + 1, true);
   });
 
   const video = el("videoEl");
