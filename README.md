@@ -7,12 +7,6 @@
 
 一个用于局域网内“共享目录 + 浏览器预览播放”的小工具：后端用 Go 提供文件索引与流式读取接口，前端用纯静态页面实现视频/音频/图片预览与播放列表。
 
-<div align="center">
-
-**Keywords**: `golang` `media-server` `file-sharing` `plyr` `streaming` `local-network`
-
-</div>
-
 ## 功能概览
 
 - 局域网访问：自动显示本机可访问 URL（含局域网 IP）
