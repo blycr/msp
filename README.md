@@ -66,8 +66,6 @@
 
 - **运行时配置**：`config.json`（请使用 `config.example.json` 复制修改）
 - **IDE/编辑器配置**：`.trae`, `.vscode`, `.idea` 等
-- **部署/平台配置**：`.vercel`, `vercel.json` 等
-- **本地文档/草稿**：`docs/`
 
 ## 编码兼容性说明
 

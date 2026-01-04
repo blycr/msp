@@ -20,13 +20,6 @@ scripts/build.log
 *.test
 *.out
 
-# Node / frontend
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
 # Runtime config (contains local paths)
 config.json
 !config.example.json
@@ -39,7 +32,4 @@ config.*.local.json
 
 # Private / Local Project Configs
 .trae/
-.vercel/
-vercel.json
-.vercelignore
-docs/
+
