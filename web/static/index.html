@@ -10,31 +10,32 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar__title">MSP 媒体分享预览</div>
+    <div class="topbar__title" data-i18n="title">MSP Media Share</div>
     <div class="topbar__meta" id="meta"></div>
-    <button class="theme-btn" id="themeBtn" title="切换主题">🌞</button>
-    <button class="btn btn--ghost" id="btnSettings">共享目录设置</button>
-    <button class="btn btn--ghost" id="btnRefresh">刷新</button>
+    <button class="theme-btn" id="langBtn" title="Language" style="margin-right: 4px; font-size: 14px; font-weight: bold;">EN</button>
+    <button class="theme-btn" id="themeBtn" title="Switch Theme">🌞</button>
+    <button class="btn btn--ghost" id="btnSettings" data-i18n="settings">Settings</button>
+    <button class="btn btn--ghost" id="btnRefresh" data-i18n="refresh">Refresh</button>
   </header>
 
   <main class="layout">
     <aside class="panel sidebar">
       <div class="tabs" role="tablist">
-        <button class="tab tab--active" data-tab="video">视频</button>
-        <button class="tab" data-tab="audio">音频</button>
-        <button class="tab" data-tab="image">图片</button>
-        <button class="tab" data-tab="other" id="tabOther" hidden>其他</button>
+        <button class="tab tab--active" data-tab="video" data-i18n="tab_video">Video</button>
+        <button class="tab" data-tab="audio" data-i18n="tab_audio">Audio</button>
+        <button class="tab" data-tab="image" data-i18n="tab_image">Image</button>
+        <button class="tab" data-tab="other" id="tabOther" hidden data-i18n="tab_other">Other</button>
       </div>
 
       <div class="search">
-        <input class="textfield" id="q" placeholder="搜索文件名 (支持拼音/正则/模糊)…" />
+        <input class="textfield" id="q" placeholder="Search..." data-i18n-ph="search_ph" />
         <div class="row" style="margin-top: 8px;">
           <select class="textfield" id="sortField" style="flex: 1;">
-            <option value="name">按名称排序</option>
-            <option value="size">按大小排序</option>
-            <option value="date">按时间排序</option>
+            <option value="name" data-i18n="sort_name">Name</option>
+            <option value="size" data-i18n="sort_size">Size</option>
+            <option value="date" data-i18n="sort_date">Date</option>
           </select>
-          <button class="btn btn--ghost" id="sortOrder" title="切换正序/倒序" style="padding: 8px 12px;">⬇️</button>
+          <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order" style="padding: 8px 12px;">⬇️</button>
         </div>
       </div>
 
@@ -44,23 +45,23 @@
 
     <section class="panel stage">
       <div class="now">
-        <div class="now__title" id="previewTitle">未选择</div>
+        <div class="now__title" id="previewTitle" data-i18n="preview_none">No Selection</div>
         <div class="now__sub" id="previewSub"></div>
         <div class="now__actions">
-          <button class="btn btn--ghost" id="btnPrev" disabled>上一个</button>
-          <button class="btn btn--ghost" id="btnNext" disabled>下一个</button>
+          <button class="btn btn--ghost" id="btnPrev" disabled data-i18n="prev">Prev</button>
+          <button class="btn btn--ghost" id="btnNext" disabled data-i18n="next">Next</button>
           <div class="row" id="shuffleWrap" hidden>
             <label class="toggle">
               <input type="checkbox" id="toggleShuffle" />
-              <span>随机</span>
+              <span data-i18n="shuffle">Shuffle</span>
             </label>
             <label class="toggle">
               <input type="checkbox" id="toggleLoop" />
-              <span>循环</span>
+              <span data-i18n="loop">Loop</span>
             </label>
           </div>
-          <button class="btn" id="btnOpenRaw" disabled>在新标签打开</button>
-          <button class="btn btn--ghost" id="btnToggleFit" disabled hidden>填充模式：适配</button>
+          <button class="btn" id="btnOpenRaw" disabled data-i18n="open_raw">Open Raw</button>
+          <button class="btn btn--ghost" id="btnToggleFit" disabled hidden data-i18n="fit_mode">Fit Mode: Adapt</button>
         </div>
       </div>
 
@@ -72,64 +73,61 @@
           <div class="lyrics" id="lyrics"></div>
         </div>
         <img id="imgEl" alt="" />
-        <div class="empty" id="emptyEl">从左侧选择一个媒体文件进行预览</div>
+        <div class="empty" id="emptyEl" data-i18n="empty_tip">Select a file to preview</div>
       </div>
     </section>
 
     <aside class="panel playlist" id="playlistPanel">
-      <div class="playlist__title">播放列表</div>
-      <div class="playlist__meta" id="plMeta">未加载</div>
+      <div class="playlist__title" data-i18n="playlist">Playlist</div>
+      <div class="playlist__meta" id="plMeta" data-i18n="not_loaded">Not Loaded</div>
       <div class="playlist__body" id="plList"></div>
     </aside>
   </main>
 
   <footer class="footer">
-    <p>&copy; 2026 MSP. A simple media server for personal use. <a href="https://github.com/blycr/msp" target="_blank">GitHub Repository</a></p>
+    <p>&copy; 2026 MSP. <span data-i18n="footer_text">A simple media server for personal use.</span> <a href="https://github.com/blycr/msp" target="_blank">GitHub Repository</a></p>
   </footer>
 
   <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
   <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog">
-    <div class="dialog__title">共享目录设置</div>
+    <div class="dialog__title" data-i18n="dlg_title">Share Settings</div>
     <div class="dialog__body">
       <div class="row">
-        <input class="textfield" id="sharePath" placeholder="例如：D:\Media 或 D:/Media（会自动兼容斜杠）" />
+        <input class="textfield" id="sharePath" placeholder="e.g. D:\Media" data-i18n-ph="path_ph" />
       </div>
       <div class="row">
-        <input class="textfield" id="shareLabel" placeholder="别名（可选）" />
-        <button class="btn" id="btnAddShare">添加</button>
+        <input class="textfield" id="shareLabel" placeholder="Alias (Optional)" data-i18n-ph="label_ph" />
+        <button class="btn" id="btnAddShare" data-i18n="add">Add</button>
       </div>
 
       <div class="sharelist" id="shareList"></div>
 
-      <div class="dialog__subtitle" style="margin-top: 1rem; font-weight: bold; margin-bottom: 0.5rem;">文件黑名单设置</div>
+      <div class="dialog__subtitle" style="margin-top: 1rem; font-weight: bold; margin-bottom: 0.5rem;" data-i18n="bl_title">Blacklist Settings</div>
       <div class="row">
-        <input class="textfield" id="blExts" placeholder="屏蔽扩展名 (如 .log, .txt; 支持正则 /log$/)" />
+        <input class="textfield" id="blExts" placeholder="Block Exts" data-i18n-ph="bl_exts_ph" />
       </div>
       <div class="row">
-        <input class="textfield" id="blFiles" placeholder="屏蔽文件名 (如 thumb.db; 支持正则 /^tmp_/)" />
+        <input class="textfield" id="blFiles" placeholder="Block Files" data-i18n-ph="bl_files_ph" />
       </div>
       <div class="row">
-        <input class="textfield" id="blFolders" placeholder="屏蔽文件夹 (如 $RECYCLE.BIN; 支持正则 /^\./)" />
+        <input class="textfield" id="blFolders" placeholder="Block Folders" data-i18n-ph="bl_folders_ph" />
       </div>
       <div class="row">
-        <input class="textfield" id="blMinSize" type="text" placeholder="大小屏蔽 (如: >100MB, 10KB-1MB, 500B)" />
+        <input class="textfield" id="blMinSize" type="text" placeholder="Block Size" data-i18n-ph="bl_size_ph" />
       </div>
-      <div class="dialog__note" style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;">
-        用法提示：<br>
-        1. <strong>正则匹配</strong>：使用 <code>/</code> 包裹，如 <code>/^tmp_/</code> 匹配以 tmp_ 开头的文件。<br>
-        2. <strong>大小范围</strong>：支持 <code>10MB-1GB</code>, <code>>500MB</code>, <code>&lt;1KB</code>。<br>
-        3. <strong>单位支持</strong>：B, KB, MB, GB, TB (不区分大小写)。
+      <div class="dialog__note" style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;" id="blHint">
+        Usage:<br>1. Regex...
       </div>
       <div class="row">
-        <button class="btn" id="btnSaveBlacklist">保存黑名单设置</button>
+        <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Blacklist</button>
       </div>
 
-      <div class="small">
-        提示：网页无法直接弹出 Windows 文件夹选择器（受浏览器安全限制），请手动输入路径。
+      <div class="small" data-i18n="dlg_note">
+        Note: Web cannot open folder picker due to security limits. Please input path manually.
       </div>
     </div>
     <div class="dialog__actions">
-      <button class="btn btn--ghost" id="btnCloseDlg">关闭</button>
+      <button class="btn btn--ghost" id="btnCloseDlg" data-i18n="close">Close</button>
     </div>
   </section>
 
