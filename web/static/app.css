@@ -314,7 +314,7 @@ body {
 }
 
 .playerbox{
-  border:1px dashed var(--md-border);
+  border:none;
   border-radius:14px;
   padding:12px;
   background:var(--md-surface);
