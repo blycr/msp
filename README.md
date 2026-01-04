@@ -77,3 +77,14 @@
 
 - 仅会对 `shares` 中配置的目录开放访问；不在共享目录内的文件会被拒绝。
 - 建议仅在可信局域网内使用，不建议直接暴露到公网。
+
+## 开源许可
+
+本项目采用 [MIT License](LICENSE) 开源。
+
+## 致谢
+
+本项目使用或参考了以下开源项目，感谢开发者的无私奉献：
+
+- [Plyr](https://github.com/sampotts/plyr) - A simple, accessible and customizable media player for Video, Audio, YouTube and Vimeo
+
