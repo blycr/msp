@@ -25,7 +25,11 @@
 
 ## 配置（config.json）
 
-仓库内的 `config.json` 已做脱敏处理：`shares` 默认为空。你可以通过网页中的“共享目录设置”添加共享目录，程序会自动写回 `config.json`。
+`config.json` 是运行时配置文件（包含你本机的共享目录绝对路径），因此不建议提交到仓库。
+
+- 首次运行：如果当前目录不存在 `config.json`，程序会自动生成一个默认配置
+- 配置共享目录：通过网页中的“共享目录设置”添加/移除共享目录，程序会自动写回 `config.json`
+- 配置示例：可参考仓库内的 `config.example.json`
 
 关键字段：
 
@@ -43,6 +47,12 @@
 ```
 
 构建完成后生成 `msp.exe`（已在 `.gitignore` 中忽略，不会提交到仓库）。
+
+## 项目结构
+
+- `cmd/msp`：可执行入口
+- `web/static`：前端静态资源（`index.html`、`app.js`、`app.css`、`assets/...`），由 Go 通过 embed 内置
+- `scripts`：构建脚本
 
 ## 编码兼容性说明
 

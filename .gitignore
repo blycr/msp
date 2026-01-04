@@ -13,6 +13,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Build artifacts
+scripts/build.log
+
 # Go build cache / outputs
 *.test
 *.out
@@ -24,6 +27,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Local config overrides (keep config.json sanitized in repo)
+# Runtime config (contains local paths)
+config.json
+!config.example.json
 config.local.json
 config.*.local.json
+
+# Temp / backup
+*.tmp
+*.bak

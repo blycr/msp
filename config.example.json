@@ -1,19 +1,6 @@
 {
   "port": 8099,
-  "shares": [
-    {
-      "label": "Videos",
-      "path": "C:\\Users\\blycr\\Videos"
-    },
-    {
-      "label": "Music",
-      "path": "D:\\Music"
-    },
-    {
-      "label": "431960",
-      "path": "D:\\SteamLibrary\\steamapps\\workshop\\content\\431960"
-    }
-  ],
+  "shares": [],
   "features": {
     "speed": true,
     "speedOptions": [
@@ -49,3 +36,4 @@
     }
   }
 }
+

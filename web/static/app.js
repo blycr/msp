@@ -33,6 +33,13 @@ const LS = {
   audioLoop: "msp.audio.loop",
 };
 
+function setFitBtnVisible(visible) {
+  const btn = el("btnToggleFit");
+  if (!btn) return;
+  btn.hidden = !visible;
+  if (!visible) btn.disabled = true;
+}
+
 document.addEventListener("fullscreenchange", () => {
   const isFull = !!document.fullscreenElement;
   document.documentElement.style.overflow = isFull ? "hidden" : "";
@@ -752,6 +759,8 @@ function playItem(item, opts) {
   state.current = item;
   updateNavLabels();
 
+  setFitBtnVisible(state.tab === "video" && item.kind === "video");
+
   el("previewTitle").textContent = item.name || "";
   state.currentMetaBase = `${item.shareLabel || ""} · ${(item.ext || "").toUpperCase()} · ${formatBytes(item.size)} · ${formatTime(item.modTime)}`;
   el("previewSub").textContent = state.currentMetaBase;
@@ -878,6 +887,7 @@ function playItem(item, opts) {
     video.style.display = "block";
     try {
       const fitBtn = el("btnToggleFit");
+      fitBtn.hidden = false;
       fitBtn.disabled = false;
       const fit = video.dataset.fit || "contain";
       fitBtn.textContent = fit === "cover" ? "填充模式：铺满" : "填充模式：适配";
@@ -1004,6 +1014,16 @@ function bindUI() {
       t.classList.add("tab--active");
       state.tab = t.getAttribute("data-tab");
       renderList();
+      setFitBtnVisible(state.tab === "video" && state.current?.kind === "video");
+      if (state.tab === "video" && state.current?.kind === "video") {
+        try {
+          const v = el("videoEl");
+          const fitBtn = el("btnToggleFit");
+          fitBtn.disabled = false;
+          const fit = v?.dataset?.fit || "contain";
+          fitBtn.textContent = fit === "cover" ? "填充模式：铺满" : "填充模式：适配";
+        } catch {}
+      }
     });
   }
 
@@ -1013,6 +1033,7 @@ function bindUI() {
   el("btnPrev").disabled = true;
   el("btnNext").disabled = true;
   el("previewSub").textContent = "";
+  setFitBtnVisible(false);
 
   el("btnPrev").addEventListener("click", () => {
     if (state.playlist.index > 0) playAtIndex(state.playlist.index - 1, true, true);
