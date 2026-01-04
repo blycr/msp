@@ -165,6 +165,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	webRoot, err := fs.Sub(webassets.FS, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/favicon.ico", http.NotFoundHandler())
 
@@ -177,7 +182,7 @@ func main() {
 	mux.Handle("/api/ip", http.HandlerFunc(s.handleIP))
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serveEmbeddedWeb(w, r, webassets.FS)
+		serveEmbeddedWeb(w, r, webRoot)
 	}))
 
 	port := s.getPort()
