@@ -17,6 +17,10 @@ const state = {
     shuffle: false,
     loop: false,
   },
+  sort: {
+    field: "name",
+    order: 1, // 1 for asc, -1 for desc
+  },
 };
 
 const kinds = {
@@ -373,6 +377,58 @@ function updateNavLabels() {
   if (nextBtn) nextBtn.textContent = next;
 }
 
+function getSortVal(item, field) {
+  if (field === "size") return item.size || 0;
+  if (field === "date") return item.modTime || 0;
+  return String(item.name || "").toLowerCase();
+}
+
+function sortFiles(list) {
+  const field = state.sort?.field || "name";
+  const order = state.sort?.order || 1;
+  return list.sort((a, b) => {
+    const va = getSortVal(a, field);
+    const vb = getSortVal(b, field);
+    if (va < vb) return -1 * order;
+    if (va > vb) return 1 * order;
+    return 0;
+  });
+}
+
+function filterFiles(list) {
+  const q = (state.q || "").trim();
+  if (!q) return list;
+
+  // Regex search
+  if (q.startsWith("/") && q.length > 2) {
+    // Check if it ends with / or has flags
+    const match = q.match(/^\/(.+)\/([a-z]*)$/);
+    if (match) {
+      try {
+        const re = new RegExp(match[1], match[2] || "i");
+        return list.filter(x => re.test(x.name));
+      } catch {}
+    }
+  }
+
+  // Pinyin/Fuzzy search
+  const { pinyinPro } = window;
+  if (pinyinPro) {
+    return list.filter(x => {
+      const name = x.name || "";
+      // Check pinyin match
+      const m = pinyinPro.match(name, q);
+      if (m) return true;
+      // Fallback to standard include
+      return name.toLowerCase().includes(q.toLowerCase()) || (x.shareLabel || "").toLowerCase().includes(q.toLowerCase());
+    });
+  }
+
+  // Fallback simple search
+  const lower = q.toLowerCase();
+  return list.filter(x => (x.name || "").toLowerCase().includes(lower) || (x.shareLabel || "").toLowerCase().includes(lower));
+}
+
 function renderList() {
   const box = el("list");
   const hint = el("hint");
@@ -383,16 +439,13 @@ function renderList() {
     return;
   }
 
-  const list = currentList();
-  const q = (state.q || "").trim().toLowerCase();
+  let list = currentList();
+  list = filterFiles(list);
+  list = sortFiles(list);
 
-  const filtered = q
-    ? list.filter(x => (x.name || "").toLowerCase().includes(q) || (x.shareLabel || "").toLowerCase().includes(q))
-    : list;
+  hint.textContent = `当前分类：${kinds[state.tab] || state.tab}，共 ${list.length} 个`;
 
-  hint.textContent = `当前分类：${kinds[state.tab] || state.tab}，共 ${filtered.length} 个`;
-
-  for (const item of filtered) {
+  for (const item of list) {
     const row = document.createElement("div");
     row.className = "item";
     row.addEventListener("click", () => playItem(item, { user: true, autoplay: true }));

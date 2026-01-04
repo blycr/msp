@@ -576,6 +576,9 @@ body {
   color:var(--md-text);
 }
 
+/* Dialog overrides */
+[hidden] { display: none !important; }
+
 .dialog__backdrop{
   position:fixed;
   inset:0;
