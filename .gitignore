@@ -6,15 +6,23 @@
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+msp.log
 
 # OS / Editor
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # Build artifacts
 scripts/build.log
+bin/
+dist/
 
 # Go build cache / outputs
 *.test
@@ -25,6 +33,8 @@ config.json
 !config.example.json
 config.local.json
 config.*.local.json
+.env
+.env.local
 
 # Temp / backup
 *.tmp
@@ -36,3 +46,7 @@ vercel.json
 docs/
 .vercel/
 
+# Dependencies
+node_modules/
+vendor/
+wiki_temp/
