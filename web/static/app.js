@@ -696,12 +696,12 @@ function renderPlaylist() {
 
   const items = state.playlist.items || [];
   if (!items.length) {
-    meta.textContent = "未加载";
+    meta.textContent = t("not_loaded");
     return;
   }
 
   const kind = state.playlist.kind || "";
-  meta.textContent = `${kinds[kind] || kind} · ${items.length} 项`;
+  meta.textContent = `${t("kind_" + kind) || kind} · ${t("item_count", "", items.length).replace(" · ", "")}`;
 
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
@@ -1255,7 +1255,7 @@ function playItem(item, opts) {
     return;
   }
 
-  el("emptyEl").textContent = "该文件类型暂不支持预览（可用“在新标签打开”下载/查看）。";
+  el("emptyEl").textContent = t("err_unsupported");
   el("emptyEl").style.display = "block";
 }
 
