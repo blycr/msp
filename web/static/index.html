@@ -27,7 +27,15 @@
       </div>
 
       <div class="search">
-        <input class="textfield" id="q" placeholder="搜索文件名…" />
+        <input class="textfield" id="q" placeholder="搜索文件名 (支持拼音/正则/模糊)…" />
+        <div class="row" style="margin-top: 8px;">
+          <select class="textfield" id="sortField" style="flex: 1;">
+            <option value="name">按名称排序</option>
+            <option value="size">按大小排序</option>
+            <option value="date">按时间排序</option>
+          </select>
+          <button class="btn btn--ghost" id="sortOrder" title="切换正序/倒序" style="padding: 8px 12px;">⬇️</button>
+        </div>
       </div>
 
       <div class="list__body" id="list"></div>

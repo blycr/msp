@@ -1090,6 +1090,17 @@ function bindUI() {
     renderList();
   });
 
+  el("sortField").addEventListener("change", (ev) => {
+    state.sort.field = ev.target.value;
+    renderList();
+  });
+
+  el("sortOrder").addEventListener("click", () => {
+    state.sort.order *= -1;
+    el("sortOrder").textContent = state.sort.order === 1 ? "⬇️" : "⬆️";
+    renderList();
+  });
+
   const tabs = Array.from(document.querySelectorAll(".tab"));
   for (const t of tabs) {
     t.addEventListener("click", () => {
