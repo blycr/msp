@@ -1,0 +1,38 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build -o msp.exe ./cmd/msp
+
+      - name: SHA256
+        run: |
+          $h = (Get-FileHash -Algorithm SHA256 .\msp.exe).Hash.ToLower()
+          "$h  msp.exe" | Out-File -FilePath .\msp.exe.sha256 -Encoding ascii
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: docs/release/${{ github.ref_name }}.md
+          files: |
+            msp.exe
+            msp.exe.sha256

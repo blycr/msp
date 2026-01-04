@@ -1,0 +1,14 @@
+# Changelog
+
+## 0.2.0
+
+- 修复：PC 端 Plyr 全屏视频四周黑边（支持 cover/contain 切换）
+- 修复：`/api/stream` 为常见媒体类型返回更稳定的 `Content-Type`
+- 改进：前端静态资源统一收敛到 `web/static`，embed 逻辑更清晰
+- 改进：`config.json` 作为本机运行时配置不再提交；提供 `config.example.json`
+- 改进：非视频页面隐藏“填充模式”按钮，交互更一致
+
+## 0.1.0
+
+- 初版：局域网媒体共享与浏览器预览播放
+

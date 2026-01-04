@@ -53,6 +53,7 @@
 - `cmd/msp`：可执行入口
 - `web/static`：前端静态资源（`index.html`、`app.js`、`app.css`、`assets/...`），由 Go 通过 embed 内置
 - `scripts`：构建脚本
+- `CHANGELOG.md`：版本变更记录
 
 ## 编码兼容性说明
 
