@@ -40,11 +40,18 @@
         <div class="now__actions">
           <button class="btn btn--ghost" id="btnPrev" disabled>上一个</button>
           <button class="btn btn--ghost" id="btnNext" disabled>下一个</button>
-          <label class="toggle" id="shuffleWrap" hidden>
-            <input type="checkbox" id="toggleShuffle" />
-            <span>随机</span>
-          </label>
+          <div class="row" id="shuffleWrap" hidden>
+            <label class="toggle">
+              <input type="checkbox" id="toggleShuffle" />
+              <span>随机</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="toggleLoop" />
+              <span>循环</span>
+            </label>
+          </div>
           <button class="btn" id="btnOpenRaw" disabled>在新标签打开</button>
+          <button class="btn btn--ghost" id="btnToggleFit" disabled>填充模式：适配</button>
         </div>
       </div>
 
@@ -80,6 +87,23 @@
       </div>
 
       <div class="sharelist" id="shareList"></div>
+
+      <div class="dialog__subtitle" style="margin-top: 1rem; font-weight: bold; margin-bottom: 0.5rem;">文件黑名单设置</div>
+      <div class="row">
+        <input class="textfield" id="blExts" placeholder="屏蔽扩展名 (逗号分隔，如 .log, .txt)" />
+      </div>
+      <div class="row">
+        <input class="textfield" id="blFiles" placeholder="屏蔽文件名 (逗号分隔，如 thumb.db)" />
+      </div>
+      <div class="row">
+        <input class="textfield" id="blFolders" placeholder="屏蔽文件夹 (逗号分隔，如 $RECYCLE.BIN)" />
+      </div>
+      <div class="row">
+        <input class="textfield" id="blMinSize" type="number" placeholder="屏蔽小于此大小的文件 (字节，0为不屏蔽)" />
+      </div>
+      <div class="row">
+        <button class="btn" id="btnSaveBlacklist">保存黑名单设置</button>
+      </div>
 
       <div class="small">
         提示：网页无法直接弹出 Windows 文件夹选择器（受浏览器安全限制），请手动输入路径。

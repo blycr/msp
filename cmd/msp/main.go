@@ -65,12 +65,20 @@ type PlaybackConfig struct {
 	Image PlaybackImageConfig `json:"image"`
 }
 
+type BlacklistConfig struct {
+	Extensions []string `json:"extensions"`
+	Filenames  []string `json:"filenames"`
+	Folders    []string `json:"folders"`
+	MinSize    int64    `json:"minSize"`
+}
+
 type Config struct {
-	Port     int            `json:"port"`
-	Shares   []Share        `json:"shares"`
-	Features Features       `json:"features"`
-	UI       UIConfig       `json:"ui"`
-	Playback PlaybackConfig `json:"playback"`
+	Port      int             `json:"port"`
+	Shares    []Share         `json:"shares"`
+	Features  Features        `json:"features"`
+	UI        UIConfig        `json:"ui"`
+	Playback  PlaybackConfig  `json:"playback"`
+	Blacklist BlacklistConfig `json:"blacklist"`
 }
 
 type Subtitle struct {
@@ -522,10 +530,11 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.RLock()
 	shares := append([]Share(nil), s.cfg.Shares...)
+	blacklist := s.cfg.Blacklist
 	s.mu.RUnlock()
 
 	refresh := r.URL.Query().Get("refresh") == "1"
-	resp, etag := s.getOrBuildMediaCache(shares, refresh)
+	resp, etag := s.getOrBuildMediaCache(shares, blacklist, refresh)
 	if etag != "" {
 		w.Header().Set("ETag", etag)
 		if !refresh && strings.TrimSpace(r.Header.Get("If-None-Match")) == etag {
@@ -545,7 +554,7 @@ func (s *Server) invalidateMediaCache() {
 	s.mediaMu.Unlock()
 }
 
-func (s *Server) getOrBuildMediaCache(shares []Share, refresh bool) (MediaResponse, string) {
+func (s *Server) getOrBuildMediaCache(shares []Share, blacklist BlacklistConfig, refresh bool) (MediaResponse, string) {
 	key := sharesCacheKey(shares)
 
 	for {
@@ -565,7 +574,7 @@ func (s *Server) getOrBuildMediaCache(shares []Share, refresh bool) (MediaRespon
 		s.mediaBuilding = true
 		s.mediaMu.Unlock()
 
-		resp := buildMediaResponse(shares)
+		resp := buildMediaResponse(shares, blacklist)
 		builtAt := time.Now()
 		etag := weakETag(key, builtAt)
 
@@ -612,7 +621,7 @@ func weakETag(key string, builtAt time.Time) string {
 	return `W/"` + u64Base36(h.Sum64()) + `"`
 }
 
-func buildMediaResponse(shares []Share) MediaResponse {
+func buildMediaResponse(shares []Share, blacklist BlacklistConfig) MediaResponse {
 	resp := MediaResponse{
 		Shares: shares,
 		Videos: []MediaItem{},
@@ -647,10 +656,19 @@ func buildMediaResponse(shares []Share) MediaResponse {
 				if strings.HasPrefix(name, ".") {
 					return fs.SkipDir
 				}
+				if containsString(blacklist.Folders, name) {
+					return fs.SkipDir
+				}
 				return nil
 			}
 			ext := strings.ToLower(filepath.Ext(d.Name()))
 			if ext == "" {
+				return nil
+			}
+			if containsString(blacklist.Extensions, ext) {
+				return nil
+			}
+			if containsString(blacklist.Filenames, d.Name()) {
 				return nil
 			}
 			if isSubtitleExt(ext) || isLyricsExt(ext) {
@@ -659,6 +677,10 @@ func buildMediaResponse(shares []Share) MediaResponse {
 
 			fi, statErr := d.Info()
 			if statErr != nil {
+				return nil
+			}
+
+			if blacklist.MinSize > 0 && fi.Size() < blacklist.MinSize {
 				return nil
 			}
 
@@ -714,6 +736,15 @@ func buildMediaResponse(shares []Share) MediaResponse {
 		}
 	}
 	return resp
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func isLyricsExt(ext string) bool {
@@ -797,16 +828,31 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(st.Name()))
-	ct := mime.TypeByExtension(ext)
+	var ct string
+	switch ext {
+	case ".mp4", ".m4v":
+		ct = "video/mp4"
+	case ".mkv":
+		ct = "video/x-matroska"
+	case ".webm":
+		ct = "video/webm"
+	case ".avi":
+		ct = "video/x-msvideo"
+	case ".mov":
+		ct = "video/quicktime"
+	case ".ts":
+		ct = "video/mp2t"
+	case ".vtt":
+		ct = "text/vtt; charset=utf-8"
+	case ".srt", ".lrc":
+		ct = "text/plain; charset=utf-8"
+	}
+
 	if ct == "" {
-		switch ext {
-		case ".vtt":
-			ct = "text/vtt; charset=utf-8"
-		case ".srt", ".lrc":
-			ct = "text/plain; charset=utf-8"
-		default:
-			ct = "application/octet-stream"
-		}
+		ct = mime.TypeByExtension(ext)
+	}
+	if ct == "" {
+		ct = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")

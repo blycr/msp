@@ -15,6 +15,7 @@ const state = {
     items: [],
     index: -1,
     shuffle: false,
+    loop: false,
   },
 };
 
@@ -29,7 +30,17 @@ const LS = {
   audioLastID: "msp.audio.lastId",
   audioLastTime: "msp.audio.lastTime",
   audioShuffle: "msp.audio.shuffle",
+  audioLoop: "msp.audio.loop",
 };
+
+document.addEventListener("fullscreenchange", () => {
+  const isFull = !!document.fullscreenElement;
+  document.documentElement.style.overflow = isFull ? "hidden" : "";
+  try {
+    const el = document.fullscreenElement;
+    console.log(el && (el.id || el.className || el.tagName));
+  } catch {}
+});
 
 function formatBytes(n) {
   if (!Number.isFinite(n)) return "";
@@ -160,6 +171,12 @@ async function loadConfig() {
   setMeta(urls ? `可用地址：${urls}` : "未检测到局域网 IP（仍可用 127.0.0.1 访问）");
   applyConfigToUI();
   renderShares();
+
+  const bl = state.config.blacklist || {};
+  el("blExts").value = (bl.extensions || []).join(", ");
+  el("blFiles").value = (bl.filenames || []).join(", ");
+  el("blFolders").value = (bl.folders || []).join(", ");
+  el("blMinSize").value = bl.minSize || "";
 }
 
 async function loadMedia(refresh) {
@@ -208,6 +225,15 @@ function applyConfigToUI() {
   state.playlist.shuffle = shuffle;
   const t = el("toggleShuffle");
   if (t) t.checked = shuffle;
+
+  let loop = false;
+  try {
+    const saved = localStorage.getItem(LS.audioLoop);
+    loop = saved === "1";
+  } catch {}
+  state.playlist.loop = loop;
+  const tl = el("toggleLoop");
+  if (tl) tl.checked = loop;
 
   const tabs = Array.from(document.querySelectorAll(".tab"));
   for (const x of tabs) x.classList.toggle("tab--active", x.getAttribute("data-tab") === state.tab);
@@ -297,7 +323,7 @@ function renderList() {
   for (const item of filtered) {
     const row = document.createElement("div");
     row.className = "item";
-    row.addEventListener("click", () => playItem(item, { user: true }));
+    row.addEventListener("click", () => playItem(item, { user: true, autoplay: true }));
 
     const main = document.createElement("div");
     main.className = "item__main";
@@ -408,9 +434,14 @@ function buildVideoPlaylist(item) {
 
   const p = absPathOfItem(item);
   const dir = dirOfAbsPath(p);
+  // Robust check: if dir is empty, ensure we match others with empty dir
   const items = all.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
   items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh"));
-  const index = items.findIndex(x => x.id === item.id);
+  let index = items.findIndex(x => x.id === item.id);
+  if (index < 0 && items.length > 0) {
+    // Fallback: try matching by name/path if ID lookup fails
+    index = items.findIndex(x => absPathOfItem(x) === p);
+  }
   return { items, index };
 }
 
@@ -429,13 +460,14 @@ function buildAudioPlaylist(item) {
 
   const shuffle = !!state.playlist.shuffle;
   if (shuffle) {
-    const rest = items.filter(x => x.id !== item.id);
-    for (let i = rest.length - 1; i > 0; i--) {
+    // Shuffle all items randomly
+    for (let i = items.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [rest[i], rest[j]] = [rest[j], rest[i]];
+      [items[i], items[j]] = [items[j], items[i]];
     }
-    items = [item, ...rest];
-    return { items, index: 0 };
+    // Find the current item in the shuffled list
+    const index = items.findIndex(x => x.id === item.id);
+    return { items, index };
   }
 
   const index = items.findIndex(x => x.id === item.id);
@@ -584,10 +616,30 @@ function applyPlyr(element) {
     opts.captions = { active: true, update: true, language: "auto" };
   }
 
+  opts.fullscreen = { enabled: true, fallback: true };
   state.plyr = new Plyr(element, opts);
   try {
     const wrap = element.closest?.(".plyr");
     if (wrap) wrap.style.display = "block";
+  } catch {}
+  try {
+    if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
+      state.plyr.on("enterfullscreen", () => {
+        try { element.dataset.fit = "cover"; } catch {}
+        try { console.log(document.fullscreenElement); } catch {}
+        try {
+          const fitBtn = el("btnToggleFit");
+          fitBtn.textContent = "填充模式：铺满";
+        } catch {}
+      });
+      state.plyr.on("exitfullscreen", () => {
+        try { element.dataset.fit = "contain"; } catch {}
+        try {
+          const fitBtn = el("btnToggleFit");
+          fitBtn.textContent = "填充模式：适配";
+        } catch {}
+      });
+    }
   } catch {}
   window.plyrPlayer = state.plyr;
   window.callPlyr = (method, ...args) => {
@@ -666,7 +718,7 @@ function renderLyrics(lines) {
   box.appendChild(frag);
 }
 
-function updateLyricsByTime(t) {
+function updateLyricsByTime(t, force) {
   const lines = state.lyrics?.lines || [];
   if (lines.length === 0) return;
   const box = el("lyrics");
@@ -678,7 +730,7 @@ function updateLyricsByTime(t) {
     if (lines[i].t <= t + 0.05) idx = i;
     else break;
   }
-  if (state.lyrics?.activeIndex === idx) return;
+  if (!force && state.lyrics?.activeIndex === idx) return;
   state.lyrics.activeIndex = idx;
 
   for (let i = 0; i < nodes.length; i++) {
@@ -767,6 +819,15 @@ function playItem(item, opts) {
     applyPlyr(audio);
     try { audio.load(); } catch {}
 
+    // Re-bind lyrics sync events to ensure they work for every song
+    const onTimeUpdate = (ev) => {
+      if (!state.current || state.current.kind !== "audio") return;
+      if (!state.lyrics) return;
+      updateLyricsByTime(audio.currentTime || 0, ev.type === "seeked");
+    };
+    audio.ontimeupdate = onTimeUpdate;
+    audio.onseeked = onTimeUpdate;
+
     const meta = el("audioMeta");
     const cover = el("audioCover");
     cover.removeAttribute("src");
@@ -790,13 +851,17 @@ function playItem(item, opts) {
           const lines = parseLrc(txt);
           state.lyrics = { lines, activeIndex: -1 };
           renderLyrics(lines);
-          updateLyricsByTime(audio.currentTime || 0);
+          requestAnimationFrame(() => updateLyricsByTime(audio.currentTime || 0, true));
         })
         .catch(() => {});
     }
 
     if (options.autoplay) {
-      audio.play().catch(() => {});
+      if (state.plyr) {
+        state.plyr.once("ready", () => state.plyr.play().catch(() => {}));
+      } else {
+        audio.play().catch(() => {});
+      }
     }
     return;
   }
@@ -811,11 +876,21 @@ function playItem(item, opts) {
     video.src = streamUrl(item.id);
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
+    try {
+      const fitBtn = el("btnToggleFit");
+      fitBtn.disabled = false;
+      const fit = video.dataset.fit || "contain";
+      fitBtn.textContent = fit === "cover" ? "填充模式：铺满" : "填充模式：适配";
+    } catch {}
     applyPlyr(video);
     try { video.load(); } catch {}
 
     if (options.autoplay) {
-      video.play().catch(() => {});
+      if (state.plyr) {
+        state.plyr.once("ready", () => state.plyr.play().catch(() => {}));
+      } else {
+        video.play().catch(() => {});
+      }
     }
     return;
   }
@@ -899,6 +974,24 @@ function bindUI() {
     }
   });
 
+  el("btnSaveBlacklist").addEventListener("click", async () => {
+    const bl = state.config.blacklist || {};
+    bl.extensions = el("blExts").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    bl.filenames = el("blFiles").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    bl.folders = el("blFolders").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    bl.minSize = parseInt(el("blMinSize").value || "0", 10);
+    state.config.blacklist = bl;
+
+    try {
+      const data = await apiPost("/api/config", state.config);
+      state.config = data.config;
+      alert("黑名单已保存，刷新媒体库后生效。");
+      await loadMedia(true);
+    } catch (e) {
+      alert(String(e?.message || e));
+    }
+  });
+
   el("q").addEventListener("input", (ev) => {
     state.q = ev.target.value || "";
     renderList();
@@ -938,12 +1031,25 @@ function bindUI() {
     }
   });
 
-  const audio = el("audioEl");
-  audio.addEventListener("timeupdate", () => {
-    if (!state.current || state.current.kind !== "audio") return;
-    if (!state.lyrics) return;
-    updateLyricsByTime(audio.currentTime || 0);
+  el("toggleLoop").addEventListener("change", (ev) => {
+    const on = !!ev.target.checked;
+    state.playlist.loop = on;
+    try { localStorage.setItem(LS.audioLoop, on ? "1" : "0"); } catch {}
   });
+  try {
+    const fitBtn = el("btnToggleFit");
+    fitBtn.disabled = true;
+    fitBtn.addEventListener("click", () => {
+      const v = el("videoEl");
+      if (!v) return;
+      const cur = v.dataset.fit || "cover";
+      const next = cur === "cover" ? "contain" : "cover";
+      try { v.dataset.fit = next; } catch {}
+      try { fitBtn.textContent = next === "cover" ? "填充模式：铺满" : "填充模式：适配"; } catch {}
+    });
+  } catch {}
+
+  const audio = el("audioEl");
 
   let lastSaveAt = 0;
   audio.addEventListener("timeupdate", () => {
@@ -960,7 +1066,10 @@ function bindUI() {
     if (!state.current || state.current.kind !== "audio") return;
     if (state.playlist.kind !== "audio") return;
     if (state.playlist.index < 0) return;
-    if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) return;
+    if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
+      if (state.playlist.loop) playAtIndex(0, true);
+      return;
+    }
     playAtIndex(state.playlist.index + 1, true);
   });
 
@@ -995,7 +1104,10 @@ function bindUI() {
     if (!state.current || state.current.kind !== "video") return;
     if (state.playlist.kind !== "video") return;
     if (state.playlist.index < 0) return;
-    if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) return;
+    if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
+      if (state.playlist.loop) playAtIndex(0, true);
+      return;
+    }
     playAtIndex(state.playlist.index + 1, true);
   });
 }

@@ -227,12 +227,68 @@ body{
 .plyr{width:100%}
 .plyr__video-wrapper{width:100%}
 .plyr input[type="range"]{touch-action:pan-x}
-.plyr--fullscreen-active{width:100vw; height:100vh}
-.plyr--fullscreen-active .plyr__video-wrapper{height:100% !important}
-.plyr--fullscreen-active video{width:100% !important; height:100% !important; max-height:none !important; object-fit:contain}
+.plyr:fullscreen,
+.plyr--fullscreen-fallback{
+  width:100vw !important; 
+  height:100vh !important; 
+  max-width:none !important;
+  max-height:none !important;
+  background:#000 !important; 
+  position:fixed !important; 
+  top:0 !important; 
+  left:0 !important; 
+  right:0 !important; 
+  bottom:0 !important;
+  z-index:2147483647 !important;
+  border-radius:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  transform:none !important;
+}
+.plyr:fullscreen .plyr__video-wrapper,
+.plyr--fullscreen-fallback .plyr__video-wrapper{
+  height:100% !important; 
+  width:100% !important; 
+  max-width:none !important;
+  max-height:none !important;
+  background:#000 !important; 
+  padding-bottom:0 !important; 
+  margin:0 !important;
+  transform:none !important;
+  position:absolute !important;
+  top:0 !important;
+  left:0 !important;
+}
+.plyr:fullscreen video,
+.plyr--fullscreen-fallback video{
+  width:100% !important; 
+  height:100% !important; 
+  max-width:none !important; 
+  max-height:none !important; 
+  object-fit:cover !important; 
+  margin:0 !important;
+  padding:0 !important;
+  border:none !important;
+}
 
-#videoEl:fullscreen{max-height:none}
-#videoEl:-webkit-full-screen{max-height:none}
+#videoEl:fullscreen{max-height:none; width:100%; height:100%; object-fit:cover}
+#videoEl:-webkit-full-screen{max-height:none; width:100%; height:100%; object-fit:cover}
+.plyr:fullscreen #videoEl,
+.plyr--fullscreen-fallback #videoEl{
+  max-height:none !important;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.plyr:fullscreen video[data-fit="contain"],
+.plyr--fullscreen-fallback video[data-fit="contain"]{
+  object-fit:contain !important;
+}
+.plyr:fullscreen #videoEl[data-fit="contain"],
+.plyr--fullscreen-fallback #videoEl[data-fit="contain"]{
+  object-fit:contain !important;
+}
 
 .audioMeta{
   width:100%;
@@ -264,6 +320,7 @@ body{
   font-size:14px;
   line-height:1.65;
   white-space:pre-wrap;
+  position:relative; /* Fix scrolling offset */
 }
 
 .ly{
