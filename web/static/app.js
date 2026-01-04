@@ -1,6 +1,157 @@
 const el = (id) => document.getElementById(id);
 
+const I18N = {
+  en: {
+    title: "MSP Media Share",
+    theme: "Switch Theme",
+    settings: "Settings",
+    refresh: "Refresh",
+    tab_video: "Video",
+    tab_audio: "Audio",
+    tab_image: "Image",
+    tab_other: "Other",
+    search_ph: "Search filename (Pinyin/Regex)...",
+    sort_name: "Name",
+    sort_size: "Size",
+    sort_date: "Date",
+    sort_order: "Order",
+    hint_noshare: "Unconfigured. Click 'Settings' to add shares.",
+    preview_none: "No Selection",
+    prev: "Prev",
+    next: "Next",
+    shuffle: "Shuffle",
+    loop: "Loop",
+    open_raw: "Open Raw",
+    fit_mode: "Fit Mode: Adapt",
+    empty_tip: "Select a file to preview",
+    playlist: "Playlist",
+    not_loaded: "Not Loaded",
+    footer_text: "A simple media server for personal use.",
+    dlg_title: "Share Settings",
+    path_ph: "e.g. D:\\Media",
+    label_ph: "Alias (Optional)",
+    add: "Add",
+    bl_title: "Blacklist Settings",
+    bl_exts_ph: "Block Exts (.log; Regex /log$/)",
+    bl_files_ph: "Block Files (thumb.db; Regex /^tmp_/)",
+    bl_folders_ph: "Block Folders ($RECYCLE.BIN; Regex /^\\./)",
+    bl_size_ph: "Block Size (>100MB, 10KB-1MB)",
+    bl_hint: `Usage:<br>1. <strong>Regex</strong>: /pattern/<br>2. <strong>Size</strong>: >100MB, 10MB-1GB<br>3. <strong>Units</strong>: B, KB, MB, GB`,
+    save_bl: "Save Blacklist",
+    dlg_note: "Note: Web cannot open folder picker due to security limits. Please input path manually.",
+    close: "Close",
+    
+    // JS Dynamic
+    kind_video: "Video",
+    kind_audio: "Audio",
+    kind_image: "Image",
+    kind_other: "Other",
+    prev_video: "Prev Video",
+    next_video: "Next Video",
+    prev_image: "Prev Image",
+    next_image: "Next Image",
+    prev_audio: "Prev Audio",
+    next_audio: "Next Audio",
+    prev_item: "Prev Item",
+    next_item: "Next Item",
+    
+    codec_info: " · Codec: ",
+    audio_warn: " · Note: Audio is {0}, browser may not support.",
+    err_aborted: "Aborted",
+    err_network: "Network Error",
+    err_decode: "Decode Failed",
+    err_src: "Source Not Supported",
+    err_unknown: "Unknown Error",
+    
+    meta_urls: "Available: {0}",
+    meta_noip: "No LAN IP detected (127.0.0.1 available)",
+    hint_stats: "Current: {0}, Total {1}",
+    item_count: "{0} · {1} Items",
+  },
+  zh: {
+    title: "MSP 媒体分享预览",
+    theme: "切换主题",
+    settings: "共享目录设置",
+    refresh: "刷新",
+    tab_video: "视频",
+    tab_audio: "音频",
+    tab_image: "图片",
+    tab_other: "其他",
+    search_ph: "搜索文件名 (支持拼音/正则/模糊)…",
+    sort_name: "按名称排序",
+    sort_size: "按大小排序",
+    sort_date: "按时间排序",
+    sort_order: "切换正序/倒序",
+    hint_noshare: "未配置共享目录。点击右上角“共享目录设置”添加。",
+    preview_none: "未选择",
+    prev: "上一个",
+    next: "下一个",
+    shuffle: "随机",
+    loop: "循环",
+    open_raw: "在新标签打开",
+    fit_mode: "填充模式：适配",
+    empty_tip: "从左侧选择一个媒体文件进行预览",
+    playlist: "播放列表",
+    not_loaded: "未加载",
+    footer_text: "MSP. A simple media server for personal use.",
+    dlg_title: "共享目录设置",
+    path_ph: "例如：D:\\Media 或 D:/Media（会自动兼容斜杠）",
+    label_ph: "别名（可选）",
+    add: "添加",
+    bl_title: "文件黑名单设置",
+    bl_exts_ph: "屏蔽扩展名 (如 .log, .txt; 支持正则 /log$/)",
+    bl_files_ph: "屏蔽文件名 (如 thumb.db; 支持正则 /^tmp_/)",
+    bl_folders_ph: "屏蔽文件夹 (如 $RECYCLE.BIN; 支持正则 /^\\./)",
+    bl_size_ph: "大小屏蔽 (如: >100MB, 10KB-1MB, 500B)",
+    bl_hint: `用法提示：<br>1. <strong>正则匹配</strong>：使用 <code>/</code> 包裹<br>2. <strong>大小范围</strong>：支持 <code>10MB-1GB</code>, <code>&gt;500MB</code><br>3. <strong>单位支持</strong>：B, KB, MB, GB, TB`,
+    save_bl: "保存黑名单设置",
+    dlg_note: "提示：网页无法直接弹出 Windows 文件夹选择器（受浏览器安全限制），请手动输入路径。",
+    close: "关闭",
+
+    kind_video: "视频",
+    kind_audio: "音频",
+    kind_image: "图片",
+    kind_other: "其他",
+    prev_video: "上一个视频",
+    next_video: "下一个视频",
+    prev_image: "上一张",
+    next_image: "下一张",
+    prev_audio: "上一首",
+    next_audio: "下一首",
+    prev_item: "上一个",
+    next_item: "下一个",
+    
+    codec_info: " · 编码/容器：",
+    audio_warn: " · 提示：音频为 {0}，浏览器常不支持",
+    err_aborted: "播放被中止",
+    err_network: "网络/读取失败",
+    err_decode: "解码失败（常见于编码不支持）",
+    err_src: "媒体源不支持",
+    err_unknown: "未知错误",
+    
+    meta_urls: "可用地址：{0}",
+    meta_noip: "未检测到局域网 IP（仍可用 127.0.0.1 访问）",
+    hint_stats: "当前分类：{0}，共 {1} 个",
+    item_count: "{0} · {1} 项",
+
+    // New additions
+    fit_cover: "填充模式：铺满",
+    fit_contain: "填充模式：适配",
+    err_audio_format: "该音频格式浏览器可能不支持（{0}）。请用“在新标签打开”。",
+    err_video_format: "该视频格式浏览器可能不支持（{0}）。请用“在新标签打开”。",
+    err_unsupported: "该文件类型暂不支持预览（可用“在新标签打开”下载/查看）。",
+    shares_empty: "当前没有共享目录。",
+    remove: "移除",
+    msg_bl_saved: "黑名单已保存，刷新媒体库后生效。",
+    err_audio_load: "音频加载/解码失败（{0}）。可能是浏览器不支持该编码，建议用“在新标签打开”下载后本地播放器播放。",
+    err_video_load: "视频加载/解码失败（{0}，{1}）。同为 mp4/mkv 也可能因编码不同而无法播放。{2}建议用“在新标签打开”，或转码为 H.264/AAC（或仅转音频为 AAC）再播放。",
+    err_img_load: "图片加载失败（{0}）。可用“在新标签打开”查看原文件。",
+    meta_fail: "服务连接失败或初始化失败",
+  }
+};
+
 const state = {
+  lang: "en",
   config: null,
   media: null,
   tab: "video",
@@ -23,20 +174,74 @@ const state = {
   },
 };
 
-const kinds = {
-  video: "视频",
-  audio: "音频",
-  image: "图片",
-  other: "其他",
-};
-
 const LS = {
   audioLastID: "msp.audio.lastId",
   audioLastTime: "msp.audio.lastTime",
   audioShuffle: "msp.audio.shuffle",
   audioLoop: "msp.audio.loop",
   theme: "msp.theme",
+  lang: "msp.lang",
 };
+
+function t(key, ...args) {
+  const dict = I18N[state.lang] || I18N.en;
+  let val = dict[key] || I18N.en[key] || key;
+  for (let i = 0; i < args.length; i++) {
+    val = val.replace(`{${i}}`, args[i]);
+  }
+  return val;
+}
+
+function setLang(lang) {
+  if (lang !== "en" && lang !== "zh") return;
+  state.lang = lang;
+  localStorage.setItem(LS.lang, lang);
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  
+  // Update button text
+  const btn = el("langBtn");
+  if (btn) btn.textContent = lang === "en" ? "CN" : "EN"; // Toggle text
+  
+  // Update static elements
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const k = el.getAttribute("data-i18n");
+    if (k) el.textContent = t(k);
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+    const k = el.getAttribute("data-i18n-ph");
+    if (k) el.placeholder = t(k);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => {
+    const k = el.getAttribute("data-i18n-title");
+    if (k) el.title = t(k);
+  });
+  
+  // Update HTML content (like blacklist hint)
+  const blHint = el("blHint");
+  if (blHint) blHint.innerHTML = t("bl_hint");
+
+  // Re-render dynamic content
+  renderList();
+  renderPlaylist();
+  updateNavLabels();
+  
+  // Update specific dynamic texts if needed (meta, etc)
+  if (state.config) loadConfig(); 
+}
+
+function initLang() {
+  const saved = localStorage.getItem(LS.lang);
+  const lang = saved === "zh" ? "zh" : "en"; // Default en
+  setLang(lang);
+  
+  const btn = el("langBtn");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const next = state.lang === "en" ? "zh" : "en";
+      setLang(next);
+    });
+  }
+}
 
 function initTheme() {
   const btn = el("themeBtn");
@@ -205,14 +410,14 @@ function probeText(p) {
   if (p.container) parts.push(String(p.container).toUpperCase());
   if (p.video) parts.push(String(p.video));
   if (p.audio) parts.push(String(p.audio));
-  return parts.length ? ` · 编码/容器：${parts.join(" / ")}` : "";
+  return parts.length ? `${t("codec_info")}${parts.join(" / ")}` : "";
 }
 
 function probeWarnText(p) {
   const a = String(p?.audio || "");
   if (!a) return "";
   if (a.includes("AC-3") || a.includes("E-AC-3") || a.includes("DTS") || a.includes("TrueHD") || a.includes("FLAC")) {
-    return ` · 提示：音频为 ${a}，浏览器常不支持`;
+    return t("audio_warn", a);
   }
   return "";
 }
@@ -220,11 +425,11 @@ function probeWarnText(p) {
 function mediaErrorText(err) {
   if (!err) return "";
   switch (err.code) {
-    case 1: return "播放被中止";
-    case 2: return "网络/读取失败";
-    case 3: return "解码失败（常见于编码不支持）";
-    case 4: return "媒体源不支持";
-    default: return "未知错误";
+    case 1: return t("err_aborted");
+    case 2: return t("err_network");
+    case 3: return t("err_decode");
+    case 4: return t("err_src");
+    default: return t("err_unknown");
   }
 }
 
@@ -244,7 +449,7 @@ async function loadConfig() {
   const data = await apiGet("/api/config");
   state.config = data.config;
   const urls = (data.urls || []).slice(0, 3).join("  ");
-  setMeta(urls ? `可用地址：${urls}` : "未检测到局域网 IP（仍可用 127.0.0.1 访问）");
+  setMeta(urls ? t("meta_urls", urls) : t("meta_noip"));
   applyConfigToUI();
   renderShares();
 
@@ -362,10 +567,10 @@ function currentList() {
 }
 
 function navLabelsForKind(kind) {
-  if (kind === "video") return { prev: "上一个视频", next: "下一个视频" };
-  if (kind === "image") return { prev: "上一张", next: "下一张" };
-  if (kind === "audio") return { prev: "上一首", next: "下一首" };
-  return { prev: "上一个", next: "下一个" };
+  if (kind === "video") return { prev: t("prev_video"), next: t("next_video") };
+  if (kind === "image") return { prev: t("prev_image"), next: t("next_image") };
+  if (kind === "audio") return { prev: t("prev_audio"), next: t("next_audio") };
+  return { prev: t("prev_item"), next: t("next_item") };
 }
 
 function updateNavLabels() {
@@ -435,7 +640,7 @@ function renderList() {
   box.innerHTML = "";
 
   if (!state.media || (state.media.shares || []).length === 0) {
-    hint.textContent = "未配置共享目录。点击右上角“共享目录设置”添加。";
+    hint.textContent = t("hint_noshare");
     return;
   }
 
@@ -443,7 +648,8 @@ function renderList() {
   list = filterFiles(list);
   list = sortFiles(list);
 
-  hint.textContent = `当前分类：${kinds[state.tab] || state.tab}，共 ${list.length} 个`;
+  const kindName = t("kind_" + state.tab) || state.tab;
+  hint.textContent = t("hint_stats", kindName, list.length);
 
   for (const item of list) {
     const row = document.createElement("div");
@@ -773,14 +979,14 @@ function applyPlyr(element) {
         try { console.log(document.fullscreenElement); } catch {}
         try {
           const fitBtn = el("btnToggleFit");
-          fitBtn.textContent = "填充模式：铺满";
+          fitBtn.textContent = t("fit_cover");
         } catch {}
       });
       state.plyr.on("exitfullscreen", () => {
         try { element.dataset.fit = "contain"; } catch {}
         try {
           const fitBtn = el("btnToggleFit");
-          fitBtn.textContent = "填充模式：适配";
+          fitBtn.textContent = t("fit_contain");
         } catch {}
       });
     }
@@ -956,7 +1162,7 @@ function playItem(item, opts) {
   if (item.kind === "audio") {
     const audio = el("audioEl");
     if (!canPlayMedia("audio", item.ext, item.name, audio)) {
-      showPreviewError(`该音频格式浏览器可能不支持（${item.ext || ""}）。请用“在新标签打开”。`);
+      showPreviewError(t("err_audio_format", item.ext || ""));
       return;
     }
     resetMediaEl(audio);
@@ -1034,7 +1240,7 @@ function playItem(item, opts) {
       fitBtn.hidden = false;
       fitBtn.disabled = false;
       const fit = video.dataset.fit || "contain";
-      fitBtn.textContent = fit === "cover" ? "填充模式：铺满" : "填充模式：适配";
+      fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
     } catch {}
     applyPlyr(video);
     try { video.load(); } catch {}
@@ -1086,7 +1292,7 @@ function renderShares() {
 
     const btn = document.createElement("button");
     btn.className = "btn btn--ghost";
-    btn.textContent = "移除";
+    btn.textContent = t("remove");
     btn.addEventListener("click", async () => {
       try {
         const data = await apiPost("/api/shares", { op: "remove", path: sh.path });
@@ -1221,7 +1427,7 @@ function bindUI() {
       const cur = v.dataset.fit || "cover";
       const next = cur === "cover" ? "contain" : "cover";
       try { v.dataset.fit = next; } catch {}
-      try { fitBtn.textContent = next === "cover" ? "填充模式：铺满" : "填充模式：适配"; } catch {}
+      try { fitBtn.textContent = next === "cover" ? t("fit_cover") : t("fit_contain"); } catch {}
     });
   } catch {}
 
@@ -1243,7 +1449,7 @@ function bindUI() {
 
   audio.addEventListener("error", () => {
     const ext = state.current?.ext || "";
-    showPreviewError(`音频加载/解码失败（${ext}）。可能是浏览器不支持该编码，建议用“在新标签打开”下载后本地播放器播放。`);
+    showPreviewError(t("err_audio_load", ext));
   });
   video.addEventListener("error", () => {
     if (!state.current || state.current.kind !== "video") return;
@@ -1255,14 +1461,14 @@ function bindUI() {
       if (token !== state.selectionToken) return;
       if (!state.current || state.current.id !== item.id) return;
       const hint = probeText(p) + probeWarnText(p);
-      showPreviewError(`视频加载/解码失败（${ext}，${err}）。同为 mp4/mkv 也可能因编码不同而无法播放。${hint}建议用“在新标签打开”，或转码为 H.264/AAC（或仅转音频为 AAC）再播放。`);
+      showPreviewError(t("err_video_load", ext, err, hint));
     }).catch(() => {
-      showPreviewError(`视频加载/解码失败（${ext}，${err}）。同为 mp4/mkv 也可能因编码不同而无法播放。建议用“在新标签打开”，或转码为 H.264/AAC（或仅转音频为 AAC）再播放。`);
+      showPreviewError(t("err_video_load", ext, err, ""));
     });
   });
   img.addEventListener("error", () => {
     const ext = state.current?.ext || "";
-    showPreviewError(`图片加载失败（${ext}）。可用“在新标签打开”查看原文件。`);
+    showPreviewError(t("err_img_load", ext));
   });
 
   video.addEventListener("ended", () => {
@@ -1278,6 +1484,7 @@ function bindUI() {
 }
 
 async function boot() {
+  initLang();
   initTheme();
   bindUI();
   try {
@@ -1287,7 +1494,7 @@ async function boot() {
       tryResumeAudio();
     }
   } catch (e) {
-    setMeta("服务连接失败或初始化失败");
+    setMeta(t("meta_fail"));
     alert(String(e?.message || e));
   }
 }
