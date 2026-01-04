@@ -36,3 +36,10 @@ config.*.local.json
 # Temp / backup
 *.tmp
 *.bak
+
+# Private / Local Project Configs
+.trae/
+.vercel/
+vercel.json
+.vercelignore
+docs/

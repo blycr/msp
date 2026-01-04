@@ -55,6 +55,15 @@
 - `scripts`：构建脚本
 - `CHANGELOG.md`：版本变更记录
 
+## 开发说明
+
+为了保持仓库整洁与安全，以下文件/目录已被 `.gitignore` 忽略，请勿强制提交：
+
+- **运行时配置**：`config.json`（请使用 `config.example.json` 复制修改）
+- **IDE/编辑器配置**：`.trae`, `.vscode`, `.idea` 等
+- **部署/平台配置**：`.vercel`, `vercel.json` 等
+- **本地文档/草稿**：`docs/`
+
 ## 编码兼容性说明
 
 “同样是 .mp4/.mkv 容器，但有的能播有的不能播”通常是因为容器内的编码不同：
