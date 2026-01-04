@@ -55,6 +55,7 @@ Invoke-Step ("Check previous exe: " + $exePath) {
     Write-Log ("Previous process is running: PID=" + $p.Id + " Path=" + $pFull) 'WARN'
     try {
       Stop-Process -Id $p.Id -Force -ErrorAction Stop
+      try { $p.WaitForExit(3000) } catch {}
       Write-Log ("Process stopped: PID=" + $p.Id) 'INFO'
     } catch {
       Write-Log ("Stop process failed: PID=" + $p.Id + " " + $_.Exception.Message) 'ERROR'
@@ -62,12 +63,22 @@ Invoke-Step ("Check previous exe: " + $exePath) {
     }
   }
 
-  try {
-    Remove-Item -LiteralPath $exeFull -Force -ErrorAction Stop
-    Write-Log ("Previous exe deleted: " + $exeFull) 'INFO'
-  } catch {
-    Write-Log ("Delete previous exe failed: " + $_.Exception.Message) 'ERROR'
-    throw
+  $retries = 0
+  $maxRetries = 10
+  while ($true) {
+    try {
+      Remove-Item -LiteralPath $exeFull -Force -ErrorAction Stop
+      Write-Log ("Previous exe deleted: " + $exeFull) 'INFO'
+      break
+    } catch {
+      $retries++
+      if ($retries -ge $maxRetries) {
+        Write-Log ("Delete previous exe failed after $maxRetries retries: " + $_.Exception.Message) 'ERROR'
+        throw
+      }
+      Write-Log ("Delete failed, retrying... ($retries/$maxRetries)") 'WARN'
+      Start-Sleep -Milliseconds 500
+    }
   }
 }
 
