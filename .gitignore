@@ -32,4 +32,7 @@ config.*.local.json
 
 # Private / Local Project Configs
 .trae/
+vercel.json
+docs/
+.vercel/
 
