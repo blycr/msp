@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MSP 局域网媒体分享预览</title>
+  <link rel="stylesheet" href="/assets/plyr/plyr.css" />
+  <link rel="stylesheet" href="/app.css" />
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__title">MSP 媒体分享预览</div>
+    <div class="topbar__meta" id="meta"></div>
+    <button class="btn btn--ghost" id="btnSettings">共享目录设置</button>
+    <button class="btn btn--ghost" id="btnRefresh">刷新</button>
+  </header>
+
+  <main class="layout">
+    <aside class="panel sidebar">
+      <div class="tabs" role="tablist">
+        <button class="tab tab--active" data-tab="video">视频</button>
+        <button class="tab" data-tab="audio">音频</button>
+        <button class="tab" data-tab="image">图片</button>
+        <button class="tab" data-tab="other" id="tabOther" hidden>其他</button>
+      </div>
+
+      <div class="search">
+        <input class="textfield" id="q" placeholder="搜索文件名…" />
+      </div>
+
+      <div class="list__body" id="list"></div>
+      <div class="hint" id="hint"></div>
+    </aside>
+
+    <section class="panel stage">
+      <div class="now">
+        <div class="now__title" id="previewTitle">未选择</div>
+        <div class="now__sub" id="previewSub"></div>
+        <div class="now__actions">
+          <button class="btn btn--ghost" id="btnPrev" disabled>上一个</button>
+          <button class="btn btn--ghost" id="btnNext" disabled>下一个</button>
+          <label class="toggle" id="shuffleWrap" hidden>
+            <input type="checkbox" id="toggleShuffle" />
+            <span>随机</span>
+          </label>
+          <button class="btn" id="btnOpenRaw" disabled>在新标签打开</button>
+        </div>
+      </div>
+
+      <div class="playerbox" id="playerBox">
+        <video id="videoEl" playsinline controls preload="metadata"></video>
+        <audio id="audioEl" controls preload="metadata"></audio>
+        <div class="audioMeta" id="audioMeta">
+          <img class="audioCover" id="audioCover" alt="" />
+          <div class="lyrics" id="lyrics"></div>
+        </div>
+        <img id="imgEl" alt="" />
+        <div class="empty" id="emptyEl">从左侧选择一个媒体文件进行预览</div>
+      </div>
+    </section>
+
+    <aside class="panel playlist" id="playlistPanel">
+      <div class="playlist__title">播放列表</div>
+      <div class="playlist__meta" id="plMeta">未加载</div>
+      <div class="playlist__body" id="plList"></div>
+    </aside>
+  </main>
+
+  <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
+  <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog">
+    <div class="dialog__title">共享目录设置</div>
+    <div class="dialog__body">
+      <div class="row">
+        <input class="textfield" id="sharePath" placeholder="例如：D:\Media 或 D:/Media（会自动兼容斜杠）" />
+      </div>
+      <div class="row">
+        <input class="textfield" id="shareLabel" placeholder="别名（可选）" />
+        <button class="btn" id="btnAddShare">添加</button>
+      </div>
+
+      <div class="sharelist" id="shareList"></div>
+
+      <div class="small">
+        提示：网页无法直接弹出 Windows 文件夹选择器（受浏览器安全限制），请手动输入路径。
+      </div>
+    </div>
+    <div class="dialog__actions">
+      <button class="btn btn--ghost" id="btnCloseDlg">关闭</button>
+    </div>
+  </section>
+
+  <script src="/assets/plyr/plyr.polyfilled.js"></script>
+  <script src="/app.js"></script>
+  </body>
+  </html>

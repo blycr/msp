@@ -1,0 +1,38 @@
+{
+  "port": 8099,
+  "shares": [],
+  "features": {
+    "speed": true,
+    "speedOptions": [
+      0.5,
+      0.75,
+      1,
+      1.25,
+      1.5,
+      2
+    ],
+    "quality": false,
+    "captions": true,
+    "playlist": true
+  },
+  "ui": {
+    "defaultTab": "video",
+    "showOthers": false
+  },
+  "playback": {
+    "audio": {
+      "enabled": true,
+      "shuffle": false,
+      "remember": true,
+      "scope": "all"
+    },
+    "video": {
+      "enabled": true,
+      "scope": "folder"
+    },
+    "image": {
+      "enabled": true,
+      "scope": "folder"
+    }
+  }
+}
