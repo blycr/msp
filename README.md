@@ -5,41 +5,43 @@
 ![GitHub license](https://img.shields.io/github/license/blycr/msp)
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp)
 
-一个用于局域网内“共享目录 + 浏览器预览播放”的小工具：后端用 Go 提供文件索引与流式读取接口，前端用纯静态页面实现视频/音频/图片预览与播放列表。
+[中文文档](README_CN.md)
 
-## 功能概览
+A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" within a LAN. The backend uses Go to provide file indexing and streaming interfaces, while the frontend uses pure static pages for video/audio/image preview and playlist management.
 
-- 局域网访问：自动显示本机可访问 URL（含局域网 IP）
-- 共享目录管理：在网页里添加/移除共享目录（Windows 路径自动规范化）
-- 分类与列表：视频/音频/图片/其他，支持搜索与播放列表
-- 预览播放：视频/音频播放、图片预览
-- 编码提示：提供媒体容器/音视频编码探测信息
+## Features Overview
 
-## 快速开始
+- **LAN Access**: Automatically displays accessible URLs (including LAN IP).
+- **Share Management**: Add/remove shared directories via the web interface.
+- **Categorization**: Video, Audio, Image, Other; supports search and playlists.
+- **Preview & Play**: Video/Audio player (with speed control, lyrics), Image gallery.
+- **Encoding Hints**: Detects media container and codec information.
 
-直接运行可执行文件（默认端口 `8099`）：
+## Quick Start
+
+Simply run the executable (default port `8099`):
 
 ```bash
 ./msp.exe
 ```
 
-启动后访问日志里打印的地址（如 `http://127.0.0.1:8099/`）。
+After startup, visit the address printed in the console (e.g., `http://127.0.0.1:8099/`).
 
-## 文档与帮助
+## Documentation & Help
 
-关于配置参数、构建步骤、常见问题（如视频无法播放的编码问题）及更多高级用法，请查阅项目 Wiki：
+For configuration parameters, build steps, common issues (e.g., video playback encoding support), and advanced usage, please visit the Project Wiki:
 
 👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
 
-## 贡献与开发
+## Contribution & Development
 
-- **运行时配置**：`config.json`（请使用 `config.example.json` 复制修改，不要提交）
-- **构建**：使用 `scripts/build.ps1` (Windows) 需要 Go 1.22+
+- **Runtime Config**: `config.json` (auto-generated on first run).
+- **Build**: Requires Go 1.18+.
 
-## 开源许可
+## License
 
-本项目采用 [MIT License](LICENSE) 开源。
+This project is licensed under the [MIT License](LICENSE).
 
-## 致谢
+## Acknowledgements
 
 - [Plyr](https://github.com/sampotts/plyr) - A simple, accessible and customizable media player
