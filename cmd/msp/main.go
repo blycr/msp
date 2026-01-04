@@ -16,7 +16,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -69,7 +71,7 @@ type BlacklistConfig struct {
 	Extensions []string `json:"extensions"`
 	Filenames  []string `json:"filenames"`
 	Folders    []string `json:"folders"`
-	MinSize    int64    `json:"minSize"`
+	SizeRule   string   `json:"sizeRule"`
 }
 
 type Config struct {
@@ -661,7 +663,7 @@ func buildMediaResponse(shares []Share, blacklist BlacklistConfig) MediaResponse
 				if strings.HasPrefix(name, ".") {
 					return fs.SkipDir
 				}
-				if containsString(blacklist.Folders, name) {
+				if isBlockedString(blacklist.Folders, name) {
 					return fs.SkipDir
 				}
 				return nil
@@ -670,10 +672,10 @@ func buildMediaResponse(shares []Share, blacklist BlacklistConfig) MediaResponse
 			if ext == "" {
 				return nil
 			}
-			if containsString(blacklist.Extensions, ext) {
+			if isBlockedString(blacklist.Extensions, ext) {
 				return nil
 			}
-			if containsString(blacklist.Filenames, d.Name()) {
+			if isBlockedString(blacklist.Filenames, d.Name()) {
 				return nil
 			}
 			if isSubtitleExt(ext) || isLyricsExt(ext) {
@@ -685,7 +687,7 @@ func buildMediaResponse(shares []Share, blacklist BlacklistConfig) MediaResponse
 				return nil
 			}
 
-			if blacklist.MinSize > 0 && fi.Size() < blacklist.MinSize {
+			if isBlockedSize(fi.Size(), blacklist.SizeRule) {
 				return nil
 			}
 
@@ -743,13 +745,98 @@ func buildMediaResponse(shares []Share, blacklist BlacklistConfig) MediaResponse
 	return resp
 }
 
-func containsString(list []string, s string) bool {
-	for _, v := range list {
-		if strings.EqualFold(v, s) {
+func isBlockedString(list []string, target string) bool {
+	targetLower := strings.ToLower(target)
+	for _, rule := range list {
+		rule = strings.TrimSpace(rule)
+		if rule == "" {
+			continue
+		}
+
+		// Regex support: /pattern/
+		if strings.HasPrefix(rule, "/") && strings.HasSuffix(rule, "/") && len(rule) > 2 {
+			pattern := rule[1 : len(rule)-1]
+			// Try to match against the original string (case sensitive?) or lower?
+			// Let's match against original for maximum flexibility, user can use (?i) for case insensitive
+			if matched, _ := regexp.MatchString(pattern, target); matched {
+				return true
+			}
+			continue
+		}
+
+		// Exact match (case insensitive)
+		if strings.EqualFold(rule, target) {
+			return true
+		}
+		// Also match lower case for safety
+		if strings.EqualFold(rule, targetLower) {
 			return true
 		}
 	}
 	return false
+}
+
+func isBlockedSize(size int64, rule string) bool {
+	rule = strings.TrimSpace(strings.ToUpper(rule))
+	if rule == "" {
+		return false
+	}
+
+	// Range: "100KB-200MB"
+	if parts := strings.Split(rule, "-"); len(parts) == 2 {
+		min := parseSize(parts[0])
+		max := parseSize(parts[1])
+		if min >= 0 && max > 0 {
+			return size >= min && size <= max
+		}
+	}
+
+	// Greater/Less
+	if strings.HasPrefix(rule, ">=") {
+		val := parseSize(strings.TrimPrefix(rule, ">="))
+		return size >= val
+	}
+	if strings.HasPrefix(rule, "<=") {
+		val := parseSize(strings.TrimPrefix(rule, "<="))
+		return size <= val
+	}
+	if strings.HasPrefix(rule, ">") {
+		val := parseSize(strings.TrimPrefix(rule, ">"))
+		return size > val
+	}
+	if strings.HasPrefix(rule, "<") {
+		val := parseSize(strings.TrimPrefix(rule, "<"))
+		return size < val
+	}
+
+	return false
+}
+
+func parseSize(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+
+	scale := int64(1)
+	if strings.HasSuffix(s, "TB") {
+		scale = 1024 * 1024 * 1024 * 1024
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "GB") {
+		scale = 1024 * 1024 * 1024
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "MB") {
+		scale = 1024 * 1024
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "KB") {
+		scale = 1024
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "B") {
+		s = s[:len(s)-1]
+	}
+
+	val, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return int64(val * float64(scale))
 }
 
 func isLyricsExt(ext string) bool {
@@ -1410,7 +1497,7 @@ func serveEmbeddedWeb(w http.ResponseWriter, r *http.Request, webFS fs.FS) {
 	cache := "no-store"
 	switch ext {
 	case ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff2", ".ttf":
-		cache = "public, max-age=86400"
+		cache = "no-cache"
 	}
 	serveEmbeddedFSFile(w, r, webFS, name, "", cache)
 }
@@ -1520,29 +1607,7 @@ func mustExeDir() string {
 }
 
 func itoa(i int) string {
-	return strconv(i)
-}
-
-func strconv(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	var b [32]byte
-	pos := len(b)
-	for i > 0 {
-		pos--
-		b[pos] = byte('0' + (i % 10))
-		i /= 10
-	}
-	if neg {
-		pos--
-		b[pos] = '-'
-	}
-	return string(b[pos:])
+	return strconv.Itoa(i)
 }
 
 func u64Base36(u uint64) string {

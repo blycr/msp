@@ -103,16 +103,22 @@
 
       <div class="dialog__subtitle" style="margin-top: 1rem; font-weight: bold; margin-bottom: 0.5rem;">文件黑名单设置</div>
       <div class="row">
-        <input class="textfield" id="blExts" placeholder="屏蔽扩展名 (逗号分隔，如 .log, .txt)" />
+        <input class="textfield" id="blExts" placeholder="屏蔽扩展名 (如 .log, .txt; 支持正则 /log$/)" />
       </div>
       <div class="row">
-        <input class="textfield" id="blFiles" placeholder="屏蔽文件名 (逗号分隔，如 thumb.db)" />
+        <input class="textfield" id="blFiles" placeholder="屏蔽文件名 (如 thumb.db; 支持正则 /^tmp_/)" />
       </div>
       <div class="row">
-        <input class="textfield" id="blFolders" placeholder="屏蔽文件夹 (逗号分隔，如 $RECYCLE.BIN)" />
+        <input class="textfield" id="blFolders" placeholder="屏蔽文件夹 (如 $RECYCLE.BIN; 支持正则 /^\./)" />
       </div>
       <div class="row">
-        <input class="textfield" id="blMinSize" type="number" placeholder="屏蔽小于此大小的文件 (字节，0为不屏蔽)" />
+        <input class="textfield" id="blMinSize" type="text" placeholder="大小屏蔽 (如: >100MB, 10KB-1MB, 500B)" />
+      </div>
+      <div class="dialog__note" style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;">
+        用法提示：<br>
+        1. <strong>正则匹配</strong>：使用 <code>/</code> 包裹，如 <code>/^tmp_/</code> 匹配以 tmp_ 开头的文件。<br>
+        2. <strong>大小范围</strong>：支持 <code>10MB-1GB</code>, <code>>500MB</code>, <code>&lt;1KB</code>。<br>
+        3. <strong>单位支持</strong>：B, KB, MB, GB, TB (不区分大小写)。
       </div>
       <div class="row">
         <button class="btn" id="btnSaveBlacklist">保存黑名单设置</button>

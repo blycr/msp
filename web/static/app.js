@@ -252,7 +252,7 @@ async function loadConfig() {
   el("blExts").value = (bl.extensions || []).join(", ");
   el("blFiles").value = (bl.filenames || []).join(", ");
   el("blFolders").value = (bl.folders || []).join(", ");
-  el("blMinSize").value = bl.minSize || "";
+  el("blMinSize").value = bl.sizeRule || "";
 }
 
 async function loadMedia(refresh) {
@@ -970,6 +970,14 @@ function playItem(item, opts) {
     applyPlyr(audio);
     try { audio.load(); } catch {}
 
+    if (options.autoplay) {
+      if (state.plyr) {
+        state.plyr.once("ready", () => state.plyr.play().catch(() => {}));
+      } else {
+        audio.play().catch(() => {});
+      }
+    }
+
     // Re-bind lyrics sync events to ensure they work for every song
     const onTimeUpdate = (ev) => {
       if (!state.current || state.current.kind !== "audio") return;
@@ -1125,7 +1133,7 @@ function bindUI() {
     bl.extensions = el("blExts").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
     bl.filenames = el("blFiles").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
     bl.folders = el("blFolders").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-    bl.minSize = parseInt(el("blMinSize").value || "0", 10);
+    bl.sizeRule = el("blMinSize").value.trim();
     state.config.blacklist = bl;
 
     try {
