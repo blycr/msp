@@ -5,7 +5,7 @@
 ![GitHub license](https://img.shields.io/github/license/blycr/msp)
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp)
 
-一个用于局域网内“共享目录 + 浏览器预览播放”的小工具：后端用 Go 提供文件索引与流式读取接口，前端用纯静态页面实现视频/音频/图片预览与播放列表。
+一个用于局域网内“共享目录 + 浏览器预览播放”的小工具：后端用 Go 提供文件索引与流式读取接口，前端基于 Vite 构建，提供现代化的用户体验。
 
 ## 功能概览
 
@@ -14,6 +14,7 @@
 - 分类与列表：视频/音频/图片/其他，支持搜索与播放列表
 - 预览播放：视频/音频播放、图片预览
 - 编码提示：提供媒体容器/音视频编码探测信息
+- 现代化架构：模块化 Go 后端 + Vite 前端工程化
 
 ## 快速开始
 
@@ -34,7 +35,10 @@
 ## 贡献与开发
 
 - **运行时配置**：`config.json`（请使用 `config.example.json` 复制修改，不要提交）
-- **构建**：使用 `scripts/build.ps1` (Windows) 需要 Go 1.22+
+- **构建**：
+    - **Go**: 需要 1.22+
+    - **Node.js**: 需要用于构建前端资源
+    - 推荐使用 `scripts/build.ps1` (Windows) 进行一键全栈构建
 
 ## 开源许可
 
