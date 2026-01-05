@@ -1,4 +1,7 @@
 import './app.css';
+import { registerSW } from 'virtual:pwa-register'
+
+registerSW({ immediate: true })
 
 const el = (id) => document.getElementById(id);
 
