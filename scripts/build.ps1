@@ -82,6 +82,22 @@ Invoke-Step ("Check previous exe: " + $exePath) {
   }
 }
 
+Invoke-Step 'Build Frontend' {
+  Push-Location (Join-Path $root 'web')
+  try {
+    if (-not (Test-Path 'node_modules')) {
+        Write-Log 'Installing npm dependencies...' 'INFO'
+        & npm install
+        if ($LASTEXITCODE -ne 0) { throw ("npm install failed. exitCode=" + $LASTEXITCODE) }
+    }
+    Write-Log 'Building frontend...' 'INFO'
+    & npm run build
+    if ($LASTEXITCODE -ne 0) { throw ("npm run build failed. exitCode=" + $LASTEXITCODE) }
+  } finally {
+    Pop-Location
+  }
+}
+
 Invoke-Step 'go test ./...' {
   Push-Location $root
   try {

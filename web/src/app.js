@@ -1,3 +1,5 @@
+import './app.css';
+
 const el = (id) => document.getElementById(id);
 
 const I18N = {
@@ -1484,6 +1486,10 @@ function bindUI() {
 }
 
 async function boot() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW fail:', err));
+  }
+
   initLang();
   initTheme();
   bindUI();

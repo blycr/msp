@@ -50,3 +50,7 @@ docs/
 node_modules/
 vendor/
 wiki_temp/
+web/node_modules/
+
+# Frontend Build Artifacts
+web/dist/

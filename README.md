@@ -7,7 +7,7 @@
 
 [中文文档](README_CN.md)
 
-A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" within a LAN. The backend uses Go to provide file indexing and streaming interfaces, while the frontend uses pure static pages for video/audio/image preview and playlist management.
+A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" within a LAN. The backend uses Go to provide file indexing and streaming interfaces, while the frontend is built with Vite for a modern, responsive user experience.
 
 ## Features Overview
 
@@ -16,6 +16,7 @@ A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" with
 - **Categorization**: Video, Audio, Image, Other; supports search and playlists.
 - **Preview & Play**: Video/Audio player (with speed control, lyrics), Image gallery.
 - **Encoding Hints**: Detects media container and codec information.
+- **Modern Architecture**: Modular Go backend + Vite-powered Frontend.
 
 ## Quick Start
 
@@ -34,9 +35,12 @@ For configuration parameters, build steps, common issues (e.g., video playback e
 👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
 
 ## Contribution & Development
-
+ 
 - **Runtime Config**: `config.json` (auto-generated on first run).
-- **Build**: Requires Go 1.18+.
+- **Build**: 
+    - **Go**: 1.22+ required.
+    - **Node.js**: Required for building frontend assets.
+    - Use `scripts/build.ps1` (Windows) for a one-step full stack build.
 
 ## License
 
