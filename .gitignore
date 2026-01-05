@@ -54,3 +54,4 @@ web/node_modules/
 
 # Frontend Build Artifacts
 web/dist/
+msp.code-workspace
