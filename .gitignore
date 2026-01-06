@@ -48,10 +48,6 @@ config.*.local.json
 # Private / Local Project Configs
 .trae/
 vercel.json
-docs/
-!docs/
-!docs/release/
-!docs/release/*.md
 .vercel/
 
 # Dependencies
@@ -63,3 +59,5 @@ web/node_modules/
 # Frontend Build Artifacts
 web/dist/
 msp.code-workspace
+
+.vs/

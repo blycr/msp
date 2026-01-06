@@ -31,6 +31,8 @@ jobs:
           node-version: 20
       - name: Set release variables
         shell: bash
+        env:
+          NOTES_INPUT: ${{ inputs.notes }}
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             tag="${{ github.ref_name }}"
@@ -45,6 +47,14 @@ jobs:
           if [ -f "$notes_path" ]; then
             echo "RELEASE_NOTES_PATH=$notes_path" >> "$GITHUB_ENV"
           else
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "Release notes file not found: $notes_path" >&2
+              exit 1
+            fi
+            if [ -z "$NOTES_INPUT" ]; then
+              echo "Release notes file not found and no input notes provided: $notes_path" >&2
+              exit 1
+            fi
             echo "RELEASE_NOTES_PATH=" >> "$GITHUB_ENV"
           fi
       - name: Build all targets via scripts/build.sh
