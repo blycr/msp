@@ -52,13 +52,16 @@ After startup, visit the address printed in the console (e.g., `http://127.0.0.1
   - `go build ./cmd/msp`
 - One-step (Windows):
   - `scripts/build.ps1`
+- One-step (Linux/macOS):
+  - `scripts/build.sh`
 
 ### Cross-Platform Build (Go Native)
 
 - Default: Windows x64
-  - `scripts/build.ps1`
+  - `scripts/build.ps1` or `scripts/build.sh`
 - Select platforms/architectures:
   - `scripts/build.ps1 -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
+  - `scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
 - Outputs:
   - `bin/windows/x64/msp-windows-amd64.exe`
   - `bin/windows/x86/msp-windows-386.exe`
