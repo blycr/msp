@@ -22,11 +22,16 @@ type MediaItem struct {
 }
 
 type MediaResponse struct {
-	Shares []interface{} `json:"shares"` // Can be []config.Share if needed, but keeping interface{} avoids coupling for now
-	Videos []MediaItem   `json:"videos"`
-	Audios []MediaItem   `json:"audios"`
-	Images []MediaItem   `json:"images"`
-	Others []MediaItem   `json:"others"`
+	Shares      []interface{} `json:"shares"` // Can be []config.Share if needed, but keeping interface{} avoids coupling for now
+	Videos      []MediaItem   `json:"videos"`
+	Audios      []MediaItem   `json:"audios"`
+	Images      []MediaItem   `json:"images"`
+	Others      []MediaItem   `json:"others"`
+	VideosTotal int           `json:"videosTotal,omitempty"`
+	AudiosTotal int           `json:"audiosTotal,omitempty"`
+	ImagesTotal int           `json:"imagesTotal,omitempty"`
+	OthersTotal int           `json:"othersTotal,omitempty"`
+	Limited     bool          `json:"limited,omitempty"`
 }
 
 type ConfigResponse struct {
@@ -53,8 +58,9 @@ type SharesOpResponse struct {
 }
 
 type ProbeResponse struct {
-	Container string    `json:"container"`
-	Video     string    `json:"video,omitempty"`
-	Audio     string    `json:"audio,omitempty"`
-	Error     *ApiError `json:"error,omitempty"`
+	Container string     `json:"container"`
+	Video     string     `json:"video,omitempty"`
+	Audio     string     `json:"audio,omitempty"`
+	Subtitles []Subtitle `json:"subtitles,omitempty"`
+	Error     *ApiError  `json:"error,omitempty"`
 }

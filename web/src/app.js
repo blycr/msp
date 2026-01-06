@@ -190,6 +190,7 @@ const LS = {
   audioLastTime: "msp.audio.lastTime",
   audioShuffle: "msp.audio.shuffle",
   audioLoop: "msp.audio.loop",
+  mediaETag: "msp.media.etag",
   theme: "msp.theme",
   lang: "msp.lang",
 };
@@ -249,6 +250,11 @@ function setLang(lang) {
   // Re-render dynamic content
   renderList();
   renderPlaylist();
+  try {
+    plAutoFit.last.itemH = 0;
+    plAutoFit.last.pagerH = 0;
+  } catch {}
+  scheduleAutoFitPlaylistPageSize();
   updateNavLabels();
   
   // Update specific dynamic texts if needed (meta, etc)
@@ -411,7 +417,7 @@ function showDlg(show) {
 }
 
 async function apiGet(url) {
-  const res = await fetch(url, { cache: "no-cache" });
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -486,8 +492,40 @@ async function loadConfig() {
   el("blMinSize").value = bl.sizeRule || "";
 }
 
-async function loadMedia(refresh) {
-  const data = await apiGet(refresh ? "/api/media?refresh=1" : "/api/media");
+async function loadMedia(refresh, limit) {
+  const isLimitedRequest = Number(limit || 0) > 0;
+
+  const headers = {};
+  if (!refresh && !isLimitedRequest && !state.media?.limited) {
+    try {
+      const etag = localStorage.getItem(LS.mediaETag);
+      if (etag) headers["If-None-Match"] = etag;
+    } catch {}
+  }
+
+  let url = refresh ? "/api/media?refresh=1" : "/api/media";
+  if (isLimitedRequest) {
+    url += `?limit=${encodeURIComponent(String(Number(limit) || 0))}`;
+  }
+
+  const res = await fetch(url, { cache: "no-store", headers });
+
+  if (res.status === 304) {
+    if (!state.media) return loadMedia(true, limit);
+    renderList();
+    return;
+  }
+
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+
+  if (!isLimitedRequest) {
+    const newETag = res.headers.get("ETag");
+    if (newETag) {
+      try { localStorage.setItem(LS.mediaETag, newETag); } catch {}
+    }
+  }
+
+  const data = await res.json();
   state.media = data;
   renderList();
 }
@@ -670,12 +708,23 @@ function renderList() {
     return;
   }
 
-  let list = currentList();
-  list = filterFiles(list);
+  const raw = currentList();
+  let list = filterFiles(raw);
   list = sortFiles(list);
 
   const kindName = t("kind_" + state.tab) || state.tab;
-  hint.textContent = t("hint_stats", kindName, list.length);
+  let totalForHint = list.length;
+  if (!String(state.q || "").trim() && state.media?.limited) {
+    const totals = {
+      video: state.media.videosTotal,
+      audio: state.media.audiosTotal,
+      image: state.media.imagesTotal,
+      other: state.media.othersTotal,
+    };
+    const v = totals[state.tab];
+    if (Number.isFinite(v) && v > 0) totalForHint = v;
+  }
+  hint.textContent = t("hint_stats", kindName, totalForHint);
 
   const pageSize = state.listPageSize || 10;
   const total = list.length;
@@ -745,8 +794,134 @@ function setPlaylist(kind, items, index) {
   state.playlist.items = Array.isArray(items) ? items : [];
   state.playlist.index = Number.isFinite(index) ? index : -1;
   renderPlaylist();
+  scheduleAutoFitPlaylistPageSize();
   updateNavButtons();
   updateNavLabels();
+}
+
+const plAutoFit = {
+  raf: 0,
+  inUpdate: false,
+  last: { boxH: 0, boxW: 0, itemH: 0, pagerH: 0 },
+  ro: null,
+};
+
+function scheduleAutoFitPlaylistPageSize() {
+  if (plAutoFit.raf) return;
+  plAutoFit.raf = requestAnimationFrame(() => {
+    plAutoFit.raf = 0;
+    autoFitPlaylistPageSize();
+  });
+}
+
+function measurePlaylistHeights(box) {
+  const w = Math.max(280, box?.clientWidth || 0);
+  const wrap = document.createElement("div");
+  wrap.style.position = "absolute";
+  wrap.style.visibility = "hidden";
+  wrap.style.pointerEvents = "none";
+  wrap.style.left = "-10000px";
+  wrap.style.top = "0";
+  wrap.style.width = `${w}px`;
+  document.body.appendChild(wrap);
+
+  const row = document.createElement("div");
+  row.className = "plitem";
+
+  const idx = document.createElement("div");
+  idx.className = "plitem__idx";
+  idx.textContent = "99";
+
+  const main = document.createElement("div");
+  main.className = "plitem__main";
+
+  const name = document.createElement("div");
+  name.className = "plitem__name";
+  name.textContent = "Sample Playlist Item";
+
+  const sub = document.createElement("div");
+  sub.className = "plitem__sub";
+  sub.textContent = "Share · MP4";
+
+  main.appendChild(name);
+  main.appendChild(sub);
+  row.appendChild(idx);
+  row.appendChild(main);
+  wrap.appendChild(row);
+
+  const pager = document.createElement("div");
+  pager.className = "row";
+  const prevBtn = document.createElement("button");
+  prevBtn.className = "btn btn--ghost";
+  prevBtn.textContent = t("prev");
+  const info = document.createElement("div");
+  info.className = "small";
+  info.style.margin = "0 8px";
+  info.textContent = "1/99";
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "btn btn--ghost";
+  nextBtn.textContent = t("next");
+  pager.appendChild(prevBtn);
+  pager.appendChild(info);
+  pager.appendChild(nextBtn);
+  wrap.appendChild(pager);
+
+  const itemH = Math.ceil(row.getBoundingClientRect().height || 0);
+  const pagerH = Math.ceil(pager.getBoundingClientRect().height || 0);
+  wrap.remove();
+
+  return {
+    itemH: itemH > 0 ? itemH : 44,
+    pagerH: pagerH > 0 ? pagerH : 36,
+  };
+}
+
+function autoFitPlaylistPageSize() {
+  if (plAutoFit.inUpdate) return;
+
+  const box = el("plList");
+  if (!box) return;
+  const items = state.playlist.items || [];
+  if (!items.length) return;
+
+  const boxH = box.clientHeight || 0;
+  const boxW = box.clientWidth || 0;
+  if (boxH <= 0 || boxW <= 0) return;
+
+  const needRemeasure = !plAutoFit.last.itemH || !plAutoFit.last.pagerH || plAutoFit.last.boxW !== boxW;
+  if (needRemeasure) {
+    const m = measurePlaylistHeights(box);
+    plAutoFit.last.itemH = m.itemH;
+    plAutoFit.last.pagerH = m.pagerH;
+  }
+
+  plAutoFit.last.boxH = boxH;
+  plAutoFit.last.boxW = boxW;
+
+  const itemH = plAutoFit.last.itemH || 1;
+  const pagerH = plAutoFit.last.pagerH || 0;
+
+  const currentPageSize = state.plPageSize || 10;
+  const totalPagesNow = Math.max(1, Math.ceil(items.length / currentPageSize));
+  const willHavePager = totalPagesNow > 1;
+  const usable = Math.max(0, boxH - (willHavePager ? pagerH : 0));
+
+  let target = Math.floor(usable / itemH);
+  if (!Number.isFinite(target)) target = currentPageSize;
+  target = Math.max(1, Math.min(200, target));
+
+  if (target === currentPageSize) return;
+
+  plAutoFit.inUpdate = true;
+  try {
+    state.plPageSize = target;
+    const idx = state.playlist.index;
+    if (idx >= 0) state.plPage = Math.floor(idx / target) + 1;
+    else state.plPage = 1;
+    renderPlaylist();
+  } finally {
+    plAutoFit.inUpdate = false;
+  }
 }
 
 function renderPlaylist() {
@@ -824,6 +999,7 @@ function renderPlaylist() {
     pager.appendChild(nextBtn);
     box.appendChild(pager);
   }
+  scheduleAutoFitPlaylistPageSize();
 }
 
 function updateNavButtons() {
@@ -1211,7 +1387,12 @@ function playItem(item, opts) {
 
   const openBtn = el("btnOpenRaw");
   openBtn.disabled = false;
-  openBtn.onclick = () => window.open(streamUrl(item.id), "_blank", "noopener,noreferrer");
+  openBtn.onclick = () => {
+    try { state.plyr?.pause?.(); } catch {}
+    try { el("videoEl")?.pause?.(); } catch {}
+    try { el("audioEl")?.pause?.(); } catch {}
+    window.open(streamUrl(item.id), "_blank", "noopener,noreferrer");
+  };
 
   const shuffleWrap = el("shuffleWrap");
   shuffleWrap.hidden = !getCfg("features.playlist", true) || item.kind !== "audio";
@@ -1555,6 +1736,16 @@ function bindUI() {
   const video = el("videoEl");
   const img = el("imgEl");
 
+  try {
+    if (plAutoFit.ro) plAutoFit.ro.disconnect();
+    if ("ResizeObserver" in window) {
+      plAutoFit.ro = new ResizeObserver(() => scheduleAutoFitPlaylistPageSize());
+      plAutoFit.ro.observe(el("plList"));
+    }
+    window.addEventListener("resize", () => scheduleAutoFitPlaylistPageSize());
+    document.addEventListener("fullscreenchange", () => scheduleAutoFitPlaylistPageSize());
+  } catch {}
+
   audio.addEventListener("error", () => {
     const ext = state.current?.ext || "";
     showPreviewError(t("err_audio_load", ext));
@@ -1601,7 +1792,8 @@ async function boot() {
   bindUI();
   try {
     await loadConfig();
-    await loadMedia(false);
+    await loadMedia(false, 200);
+    setTimeout(() => loadMedia(false).catch(() => {}), 0);
     if (state.tab === "audio") {
       tryResumeAudio();
     }
