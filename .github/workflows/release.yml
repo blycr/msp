@@ -87,6 +87,31 @@ jobs:
         if: github.event_name == 'push'
         run: |
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+      - name: Compute upload file list
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=""
+          if [ -d bin ]; then
+            files="$(find bin -type f -print || true)"
+          fi
+          if [ -d checksums ]; then
+            more="$(find checksums -type f -name '*.sha256' -print || true)"
+            files="$(printf "%s\n%s" "$files" "$more")"
+          fi
+          files="$(printf "%s\n" "$files" | sed '/^$/d')"
+          if [ -z "$files" ]; then
+            echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
+            echo "[Warn] No artifacts found to upload"
+          else
+            {
+              echo "UPLOAD_FILES<<EOF"
+              printf "%s\n" "$files"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "[Info] Files to upload:"
+            printf "%s\n" "$files"
+          fi
       - name: Create GitHub Release (tag push)
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
@@ -94,9 +119,7 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
           fail_on_unmatched_files: true
-          files: |
-            bin/**/*
-            checksums/**/*.sha256
+          files: ${{ env.UPLOAD_FILES }}
       - name: Create GitHub Release (workflow_dispatch, with notes file)
         if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH != ''
         uses: softprops/action-gh-release@v2
@@ -105,9 +128,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
           fail_on_unmatched_files: true
-          files: |
-            bin/**/*
-            checksums/**/*.sha256
+          files: ${{ env.UPLOAD_FILES }}
       - name: Create GitHub Release (workflow_dispatch, with input notes)
         if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH == ''
         uses: softprops/action-gh-release@v2
@@ -116,6 +137,4 @@ jobs:
           target_commitish: ${{ github.sha }}
           body: ${{ inputs.notes }}
           fail_on_unmatched_files: true
-          files: |
-            bin/**/*
-            checksums/**/*.sha256
+          files: ${{ env.UPLOAD_FILES }}
