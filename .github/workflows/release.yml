@@ -21,6 +21,11 @@ permissions:
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ""
+      RELEASE_NOTES_PATH: ""
+      UPLOAD_FILES: ""
+      NO_ARTIFACTS: "0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,6 +108,7 @@ jobs:
             | grep -E '^(bin/(windows|linux|macos|arm)/.+|checksums/.+\.sha256)$' || true)"
           if [ -z "$files" ]; then
             echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
+            echo "UPLOAD_FILES=" >> "$GITHUB_ENV"
             echo "[Warn] No artifacts found to upload"
           else
             {
@@ -114,7 +120,7 @@ jobs:
             printf "%s\n" "$files"
           fi
       - name: Create GitHub Release (tag push)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && env.NO_ARTIFACTS != '1'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -122,7 +128,7 @@ jobs:
           fail_on_unmatched_files: true
           files: ${{ env.UPLOAD_FILES }}
       - name: Create GitHub Release (workflow_dispatch, with notes file)
-        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH != ''
+        if: github.event_name == 'workflow_dispatch' && env.NO_ARTIFACTS != '1' && env.RELEASE_NOTES_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -131,7 +137,7 @@ jobs:
           fail_on_unmatched_files: true
           files: ${{ env.UPLOAD_FILES }}
       - name: Create GitHub Release (workflow_dispatch, with input notes)
-        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH == ''
+        if: github.event_name == 'workflow_dispatch' && env.NO_ARTIFACTS != '1' && env.RELEASE_NOTES_PATH == ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
