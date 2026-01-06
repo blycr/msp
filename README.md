@@ -53,6 +53,22 @@ After startup, visit the address printed in the console (e.g., `http://127.0.0.1
 - One-step (Windows):
   - `scripts/build.ps1`
 
+### Cross-Platform Build (Go Native)
+
+- Default: Windows x64
+  - `scripts/build.ps1`
+- Select platforms/architectures:
+  - `scripts/build.ps1 -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
+- Outputs:
+  - `bin/windows/x64/msp-windows-amd64.exe`
+  - `bin/windows/x86/msp-windows-386.exe`
+  - `bin/linux/amd64/msp-linux-amd64`
+  - `bin/linux/arm64/msp-linux-arm64`
+  - `bin/arm/v7/msp-arm-v7`
+  - `bin/arm/v8/msp-arm-v8`
+  - `bin/macos/msp-macos-amd64`, `bin/macos/msp-macos-arm64`
+  - Checksums in `checksums/`, debug copies in `debug/`
+
 ## Documentation & Help
 
 For configuration parameters, build steps, common issues (e.g., video playback encoding support), and advanced usage, please visit the Project Wiki:

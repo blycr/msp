@@ -51,6 +51,21 @@
 - 一键构建（Windows）：
   - `scripts/build.ps1`
 
+### 跨平台构建（Go 原生）
+
+- 默认：Windows x64
+  - `scripts/build.ps1`
+- 可选平台/架构：
+  - `scripts/build.ps1 -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
+- 产物目录：
+  - `bin/windows/x64/msp-windows-amd64.exe`
+  - `bin/windows/x86/msp-windows-386.exe`
+  - `bin/linux/amd64/msp-linux-amd64`
+  - `bin/linux/arm64/msp-linux-arm64`
+  - `bin/arm/v7/msp-arm-v7`
+  - `bin/arm/v8/msp-arm-v8`
+  - `bin/macos/msp-macos-amd64`, `bin/macos/msp-macos-arm64`
+  - 校验在 `checksums/`，调试拷贝在 `debug/`
 ## 文档与帮助
 
 关于配置参数、构建步骤、常见问题（如视频无法播放的编码问题）及更多高级用法，请查阅项目 Wiki：
