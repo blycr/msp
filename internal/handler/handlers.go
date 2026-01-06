@@ -59,7 +59,7 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 			if sh.Path == "" {
 				continue
 			}
-			p := util.NormalizeWinPath(sh.Path)
+			p := util.NormalizePath(sh.Path)
 			if ok := util.IsExistingDir(p); !ok {
 				continue
 			}
@@ -99,7 +99,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 	}
 
 	op := strings.ToLower(strings.TrimSpace(req.Op))
-	p := util.NormalizeWinPath(req.Path)
+	p := util.NormalizePath(req.Path)
 	label := strings.TrimSpace(req.Label)
 	if label == "" && p != "" {
 		label = filepath.Base(p)
@@ -132,7 +132,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 		case "remove":
 			out := make([]config.Share, 0, len(cfg.Shares))
 			for _, sh := range cfg.Shares {
-				if !util.SamePathWin(sh.Path, p) {
+				if !util.SamePath(sh.Path, p) {
 					out = append(out, sh)
 				}
 			}
@@ -199,7 +199,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad id", http.StatusBadRequest)
 		return
 	}
-	target = util.NormalizeWinPath(target)
+	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
 	shares := append([]config.Share(nil), cfg.Shares...)
@@ -273,7 +273,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: "bad id"}})
 		return
 	}
-	target = util.NormalizeWinPath(target)
+	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
 	shares := append([]config.Share(nil), cfg.Shares...)
@@ -309,7 +309,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad id", http.StatusBadRequest)
 		return
 	}
-	target = util.NormalizeWinPath(target)
+	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
 	shares := append([]config.Share(nil), cfg.Shares...)

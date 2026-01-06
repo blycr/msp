@@ -43,7 +43,7 @@ const I18N = {
     bl_size_ph: "Block Size (>100MB, 10KB-1MB)",
     bl_hint: `Usage:<br>1. <strong>Regex</strong>: /pattern/<br>2. <strong>Size</strong>: >100MB, 10MB-1GB<br>3. <strong>Units</strong>: B, KB, MB, GB`,
     save_bl: "Save Blacklist",
-    dlg_note: "Note: Web cannot open folder picker due to security limits. Please input path manually.",
+    dlg_note: "Note: Browser cannot open the system folder picker due to security limits. Please input the path manually.",
     close: "Close",
     
     // JS Dynamic
@@ -110,7 +110,7 @@ const I18N = {
     bl_size_ph: "大小屏蔽 (如: >100MB, 10KB-1MB, 500B)",
     bl_hint: `用法提示：<br>1. <strong>正则匹配</strong>：使用 <code>/</code> 包裹<br>2. <strong>大小范围</strong>：支持 <code>10MB-1GB</code>, <code>&gt;500MB</code><br>3. <strong>单位支持</strong>：B, KB, MB, GB, TB`,
     save_bl: "保存黑名单设置",
-    dlg_note: "提示：网页无法直接弹出 Windows 文件夹选择器（受浏览器安全限制），请手动输入路径。",
+    dlg_note: "提示：由于浏览器安全限制，网页无法直接弹出系统文件夹选择器，请手动输入路径。",
     close: "关闭",
 
     kind_video: "视频",
@@ -173,6 +173,12 @@ const state = {
     shuffle: false,
     loop: false,
   },
+  // 列表分页
+  listPageSize: 10,
+  listPage: 1,
+  // 播放列表分页
+  plPageSize: 10,
+  plPage: 1,
   sort: {
     field: "name",
     order: 1, // 1 for asc, -1 for desc
@@ -220,6 +226,21 @@ function setLang(lang) {
     const k = el.getAttribute("data-i18n-title");
     if (k) el.title = t(k);
   });
+  
+  // Platform-specific placeholder for share path
+  const sharePathEl = el("sharePath");
+  if (sharePathEl) {
+    const plat = (navigator.platform || navigator.userAgent || "").toLowerCase();
+    let ph = t("path_ph");
+    if (plat.includes("win")) {
+      ph = state.lang === "zh" ? "例如：D:\\\\Media 或 D:/Media（自动兼容斜杠）" : "e.g. D:\\\\Media or D:/Media";
+    } else if (plat.includes("mac") || plat.includes("darwin")) {
+      ph = state.lang === "zh" ? "例如：/Users/你的用户名/Media" : "e.g. /Users/yourname/Media";
+    } else {
+      ph = state.lang === "zh" ? "例如：/home/你的用户名/Media 或 ~/Media" : "e.g. /home/username/Media or ~/Media";
+    }
+    sharePathEl.placeholder = ph;
+  }
   
   // Update HTML content (like blacklist hint)
   const blHint = el("blHint");
@@ -288,9 +309,9 @@ function initTheme() {
     if (document.startViewTransition) {
       document.startViewTransition(apply);
     } else {
-      document.documentElement.classList.add("theme-swap");
+      document.documentElement.classList.add("theme-fade");
       apply();
-      setTimeout(() => document.documentElement.classList.remove("theme-swap"), 650);
+      setTimeout(() => document.documentElement.classList.remove("theme-fade"), 300);
     }
   });
 
@@ -304,9 +325,9 @@ function initTheme() {
       if (document.startViewTransition) {
         document.startViewTransition(apply);
       } else {
-        document.documentElement.classList.add("theme-swap");
+        document.documentElement.classList.add("theme-fade");
         apply();
-        setTimeout(() => document.documentElement.classList.remove("theme-swap"), 650);
+        setTimeout(() => document.documentElement.classList.remove("theme-fade"), 300);
       }
     }
   });
@@ -656,7 +677,14 @@ function renderList() {
   const kindName = t("kind_" + state.tab) || state.tab;
   hint.textContent = t("hint_stats", kindName, list.length);
 
-  for (const item of list) {
+  const pageSize = state.listPageSize || 10;
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  state.listPage = Math.max(1, Math.min(state.listPage || 1, totalPages));
+  const start = (state.listPage - 1) * pageSize;
+  const pageItems = list.slice(start, start + pageSize);
+
+  for (const item of pageItems) {
     const row = document.createElement("div");
     row.className = "item";
     row.addEventListener("click", () => playItem(item, { user: true, autoplay: true }));
@@ -683,6 +711,33 @@ function renderList() {
     row.appendChild(badge);
     box.appendChild(row);
   }
+
+  if (totalPages > 1) {
+    const pager = document.createElement("div");
+    pager.className = "row";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "btn btn--ghost";
+    prevBtn.textContent = t("prev");
+    prevBtn.disabled = state.listPage <= 1;
+    prevBtn.addEventListener("click", () => { state.listPage = Math.max(1, state.listPage - 1); renderList(); });
+
+    const info = document.createElement("div");
+    info.className = "small";
+    info.style.margin = "0 8px";
+    info.textContent = `${state.listPage}/${totalPages}`;
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "btn btn--ghost";
+    nextBtn.textContent = t("next");
+    nextBtn.disabled = state.listPage >= totalPages;
+    nextBtn.addEventListener("click", () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); });
+
+    pager.appendChild(prevBtn);
+    pager.appendChild(info);
+    pager.appendChild(nextBtn);
+    box.appendChild(pager);
+  }
 }
 
 function setPlaylist(kind, items, index) {
@@ -708,7 +763,13 @@ function renderPlaylist() {
   const kind = state.playlist.kind || "";
   meta.textContent = `${t("kind_" + kind) || kind} · ${t("item_count", "", items.length).replace(" · ", "")}`;
 
-  for (let i = 0; i < items.length; i++) {
+  const psize = state.plPageSize || 10;
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / psize));
+  state.plPage = Math.max(1, Math.min(state.plPage || 1, totalPages));
+  const start = (state.plPage - 1) * psize;
+
+  for (let i = start; i < Math.min(total, start + psize); i++) {
     const it = items[i];
     const row = document.createElement("div");
     row.className = "plitem" + (i === state.playlist.index ? " plitem--active" : "");
@@ -735,6 +796,33 @@ function renderPlaylist() {
     row.appendChild(idx);
     row.appendChild(main);
     box.appendChild(row);
+  }
+
+  if (totalPages > 1) {
+    const pager = document.createElement("div");
+    pager.className = "row";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "btn btn--ghost";
+    prevBtn.textContent = t("prev");
+    prevBtn.disabled = state.plPage <= 1;
+    prevBtn.addEventListener("click", () => { state.plPage = Math.max(1, state.plPage - 1); renderPlaylist(); });
+
+    const info = document.createElement("div");
+    info.className = "small";
+    info.style.margin = "0 8px";
+    info.textContent = `${state.plPage}/${totalPages}`;
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "btn btn--ghost";
+    nextBtn.textContent = t("next");
+    nextBtn.disabled = state.plPage >= totalPages;
+    nextBtn.addEventListener("click", () => { state.plPage = Math.min(totalPages, state.plPage + 1); renderPlaylist(); });
+
+    pager.appendChild(prevBtn);
+    pager.appendChild(info);
+    pager.appendChild(nextBtn);
+    box.appendChild(pager);
   }
 }
 
@@ -1157,7 +1245,12 @@ function playItem(item, opts) {
   if (item.kind === "image") {
     const img = el("imgEl");
     img.src = streamUrl(item.id);
+    img.style.opacity = "0";
     img.style.display = "block";
+    requestAnimationFrame(() => {
+      img.style.transition = "opacity 0.25s ease";
+      img.style.opacity = "1";
+    });
     if (options.autoplay) {
       try { img.decode?.(); } catch {}
     }
@@ -1172,7 +1265,12 @@ function playItem(item, opts) {
     }
     resetMediaEl(audio);
     audio.src = streamUrl(item.id);
+    audio.style.opacity = "0";
     audio.style.display = "block";
+    requestAnimationFrame(() => {
+      audio.style.transition = "opacity 0.25s ease";
+      audio.style.opacity = "1";
+    });
     
     // Ensure event listener is attached even if DOM or Plyr changes
     audio.removeEventListener("ended", onAudioEnded);
@@ -1204,7 +1302,12 @@ function playItem(item, opts) {
     if (item.coverId) {
       cover.src = streamUrl(item.coverId);
     }
+    meta.style.opacity = "0";
     meta.style.display = "flex";
+    requestAnimationFrame(() => {
+      meta.style.transition = "opacity 0.25s ease";
+      meta.style.opacity = "1";
+    });
 
     if (getCfg("playback.audio.remember", true)) {
       try { localStorage.setItem(LS.audioLastID, item.id); } catch {}
@@ -1509,4 +1612,3 @@ async function boot() {
 }
 
 boot();
-
