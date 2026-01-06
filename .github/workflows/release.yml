@@ -29,15 +29,61 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Set release variables
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${{ github.ref_name }}"
+          else
+            tag="${{ inputs.version }}"
+          fi
+          if [ "${tag#v}" = "$tag" ]; then
+            tag="v$tag"
+          fi
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          notes_path="docs/release/$tag.md"
+          if [ -f "$notes_path" ]; then
+            echo "RELEASE_NOTES_PATH=$notes_path" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_NOTES_PATH=" >> "$GITHUB_ENV"
+          fi
+      - name: Create and push tag (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git fetch --tags --force
+          if git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
+            exit 0
+          fi
+          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
+          git push origin "${RELEASE_TAG}"
       - name: Build all targets via scripts/build.sh
         run: |
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
-      - name: Create GitHub Release
+      - name: Create GitHub Release (tag push)
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
+          files: |
+            bin/**/*
+            checksums/**/*.sha256
+      - name: Create GitHub Release (workflow_dispatch, with notes file)
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
+          files: |
+            bin/**/*
+            checksums/**/*.sha256
+      - name: Create GitHub Release (workflow_dispatch, with input notes)
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH == ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
           body: ${{ inputs.notes }}
-          body_path: ${{ github.event_name == 'push' && format('docs/release/{0}.md', github.ref_name) || '' }}
           files: |
             bin/**/*
             checksums/**/*.sha256
