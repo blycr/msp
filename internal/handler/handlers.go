@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,6 +173,35 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 
 	refresh := r.URL.Query().Get("refresh") == "1"
 	resp, etag := h.s.GetOrBuildMediaCache(shares, blacklist, refresh)
+
+	resp.VideosTotal = len(resp.Videos)
+	resp.AudiosTotal = len(resp.Audios)
+	resp.ImagesTotal = len(resp.Images)
+	resp.OthersTotal = len(resp.Others)
+
+	limit := 0
+	if v := strings.TrimSpace(r.URL.Query().Get("limit")); v != "" {
+		limit, _ = strconv.Atoi(v)
+	}
+	if limit > 0 {
+		if len(resp.Videos) > limit {
+			resp.Videos = resp.Videos[:limit]
+		}
+		if len(resp.Audios) > limit {
+			resp.Audios = resp.Audios[:limit]
+		}
+		if len(resp.Images) > limit {
+			resp.Images = resp.Images[:limit]
+		}
+		if len(resp.Others) > limit {
+			resp.Others = resp.Others[:limit]
+		}
+		resp.Limited = true
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
 	if etag != "" {
 		w.Header().Set("ETag", etag)
 		if !refresh && strings.TrimSpace(r.Header.Get("If-None-Match")) == etag {
@@ -285,10 +315,15 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 
 	ext := strings.ToLower(filepath.Ext(target))
 	video, audio := media.SniffContainerCodecs(target, ext)
+	var subs []types.Subtitle
+	if media.ClassifyExt(ext) == "video" {
+		subs = media.FindSidecarSubtitles(target)
+	}
 	writeJSON(w, http.StatusOK, types.ProbeResponse{
 		Container: strings.TrimPrefix(ext, "."),
 		Video:     video,
 		Audio:     audio,
+		Subtitles: subs,
 	})
 }
 
@@ -358,6 +393,9 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if w.Header().Get("Cache-Control") == "" {
+		w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
+	}
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)

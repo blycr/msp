@@ -38,6 +38,8 @@ config.local.json
 config.*.local.json
 .env
 .env.local
+*.media_cache.json
+*.media_cache.json.tmp
 
 # Temp / backup
 *.tmp

@@ -26,6 +26,8 @@ type Server struct {
 	cfg     config.Config
 	cfgPath string
 
+	mediaCachePath string
+
 	mediaMu       sync.Mutex
 	mediaCond     *sync.Cond
 	mediaKey      string
@@ -39,7 +41,10 @@ type Server struct {
 }
 
 func New(cfgPath string) *Server {
-	s := &Server{cfgPath: cfgPath}
+	s := &Server{
+		cfgPath:        cfgPath,
+		mediaCachePath: cfgPath + ".media_cache.json",
+	}
 	s.mediaTTL = 2 * time.Minute
 	s.mediaCond = sync.NewCond(&s.mediaMu)
 	return s
@@ -62,7 +67,7 @@ func (s *Server) LoadOrInitConfig() error {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return err
 	}
-	
+
 	changed := config.ApplyDefaults(&cfg)
 
 	s.mu.Lock()
@@ -76,9 +81,9 @@ func (s *Server) LoadOrInitConfig() error {
 
 func (s *Server) saveConfigLocked() error {
 	// Assumes s.mu is locked (read or write) by caller if reading s.cfg
-	// But we need to marshal it. 
+	// But we need to marshal it.
 	// If caller holds Lock, we are fine.
-	
+
 	b, err := json.MarshalIndent(s.cfg, "", "  ")
 	if err != nil {
 		return err
@@ -180,17 +185,31 @@ func (s *Server) InvalidateMediaCache() {
 	s.mediaBuiltAt = time.Time{}
 	s.mediaResp = types.MediaResponse{}
 	s.mediaMu.Unlock()
+	_ = os.Remove(s.mediaCachePath)
 }
 
 func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
-	key := sharesCacheKey(shares)
+	key := mediaCacheKey(shares, blacklist)
+	if !refresh {
+		_ = s.LoadMediaCacheFromDisk(key)
+	}
 
 	for {
 		s.mediaMu.Lock()
-		valid := s.mediaKey == key && !s.mediaBuiltAt.IsZero() && time.Since(s.mediaBuiltAt) < s.mediaTTL
-		if valid && !refresh {
+		has := s.mediaKey == key && !s.mediaBuiltAt.IsZero()
+		if has && !refresh {
+			if time.Since(s.mediaBuiltAt) < s.mediaTTL {
+				resp := s.mediaResp
+				etag := s.mediaETag
+				s.mediaMu.Unlock()
+				return resp, etag
+			}
 			resp := s.mediaResp
 			etag := s.mediaETag
+			if !s.mediaBuilding {
+				s.mediaBuilding = true
+				go s.rebuildMediaCache(key, shares, blacklist)
+			}
 			s.mediaMu.Unlock()
 			return resp, etag
 		}
@@ -214,8 +233,117 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 		s.mediaBuilding = false
 		s.mediaCond.Broadcast()
 		s.mediaMu.Unlock()
+		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
 		return resp, etag
 	}
+}
+
+func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist config.BlacklistConfig) {
+	resp := media.BuildMediaResponse(shares, blacklist)
+	builtAt := time.Now()
+	etag := weakETag(key, builtAt)
+
+	s.mediaMu.Lock()
+	s.mediaResp = resp
+	s.mediaKey = key
+	s.mediaBuiltAt = builtAt
+	s.mediaETag = etag
+	s.mediaBuilding = false
+	s.mediaCond.Broadcast()
+	s.mediaMu.Unlock()
+	go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+}
+
+func mediaCacheKey(shares []config.Share, blacklist config.BlacklistConfig) string {
+	var b strings.Builder
+	b.WriteString(sharesCacheKey(shares))
+
+	exts := normRuleList(blacklist.Extensions)
+	files := normRuleList(blacklist.Filenames)
+	folders := normRuleList(blacklist.Folders)
+
+	b.WriteString("blExt=")
+	b.WriteString(strings.Join(exts, ","))
+	b.WriteByte('\n')
+	b.WriteString("blFile=")
+	b.WriteString(strings.Join(files, ","))
+	b.WriteByte('\n')
+	b.WriteString("blFolder=")
+	b.WriteString(strings.Join(folders, ","))
+	b.WriteByte('\n')
+	b.WriteString("blSize=")
+	b.WriteString(strings.TrimSpace(strings.ToLower(blacklist.SizeRule)))
+	b.WriteByte('\n')
+
+	return b.String()
+}
+
+func normRuleList(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		v := strings.TrimSpace(s)
+		if v == "" {
+			continue
+		}
+		out = append(out, strings.ToLower(v))
+	}
+	sort.Strings(out)
+	return out
+}
+
+type mediaCacheOnDisk struct {
+	Key     string              `json:"key"`
+	BuiltAt int64               `json:"builtAt"`
+	ETag    string              `json:"etag"`
+	Resp    types.MediaResponse `json:"resp"`
+}
+
+func (s *Server) LoadMediaCacheFromDisk(key string) bool {
+	s.mediaMu.Lock()
+	already := s.mediaKey == key && !s.mediaBuiltAt.IsZero()
+	need := s.mediaKey != key || s.mediaBuiltAt.IsZero()
+	s.mediaMu.Unlock()
+	if already || !need {
+		return already
+	}
+
+	b, err := os.ReadFile(s.mediaCachePath)
+	if err != nil || len(b) == 0 {
+		return false
+	}
+	var v mediaCacheOnDisk
+	if err := json.Unmarshal(b, &v); err != nil {
+		return false
+	}
+	if v.Key != key || v.BuiltAt <= 0 {
+		return false
+	}
+
+	s.mediaMu.Lock()
+	s.mediaKey = v.Key
+	s.mediaBuiltAt = time.Unix(0, v.BuiltAt)
+	s.mediaETag = v.ETag
+	s.mediaResp = v.Resp
+	s.mediaMu.Unlock()
+	return true
+}
+
+func (s *Server) saveMediaCacheToDisk(key string, builtAt time.Time, etag string, resp types.MediaResponse) {
+	v := mediaCacheOnDisk{
+		Key:     key,
+		BuiltAt: builtAt.UnixNano(),
+		ETag:    etag,
+		Resp:    resp,
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	tmp := s.mediaCachePath + ".tmp"
+	if err := os.WriteFile(tmp, b, 0644); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, s.mediaCachePath)
 }
 
 func sharesCacheKey(shares []config.Share) string {

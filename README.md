@@ -18,12 +18,12 @@ A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" with
 - **Encoding Hints**: Detects media container and codec information.
 - **Modern Architecture**: Modular Go backend + Vite-powered Frontend.
 
-## What’s New (v0.5.0)
+## What’s New (v0.5.3)
 
-- **PWA Support**: Install MSP to desktop or mobile. Works offline for the UI shell and launches as a standalone app.
-- **Smooth Theme Transitions**: Refined light/dark switching with lightweight opacity transitions and accessibility-friendly motion handling.
-- **Audio & Image Fade-in**: Audio player and image preview now use smooth fade-in to avoid jank when switching items.
-- **List Pagination**: Long lists are paginated (10 items per page) for both the left file list and the playlist to improve responsiveness.
+- **Faster Startup**: `GET /api/media?limit=200` for first paint, then load full list in background.
+- **Better Caching**: API supports `ETag/If-None-Match` (304); stale-while-revalidate memory cache.
+- **Richer Probe**: `GET /api/probe` returns container/codec + sidecar subtitles list.
+- **Local Media Cache**: runtime generates `config.json.media_cache.json` (do not commit).
 
 ## PWA Usage
 
