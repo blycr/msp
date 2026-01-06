@@ -66,7 +66,25 @@ jobs:
         shell: bash
         run: |
           git checkout "$RELEASE_TAG"
-      - name: Build all targets via scripts/build.sh
+      - name: Build from tag and fallback to HEAD if no artifacts
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "[Info] Build at tag: $RELEASE_TAG"
+          bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8 || true
+          count=$(find bin -type f | wc -l || echo 0)
+          if [ "$count" -le 0 ]; then
+            echo "[Warn] No artifacts produced at tag, fallback to HEAD: $HEAD_SHA"
+            git checkout "$HEAD_SHA"
+            bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+          else
+            echo "[Info] Artifacts produced at tag: $count files"
+          fi
+      - name: Build all targets via scripts/build.sh (push event)
+        if: github.event_name == 'push'
         run: |
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
       - name: Create GitHub Release (tag push)
