@@ -44,6 +44,9 @@ config.*.local.json
 .trae/
 vercel.json
 docs/
+!docs/
+!docs/release/
+!docs/release/*.md
 .vercel/
 
 # Dependencies
