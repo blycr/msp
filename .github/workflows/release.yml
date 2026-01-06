@@ -24,22 +24,28 @@ jobs:
     env:
       RELEASE_TAG: ""
       RELEASE_NOTES_PATH: ""
+      RELEASE_TARGET: ""
       UPLOAD_FILES: ""
       NO_ARTIFACTS: "0"
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Set release variables
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('web/package-lock.json', 'web/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - name: Set release tag
         shell: bash
-        env:
-          NOTES_INPUT: ${{ inputs.notes }}
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             tag="${{ github.ref_name }}"
@@ -50,9 +56,51 @@ jobs:
             tag="v$tag"
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
-          notes_path="docs/release/$tag.md"
+          echo "RELEASE_TARGET=${{ github.sha }}" >> "$GITHUB_ENV"
+      - name: Build all targets via scripts/build.sh (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf bin checksums debug || true
+          git fetch --force --tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" >/dev/null 2>&1 || true
+
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+            echo "[Info] Tag exists: $RELEASE_TAG ($tag_sha)"
+            git checkout "$RELEASE_TAG"
+            if bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8; then
+              echo "RELEASE_TARGET=$tag_sha" >> "$GITHUB_ENV"
+            else
+              echo "[Warn] Build failed at tag, fallback to HEAD: $HEAD_SHA"
+              git checkout "$HEAD_SHA"
+              rm -rf bin checksums debug || true
+              bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+              echo "RELEASE_TARGET=$HEAD_SHA" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "[Info] Tag not found locally, build at HEAD: $HEAD_SHA"
+            git checkout "$HEAD_SHA"
+            bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+            echo "RELEASE_TARGET=$HEAD_SHA" >> "$GITHUB_ENV"
+          fi
+      - name: Build all targets via scripts/build.sh (push event)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          rm -rf bin checksums debug || true
+          bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+      - name: Prepare release notes
+        shell: bash
+        env:
+          NOTES_INPUT: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          notes_path="docs/release/$RELEASE_TAG.md"
           if [ -f "$notes_path" ]; then
-            tmp_notes="$RUNNER_TEMP/release_notes_$tag.md"
+            tmp_notes="$RUNNER_TEMP/release_notes_$RELEASE_TAG.md"
             cp "$notes_path" "$tmp_notes"
             echo "RELEASE_NOTES_PATH=$tmp_notes" >> "$GITHUB_ENV"
           else
@@ -66,32 +114,10 @@ jobs:
             fi
             echo "RELEASE_NOTES_PATH=" >> "$GITHUB_ENV"
           fi
-      - name: Checkout tag for workflow_dispatch build
-        if: github.event_name == 'workflow_dispatch'
+      - name: Remove debug copies
         shell: bash
         run: |
-          git checkout "$RELEASE_TAG"
-      - name: Build from tag and fallback to HEAD if no artifacts
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        env:
-          HEAD_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          echo "[Info] Build at tag: $RELEASE_TAG"
-          bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8 || true
-          count=$(find bin -type f | wc -l || echo 0)
-          if [ "$count" -le 0 ]; then
-            echo "[Warn] No artifacts produced at tag, fallback to HEAD: $HEAD_SHA"
-            git checkout "$HEAD_SHA"
-            bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
-          else
-            echo "[Info] Artifacts produced at tag: $count files"
-          fi
-      - name: Build all targets via scripts/build.sh (push event)
-        if: github.event_name == 'push'
-        run: |
-          bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+          rm -rf debug || true
       - name: Compute upload file list
         shell: bash
         run: |
@@ -132,7 +158,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ env.RELEASE_TARGET }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
           fail_on_unmatched_files: true
           files: ${{ env.UPLOAD_FILES }}
@@ -141,7 +167,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ env.RELEASE_TARGET }}
           body: ${{ inputs.notes }}
           fail_on_unmatched_files: true
           files: ${{ env.UPLOAD_FILES }}
