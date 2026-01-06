@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"time"
 
@@ -66,7 +69,7 @@ func main() {
 	fmt.Println("配置文件:", cfgPath)
 	for _, u := range urls {
 		log.Println("访问:", u)
-		fmt.Println("访问:", u)
+		fmt.Println("访问:", "\x1b[36m"+u+"\x1b[0m")
 	}
 
 	finalHandler := handler.WithLog(s, handler.WithGzip(mux))
@@ -77,7 +80,34 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	go func() {
+		localURL := "http://localhost:" + util.Itoa(port) + "/"
+		addr := "127.0.0.1:" + util.Itoa(port)
+
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+			if err == nil {
+				_ = c.Close()
+				break
+			}
+			time.Sleep(120 * time.Millisecond)
+		}
+		_ = openBrowser(localURL)
+	}()
+
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
+	}
+}
+
+func openBrowser(url string) error {
+	switch runtime.GOOS {
+	case "windows":
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		return exec.Command("open", url).Start()
+	default:
+		return exec.Command("xdg-open", url).Start()
 	}
 }
