@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +30,9 @@ func DecodeID(id string) (string, error) {
 	return string(b), nil
 }
 
-func NormalizeWinPath(p string) string {
+func NormalizeWinPath(p string) string { return NormalizePath(p) }
+
+func NormalizePath(p string) string {
 	p = strings.TrimSpace(p)
 	if p == "" {
 		return ""
@@ -115,7 +118,7 @@ func MustExeDir() string {
 func NormalizeShares(in []config.Share) []config.Share {
 	out := make([]config.Share, 0, len(in))
 	for _, sh := range in {
-		p := NormalizeWinPath(sh.Path)
+		p := NormalizePath(sh.Path)
 		if p == "" {
 			continue
 		}
@@ -144,11 +147,11 @@ func IsAllowedFile(fileAbs string, shares []config.Share) bool {
 	f = filepath.Clean(f)
 
 	for _, sh := range shares {
-		root := NormalizeWinPath(sh.Path)
+		root := NormalizePath(sh.Path)
 		if root == "" {
 			continue
 		}
-		if WithinWinRoot(root, f) {
+		if WithinRoot(root, f) {
 			st, err := os.Stat(f)
 			return err == nil && !st.IsDir()
 		}
@@ -156,21 +159,40 @@ func IsAllowedFile(fileAbs string, shares []config.Share) bool {
 	return false
 }
 
-func WithinWinRoot(root, target string) bool {
+func WithinWinRoot(root, target string) bool { return WithinRoot(root, target) }
+
+func WithinRoot(root, target string) bool {
 	root = filepath.Clean(root)
 	target = filepath.Clean(target)
-	if strings.EqualFold(root, target) {
+	if runtime.GOOS == "windows" {
+		if strings.EqualFold(root, target) {
+			return true
+		}
+		rs := root
+		if !strings.HasSuffix(rs, string(os.PathSeparator)) {
+			rs += string(os.PathSeparator)
+		}
+		return strings.HasPrefix(strings.ToLower(target), strings.ToLower(rs))
+	}
+	if root == target {
 		return true
 	}
 	rs := root
 	if !strings.HasSuffix(rs, string(os.PathSeparator)) {
 		rs += string(os.PathSeparator)
 	}
-	return strings.HasPrefix(strings.ToLower(target), strings.ToLower(rs))
+	return strings.HasPrefix(target, rs)
 }
 
-func SamePathWin(a, b string) bool {
-	return strings.EqualFold(NormalizeWinPath(a), NormalizeWinPath(b))
+func SamePathWin(a, b string) bool { return SamePath(a, b) }
+
+func SamePath(a, b string) bool {
+	na := NormalizePath(a)
+	nb := NormalizePath(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(na, nb)
+	}
+	return na == nb
 }
 
 func GetLanIPv4s() []string {

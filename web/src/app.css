@@ -81,23 +81,22 @@ body {
   background: var(--md-bg);
   color: var(--md-text);
   font-family: "Microsoft YaHei", "微软雅黑", Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
-  transition: background-color 0.6s cubic-bezier(0.4, 0, 0.2, 1), color 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Common transitions for theme changes */
 .panel, .tab, .textfield, .item, .btn--ghost, .audioCover, .lyrics, .dialog, .share, .topbar, .plitem {
-  transition: background-color 0.6s cubic-bezier(0.4, 0, 0.2, 1), 
-              border-color 0.6s cubic-bezier(0.4, 0, 0.2, 1), 
-              color 0.6s cubic-bezier(0.4, 0, 0.2, 1), 
-              box-shadow 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: background-color, border-color, color, box-shadow;
+  transition: background-color 0.25s ease, 
+              border-color 0.25s ease, 
+              color 0.25s ease;
 }
 
-/* Optimize video player transitions */
+/* Optimize media transitions (opacity only, 0.25s); removed will-change to avoid over-compositing */
 #videoEl, .plyr {
-  /* Only animate specific properties, avoid 'all' */
-  transition: opacity 0.3s ease;
-  will-change: opacity;
+  transition: opacity 0.25s ease;
+}
+#audioEl, #imgEl, #audioMeta {
+  transition: opacity 0.25s ease;
 }
 
 .topbar{
@@ -673,31 +672,13 @@ body {
 }
 
 ::view-transition-old(root),
-::view-transition-new(root){
-  animation: theme-fade .6s cubic-bezier(0.4,0,0.2,1);
+::view-transition-new(root),
+.theme-fade{
+  animation: theme-fade .25s ease;
 }
 @keyframes theme-fade{
   from{opacity:.92}
   to{opacity:1}
-}
-.theme-swap .panel,
-.theme-swap .tab,
-.theme-swap .textfield,
-.theme-swap .item,
-.theme-swap .btn,
-.theme-swap .btn--ghost,
-.theme-swap .plyr,
-.theme-swap .plyr__controls,
-.theme-swap .plyr__control,
-.theme-swap .plyr__menu__container,
-.theme-swap .plyr__tooltip,
-.theme-swap .topbar,
-.theme-swap .plitem,
-.theme-swap .audioCover,
-.theme-swap .lyrics,
-.theme-swap .dialog,
-.theme-swap .share{
-  transition:none !important;
 }
 
 .footer {

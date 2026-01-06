@@ -221,7 +221,7 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 func sharesCacheKey(shares []config.Share) string {
 	s := append([]config.Share(nil), shares...)
 	for i := range s {
-		s[i].Path = util.NormalizeWinPath(s[i].Path)
+		s[i].Path = util.NormalizePath(s[i].Path)
 	}
 	sort.Slice(s, func(i, j int) bool {
 		return strings.ToLower(s[i].Path) < strings.ToLower(s[j].Path)

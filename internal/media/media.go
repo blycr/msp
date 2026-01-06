@@ -34,7 +34,7 @@ func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig)
 
 	const maxItems = 8000
 	for _, sh := range shares {
-		root := util.NormalizeWinPath(sh.Path)
+		root := util.NormalizePath(sh.Path)
 		if root == "" || !util.IsExistingDir(root) {
 			continue
 		}
