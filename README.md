@@ -18,6 +18,19 @@ A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" with
 - **Encoding Hints**: Detects media container and codec information.
 - **Modern Architecture**: Modular Go backend + Vite-powered Frontend.
 
+## What’s New (v0.5.0)
+
+- **PWA Support**: Install MSP to desktop or mobile. Works offline for the UI shell and launches as a standalone app.
+- **Smooth Theme Transitions**: Refined light/dark switching with lightweight opacity transitions and accessibility-friendly motion handling.
+- **Audio & Image Fade-in**: Audio player and image preview now use smooth fade-in to avoid jank when switching items.
+- **List Pagination**: Long lists are paginated (10 items per page) for both the left file list and the playlist to improve responsiveness.
+
+## PWA Usage
+
+- Desktop (Chrome/Edge): Click the “Install” icon in the address bar to add MSP as an app.
+- Android (Chrome): Menu → “Install app” or “Add to Home screen”.
+- iOS (Safari): Share → “Add to Home Screen”.
+
 ## Quick Start
 
 Simply run the executable (default port `8099`):
@@ -27,6 +40,18 @@ Simply run the executable (default port `8099`):
 ```
 
 After startup, visit the address printed in the console (e.g., `http://127.0.0.1:8099/`).
+
+## Build from Source
+
+- Requirements:
+  - Go 1.22+
+  - Node.js 18+
+- Frontend:
+  - `cd web && npm install && npm run build`
+- Backend:
+  - `go build ./cmd/msp`
+- One-step (Windows):
+  - `scripts/build.ps1`
 
 ## Documentation & Help
 
@@ -41,6 +66,7 @@ For configuration parameters, build steps, common issues (e.g., video playback e
     - **Go**: 1.22+ required.
     - **Node.js**: Required for building frontend assets.
     - Use `scripts/build.ps1` (Windows) for a one-step full stack build.
+- **Privacy Note**: Do not commit private configs. Use `config.example.json` as a template.
 
 ## License
 
