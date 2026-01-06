@@ -7,16 +7,16 @@
 
 [中文文档](README_CN.md)
 
-A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" within a LAN.
+A fast, privacy-friendly LAN media share with a modern browser player — run one binary, share folders, and start watching/listening instantly.
 
-## Features Overview
+## Why MSP
 
-- **LAN Access**: Automatically displays accessible URLs (including LAN IP).
-- **Share Management**: Add/remove shared directories via the web interface.
-- **Categorization**: Video, Audio, Image, Other; supports search and playlists.
-- **Preview & Play**: Video/Audio player (with speed control, lyrics), Image gallery.
-- **Encoding Hints**: Detects media container and codec information.
-- **PWA**: Install as an app on desktop/mobile.
+- **No cloud upload**: Keep files on your machine; share over LAN with the browser.
+- **No heavy media-server setup**: No database tuning; just start and share folders.
+- **No client apps to install**: Works on phones/PCs in the same network.
+- **Fast to browse**: Categorized lists + search + playlists, designed for large libraries.
+- **Playback-first**: Built-in player, image preview, codec/container hints, subtitles/lyrics.
+- **Privacy-friendly**: Runtime config stays local; use a template file for sharing configs.
 
 ## Quick Start
 
