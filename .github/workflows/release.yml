@@ -47,16 +47,6 @@ jobs:
           else
             echo "RELEASE_NOTES_PATH=" >> "$GITHUB_ENV"
           fi
-      - name: Create and push tag (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: |
-          git fetch --tags --force
-          if git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
-            exit 0
-          fi
-          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
-          git push origin "${RELEASE_TAG}"
       - name: Build all targets via scripts/build.sh
         run: |
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
@@ -66,6 +56,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
+          fail_on_unmatched_files: true
           files: |
             bin/**/*
             checksums/**/*.sha256
@@ -74,7 +65,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
+          fail_on_unmatched_files: true
           files: |
             bin/**/*
             checksums/**/*.sha256
@@ -83,7 +76,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body: ${{ inputs.notes }}
+          fail_on_unmatched_files: true
           files: |
             bin/**/*
             checksums/**/*.sha256
