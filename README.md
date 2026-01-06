@@ -59,6 +59,14 @@ For configuration parameters, build steps, common issues (e.g., video playback e
 
 👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
 
+## Why MSP
+
+- Simple and Fast: zero-config startup, immediate LAN sharing and preview
+- Modern UX: Vite-built frontend, responsive layout, smooth transitions
+- Practical Features: playlists, subtitles, codec hints, image preview
+- Privacy-Friendly: runtime config stays local; templates provided
+- Lightweight: modular Go backend, minimal resource usage
+
 ## Contribution & Development
  
 - **Runtime Config**: `config.json` (auto-generated on first run).
