@@ -33,10 +33,10 @@ A lightweight tool for "Local Directory Sharing + Browser Preview/Playback" with
 
 ## Quick Start
 
-Simply run the executable (default port `8099`):
+Run the built executable (default port `8099`):
 
 ```bash
-./msp.exe
+./bin/windows/x64/msp-windows-amd64.exe
 ```
 
 After startup, visit the address printed in the console (e.g., `http://127.0.0.1:8099/`).

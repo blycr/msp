@@ -34,58 +34,6 @@ function Invoke-Step {
   }
 }
 
-$exePath = Join-Path $root 'msp.exe'
-
-Invoke-Step ("Check previous exe: " + $exePath) {
-  if (-not (Test-Path -LiteralPath $exePath)) {
-    Write-Log 'Previous exe not found. Skip stop/delete.' 'INFO'
-    return
-  }
-  $exeFull = (Resolve-Path -LiteralPath $exePath).Path
-  Write-Log ("Previous exe found: " + $exeFull) 'INFO'
-
-  $procs = @()
-  try { $procs = Get-Process -Name 'msp' -ErrorAction SilentlyContinue } catch { $procs = @() }
-
-  foreach ($p in $procs) {
-    $pPath = $null
-    try { $pPath = $p.Path } catch { $pPath = $null }
-    if (-not $pPath) { continue }
-
-    $pFull = $null
-    try { $pFull = (Resolve-Path -LiteralPath $pPath).Path } catch { $pFull = $pPath }
-
-    if ($pFull -ne $exeFull) { continue }
-
-    Write-Log ("Previous process is running: PID=" + $p.Id + " Path=" + $pFull) 'WARN'
-    try {
-      Stop-Process -Id $p.Id -Force -ErrorAction Stop
-      try { $p.WaitForExit(3000) } catch {}
-      Write-Log ("Process stopped: PID=" + $p.Id) 'INFO'
-    } catch {
-      Write-Log ("Stop process failed: PID=" + $p.Id + " " + $_.Exception.Message) 'ERROR'
-      throw
-    }
-  }
-
-  $retries = 0
-  $maxRetries = 10
-  while ($true) {
-    try {
-      Remove-Item -LiteralPath $exeFull -Force -ErrorAction Stop
-      Write-Log ("Previous exe deleted: " + $exeFull) 'INFO'
-      break
-    } catch {
-      $retries++
-      if ($retries -ge $maxRetries) {
-        Write-Log ("Delete previous exe failed after $maxRetries retries: " + $_.Exception.Message) 'ERROR'
-        throw
-      }
-      Write-Log ("Delete failed, retrying... ($retries/$maxRetries)") 'WARN'
-      Start-Sleep -Milliseconds 500
-    }
-  }
-}
 
 Invoke-Step 'Build Frontend' {
   Push-Location (Join-Path $root 'web')
@@ -113,15 +61,6 @@ Invoke-Step 'go test ./...' {
   }
 }
 
-Invoke-Step 'go build -o msp.exe ./cmd/msp' {
-  Push-Location $root
-  try {
-    & go build -ldflags="-s -w" -o msp.exe ./cmd/msp
-    if ($LASTEXITCODE -ne 0) { throw ("go build failed. exitCode=" + $LASTEXITCODE) }
-  } finally {
-    Pop-Location
-  }
-}
 
 function New-Dir {
   param([string]$Path)

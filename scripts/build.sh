@@ -124,11 +124,6 @@ invoke_step "go test ./..." bash -c '
   go test ./...
 '
 
-invoke_step "go build -o msp.exe ./cmd/msp" bash -c '
-  cd "'"$root"'"
-  go build -ldflags="-s -w" -o msp.exe ./cmd/msp
-'
-
 invoke_step "Cross Build Artifacts" bash -c '
   binRoot="'"$root"'/bin"
   chkRoot="'"$root"'/checksums"
