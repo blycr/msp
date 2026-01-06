@@ -99,7 +99,8 @@ jobs:
             more="$(find checksums -type f -name '*.sha256' -print || true)"
             files="$(printf "%s\n%s" "$files" "$more")"
           fi
-          files="$(printf "%s\n" "$files" | sed '/^$/d')"
+          files="$(printf "%s\n" "$files" | sed '/^$/d' \
+            | grep -E '^(bin/(windows|linux|macos|arm)/.+|checksums/.+\.sha256)$' || true)"
           if [ -z "$files" ]; then
             echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
             echo "[Warn] No artifacts found to upload"
