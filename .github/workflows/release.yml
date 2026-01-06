@@ -29,32 +29,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Build Frontend
-        working-directory: ./web
+      - name: Run build.sh for Linux/ARM
         run: |
-          npm install
-          npm run build
-      - name: Test
-        run: go test ./...
-      - name: Build Linux amd64/arm64 and ARM v7/v8
-        run: |
-          mkdir -p bin/linux/amd64 bin/linux/arm64 bin/arm/v7 bin/arm/v8 checksums
-          export CGO_ENABLED=0
-          export GOOS=linux
-          export GOARCH=amd64
-          go build -trimpath -ldflags="-s -w" -o bin/linux/amd64/msp-linux-amd64 ./cmd/msp
-          sha256sum bin/linux/amd64/msp-linux-amd64 > checksums/msp-linux-amd64.sha256
-          export GOARCH=arm64
-          go build -trimpath -ldflags="-s -w" -o bin/linux/arm64/msp-linux-arm64 ./cmd/msp
-          sha256sum bin/linux/arm64/msp-linux-arm64 > checksums/msp-linux-arm64.sha256
-          export GOARCH=arm
-          export GOARM=7
-          go build -trimpath -ldflags="-s -w" -o bin/arm/v7/msp-arm-v7 ./cmd/msp
-          sha256sum bin/arm/v7/msp-arm-v7 > checksums/msp-arm-v7.sha256
-          export GOARCH=arm64
-          unset GOARM
-          go build -trimpath -ldflags="-s -w" -o bin/arm/v8/msp-arm-v8 ./cmd/msp
-          sha256sum bin/arm/v8/msp-arm-v8 > checksums/msp-arm-v8.sha256
+          bash scripts/build.sh -Platforms linux,arm -Architectures amd64,arm64,v7,v8
       - name: Upload Linux/ARM Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -79,19 +56,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Build Frontend
-        working-directory: ./web
+      - name: Run build.sh for macOS
         run: |
-          npm install
-          npm run build
-      - name: Test
-        run: go test ./...
-      - name: Build macOS amd64/arm64 and universal
+          bash scripts/build.sh -Platforms macos -Architectures amd64,arm64
+      - name: Build macOS universal and checksums
         run: |
-          mkdir -p bin/macos checksums
-          export CGO_ENABLED=0
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/macos/msp-macos-amd64 ./cmd/msp
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o bin/macos/msp-macos-arm64 ./cmd/msp
           lipo -create -output bin/macos/msp-macos-universal bin/macos/msp-macos-amd64 bin/macos/msp-macos-arm64
           shasum -a 256 bin/macos/msp-macos-amd64 | awk '{print $1"  msp-macos-amd64"}' > checksums/msp-macos-amd64.sha256
           shasum -a 256 bin/macos/msp-macos-arm64 | awk '{print $1"  msp-macos-arm64"}' > checksums/msp-macos-arm64.sha256
@@ -118,27 +87,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Build Frontend
-        working-directory: ./web
+      - name: Run build.ps1 for Windows x64/x86
+        shell: pwsh
         run: |
-          npm install
-          npm run build
-      - name: Test
-        run: go test ./...
-      - name: Build Windows x64/x86
-        run: |
-          New-Item -ItemType Directory -Force -Path bin/windows/x64 | Out-Null
-          New-Item -ItemType Directory -Force -Path bin/windows/x86 | Out-Null
-          New-Item -ItemType Directory -Force -Path checksums | Out-Null
-          $env:CGO_ENABLED="0"
-          $env:GOOS="windows"; $env:GOARCH="amd64"
-          go build -trimpath -ldflags="-s -w" -o bin/windows/x64/msp-windows-amd64.exe ./cmd/msp
-          $h1=(Get-FileHash -Algorithm SHA256 bin/windows/x64/msp-windows-amd64.exe).Hash.ToLower()
-          "$h1  msp-windows-amd64.exe" | Out-File -FilePath checksums/msp-windows-amd64.sha256 -Encoding ascii
-          $env:GOOS="windows"; $env:GOARCH="386"
-          go build -trimpath -ldflags="-s -w" -o bin/windows/x86/msp-windows-386.exe ./cmd/msp
-          $h2=(Get-FileHash -Algorithm SHA256 bin/windows/x86/msp-windows-386.exe).Hash.ToLower()
-          "$h2  msp-windows-386.exe" | Out-File -FilePath checksums/msp-windows-386.sha256 -Encoding ascii
+          scripts/build.ps1 -Platforms windows -Architectures x64,x86
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:

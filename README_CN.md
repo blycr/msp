@@ -50,13 +50,16 @@
   - `go build ./cmd/msp`
 - 一键构建（Windows）：
   - `scripts/build.ps1`
+- 一键构建（Linux/macOS）：
+  - `scripts/build.sh`
 
 ### 跨平台构建（Go 原生）
 
 - 默认：Windows x64
-  - `scripts/build.ps1`
+  - `scripts/build.ps1` 或 `scripts/build.sh`
 - 可选平台/架构：
   - `scripts/build.ps1 -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
+  - `scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8`
 - 产物目录：
   - `bin/windows/x64/msp-windows-amd64.exe`
   - `bin/windows/x86/msp-windows-386.exe`
