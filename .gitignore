@@ -23,6 +23,9 @@ Thumbs.db
 scripts/build.log
 bin/
 dist/
+debug/
+checksums/
+release_out/
 
 # Go build cache / outputs
 *.test
