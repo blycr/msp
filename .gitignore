@@ -49,6 +49,9 @@ config.*.local.json
 .env.local
 *.media_cache.json
 *.media_cache.json.tmp
+msp.db
+msp.db-shm
+msp.db-wal
 
 # Temp / backup
 *.tmp
