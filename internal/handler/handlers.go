@@ -174,7 +174,7 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	blacklist := cfg.Blacklist
 
 	refresh := r.URL.Query().Get("refresh") == "1"
-	resp, etag := h.s.GetOrBuildMediaCache(shares, blacklist, refresh)
+	resp, etag := h.s.GetOrBuildMediaCache(r.Context(), shares, blacklist, refresh)
 
 	resp.VideosTotal = len(resp.Videos)
 	resp.AudiosTotal = len(resp.Audios)

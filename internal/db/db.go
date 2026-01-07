@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"msp/internal/types"
@@ -87,14 +88,14 @@ type ScanMeta struct {
 	Complete bool
 }
 
-func GetScanMeta(cacheKey string) (ScanMeta, bool, error) {
+func GetScanMeta(ctx context.Context, cacheKey string) (ScanMeta, bool, error) {
 	if DB == nil || strings.TrimSpace(cacheKey) == "" {
 		return ScanMeta{}, false, nil
 	}
 	var scanID int64
 	var builtAt int64
 	var complete int
-	err := DB.QueryRow(`SELECT scan_id, built_at, complete FROM media_scans WHERE cache_key = ?`, cacheKey).Scan(&scanID, &builtAt, &complete)
+	err := DB.QueryRowContext(ctx, `SELECT scan_id, built_at, complete FROM media_scans WHERE cache_key = ?`, cacheKey).Scan(&scanID, &builtAt, &complete)
 	if err == sql.ErrNoRows {
 		return ScanMeta{}, false, nil
 	}
@@ -104,7 +105,7 @@ func GetScanMeta(cacheKey string) (ScanMeta, bool, error) {
 	return ScanMeta{ScanID: scanID, BuiltAt: builtAt, Complete: complete != 0}, true, nil
 }
 
-func SetScanMeta(tx *sql.Tx, cacheKey string, meta ScanMeta) error {
+func SetScanMeta(ctx context.Context, tx *sql.Tx, cacheKey string, meta ScanMeta) error {
 	if DB == nil || tx == nil || strings.TrimSpace(cacheKey) == "" || meta.ScanID <= 0 || meta.BuiltAt <= 0 {
 		return nil
 	}
@@ -112,7 +113,7 @@ func SetScanMeta(tx *sql.Tx, cacheKey string, meta ScanMeta) error {
 	if meta.Complete {
 		complete = 1
 	}
-	_, err := tx.Exec(
+	_, err := tx.ExecContext(ctx,
 		`INSERT INTO media_scans (cache_key, scan_id, built_at, complete)
 		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(cache_key) DO UPDATE SET
@@ -124,11 +125,11 @@ func SetScanMeta(tx *sql.Tx, cacheKey string, meta ScanMeta) error {
 	return err
 }
 
-func PrepareUpsertMediaItem(tx *sql.Tx) (*sql.Stmt, error) {
+func PrepareUpsertMediaItem(ctx context.Context, tx *sql.Tx) (*sql.Stmt, error) {
 	if DB == nil || tx == nil {
 		return nil, nil
 	}
-	return tx.Prepare(`
+	return tx.PrepareContext(ctx, `
 		INSERT INTO media_items (
 			id, path, name, ext, kind, share_label,
 			size, mod_time, subtitles, audio_cover, audio_lyrics,
@@ -151,7 +152,7 @@ func PrepareUpsertMediaItem(tx *sql.Tx) (*sql.Stmt, error) {
 	`)
 }
 
-func DeleteStaleByScan(tx *sql.Tx, scanID int64, shareRoots []string) error {
+func DeleteStaleByScan(ctx context.Context, tx *sql.Tx, scanID int64, shareRoots []string) error {
 	if DB == nil || tx == nil || scanID <= 0 || len(shareRoots) == 0 {
 		return nil
 	}
@@ -164,17 +165,17 @@ func DeleteStaleByScan(tx *sql.Tx, scanID int64, shareRoots []string) error {
 	for _, r := range shareRoots {
 		args = append(args, r)
 	}
-	q := `DELETE FROM media_items WHERE scan_id != ? AND share_root IN (` + strings.Join(ph, ",") + `)`
-	_, err := tx.Exec(q, args...)
+	q := `DELETE FROM media_items WHERE scan_id != ? AND share_root IN (` + strings.Join(ph, ",") + `)` //nolint:gosec
+	_, err := tx.ExecContext(ctx, q, args...)
 	return err
 }
 
-func DeleteByShareRootsNotIn(tx *sql.Tx, shareRoots []string) error {
+func DeleteByShareRootsNotIn(ctx context.Context, tx *sql.Tx, shareRoots []string) error {
 	if DB == nil || tx == nil {
 		return nil
 	}
 	if len(shareRoots) == 0 {
-		_, err := tx.Exec(`DELETE FROM media_items`)
+		_, err := tx.ExecContext(ctx, `DELETE FROM media_items`)
 		return err
 	}
 	ph := make([]string, 0, len(shareRoots))
@@ -183,16 +184,16 @@ func DeleteByShareRootsNotIn(tx *sql.Tx, shareRoots []string) error {
 		ph = append(ph, "?")
 		args = append(args, r)
 	}
-	q := `DELETE FROM media_items WHERE share_root NOT IN (` + strings.Join(ph, ",") + `)`
-	_, err := tx.Exec(q, args...)
+	q := `DELETE FROM media_items WHERE share_root NOT IN (` + strings.Join(ph, ",") + `)` //nolint:gosec
+	_, err := tx.ExecContext(ctx, q, args...)
 	return err
 }
 
-func QueryMediaItems(scanID int64, kind string) ([]types.MediaItem, error) {
+func QueryMediaItems(ctx context.Context, scanID int64, kind string) ([]types.MediaItem, error) {
 	if DB == nil || scanID <= 0 || strings.TrimSpace(kind) == "" {
 		return nil, nil
 	}
-	rows, err := DB.Query(
+	rows, err := DB.QueryContext(ctx,
 		`SELECT id, name, ext, kind, share_label, size, mod_time, subtitles, audio_cover, audio_lyrics
 		 FROM media_items
 		 WHERE scan_id = ? AND kind = ?
@@ -232,12 +233,12 @@ func QueryMediaItems(scanID int64, kind string) ([]types.MediaItem, error) {
 	return out, nil
 }
 
-func CountMediaItems(scanID int64, kind string) (int, error) {
+func CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error) {
 	if DB == nil || scanID <= 0 || strings.TrimSpace(kind) == "" {
 		return 0, nil
 	}
 	n := 0
-	err := DB.QueryRow(`SELECT COUNT(1) FROM media_items WHERE scan_id = ? AND kind = ?`, scanID, kind).Scan(&n)
+	err := DB.QueryRowContext(ctx, `SELECT COUNT(1) FROM media_items WHERE scan_id = ? AND kind = ?`, scanID, kind).Scan(&n)
 	if err != nil {
 		return 0, err
 	}

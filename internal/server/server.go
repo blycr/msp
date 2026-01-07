@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,8 +119,12 @@ func (s *Server) SetupLogger() {
 	logFile := s.cfg.LogFile
 	s.mu.Unlock()
 
-	_ = os.MkdirAll(filepath.Dir(logFile), 0755)
-	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(logFile), 0750); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
+		return
+	}
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
 		return
@@ -190,10 +195,10 @@ func (s *Server) InvalidateMediaCache() {
 	_ = os.Remove(s.mediaCachePath)
 }
 
-func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
+func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
 	key := mediaCacheKey(shares, blacklist)
 	if !refresh {
-		if resp, builtAt, ok, _ := media.LoadMediaFromDB(key, shares); ok && !builtAt.IsZero() {
+		if resp, builtAt, ok, _ := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
 			etag := weakETag(key, builtAt)
 			s.mediaMu.Lock()
 			s.mediaResp = resp
@@ -220,7 +225,7 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 			etag := s.mediaETag
 			if !s.mediaBuilding {
 				s.mediaBuilding = true
-				go s.rebuildMediaCache(key, shares, blacklist, s.cfg.MaxItems)
+				go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
 			}
 			s.mediaMu.Unlock()
 			return resp, etag
@@ -236,16 +241,16 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 		var resp types.MediaResponse
 		builtAt := time.Now()
 		if db.DB != nil {
-			r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, s.cfg.MaxItems)
+			r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, s.cfg.MaxItems)
 			if err == nil && !bt.IsZero() {
 				resp = r
 				builtAt = bt
 			} else {
-				resp = media.BuildMediaResponse(shares, blacklist, s.cfg.MaxItems)
+				resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
 				builtAt = time.Now()
 			}
 		} else {
-			resp = media.BuildMediaResponse(shares, blacklist, s.cfg.MaxItems)
+			resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
 		}
 		etag := weakETag(key, builtAt)
 
@@ -264,20 +269,20 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 	}
 }
 
-func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
+func (s *Server) rebuildMediaCache(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
 	var resp types.MediaResponse
 	builtAt := time.Now()
 	if db.DB != nil {
-		r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, maxItems)
+		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
 		if err == nil && !bt.IsZero() {
 			resp = r
 			builtAt = bt
 		} else {
-			resp = media.BuildMediaResponse(shares, blacklist, maxItems)
+			resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 			builtAt = time.Now()
 		}
 	} else {
-		resp = media.BuildMediaResponse(shares, blacklist, maxItems)
+		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 	}
 	etag := weakETag(key, builtAt)
 

@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -10,37 +11,37 @@ import (
 	"msp/internal/util"
 )
 
-func LoadMediaFromDB(cacheKey string, shares []config.Share) (types.MediaResponse, time.Time, bool, error) {
+func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []config.Share) (types.MediaResponse, time.Time, bool, error) {
 	if db.DB == nil {
 		return types.MediaResponse{}, time.Time{}, false, nil
 	}
-	meta, ok, err := db.GetScanMeta(cacheKey)
+	meta, ok, err := db.GetScanMeta(ctx, cacheKey)
 	if err != nil || !ok || meta.ScanID <= 0 || meta.BuiltAt <= 0 {
 		return types.MediaResponse{}, time.Time{}, false, err
 	}
-	resp, err := LoadMediaResponseFromDBScan(meta.ScanID, shares)
+	resp, err := LoadMediaResponseFromDBScan(ctx, meta.ScanID, shares)
 	if err != nil {
 		return types.MediaResponse{}, time.Time{}, false, err
 	}
 	return resp, time.Unix(0, meta.BuiltAt), true, nil
 }
 
-func ReindexAndLoadMedia(cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, time.Time, error) {
+func ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, time.Time, error) {
 	if db.DB == nil {
 		return types.MediaResponse{}, time.Time{}, nil
 	}
-	scanID, builtAt, _, err := IndexMediaToDB(cacheKey, shares, blacklist, maxItems)
+	scanID, builtAt, _, err := IndexMediaToDB(ctx, cacheKey, shares, blacklist, maxItems)
 	if err != nil {
 		return types.MediaResponse{}, time.Time{}, err
 	}
-	resp, err := LoadMediaResponseFromDBScan(scanID, shares)
+	resp, err := LoadMediaResponseFromDBScan(ctx, scanID, shares)
 	if err != nil {
 		return types.MediaResponse{}, time.Time{}, err
 	}
 	return resp, builtAt, nil
 }
 
-func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
+func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
 	if db.DB == nil {
 		return 0, time.Time{}, false, nil
 	}
@@ -60,7 +61,7 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 		validShares = append(validShares, sh)
 	}
 
-	tx, err := db.DB.Begin()
+	tx, err := db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, time.Time{}, false, err
 	}
@@ -68,7 +69,7 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 		_ = tx.Rollback()
 	}()
 
-	stmt, err := db.PrepareUpsertMediaItem(tx)
+	stmt, err := db.PrepareUpsertMediaItem(ctx, tx)
 	if err != nil {
 		return 0, time.Time{}, false, err
 	}
@@ -91,7 +92,7 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 		}
 
 		if stmt != nil {
-			if _, execErr := stmt.Exec(
+			if _, execErr := stmt.ExecContext(ctx,
 				item.ID,
 				path,
 				item.Name,
@@ -113,21 +114,21 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 		return nil
 	}
 
-	if err := WalkShares(validShares, blacklist, limit, cb); err != nil {
+	if err := WalkShares(ctx, validShares, blacklist, limit, cb); err != nil {
 		return 0, time.Time{}, false, err
 	}
 
 	complete = seen < limit
 	if complete {
-		if err := db.DeleteStaleByScan(tx, scanID, shareRoots); err != nil {
+		if err := db.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
 			return 0, time.Time{}, false, err
 		}
-		if err := db.DeleteByShareRootsNotIn(tx, shareRoots); err != nil {
+		if err := db.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
 			return 0, time.Time{}, false, err
 		}
 	}
 
-	if err := db.SetScanMeta(tx, cacheKey, db.ScanMeta{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
+	if err := db.SetScanMeta(ctx, tx, cacheKey, db.ScanMeta{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
 		return 0, time.Time{}, false, err
 	}
 
@@ -137,7 +138,7 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 	return scanID, builtAt, complete, nil
 }
 
-func LoadMediaResponseFromDBScan(scanID int64, shares []config.Share) (types.MediaResponse, error) {
+func LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []config.Share) (types.MediaResponse, error) {
 	resp := types.MediaResponse{
 		Shares: make([]config.Share, len(shares)),
 		Videos: []types.MediaItem{},
@@ -147,19 +148,19 @@ func LoadMediaResponseFromDBScan(scanID int64, shares []config.Share) (types.Med
 	}
 	copy(resp.Shares, shares)
 
-	videos, err := db.QueryMediaItems(scanID, "video")
+	videos, err := db.QueryMediaItems(ctx, scanID, "video")
 	if err != nil {
 		return types.MediaResponse{}, err
 	}
-	audios, err := db.QueryMediaItems(scanID, "audio")
+	audios, err := db.QueryMediaItems(ctx, scanID, "audio")
 	if err != nil {
 		return types.MediaResponse{}, err
 	}
-	images, err := db.QueryMediaItems(scanID, "image")
+	images, err := db.QueryMediaItems(ctx, scanID, "image")
 	if err != nil {
 		return types.MediaResponse{}, err
 	}
-	others, err := db.QueryMediaItems(scanID, "other")
+	others, err := db.QueryMediaItems(ctx, scanID, "other")
 	if err != nil {
 		return types.MediaResponse{}, err
 	}
