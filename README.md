@@ -28,6 +28,16 @@ Run the executable (default port `8099`):
 
 After startup, visit the address printed in the console (e.g., `http://127.0.0.1:8099/`).
 
+## Configuration
+
+MSP uses a JSON configuration file. Key settings include:
+
+- **maxItems**: Set to `0` (recommended) for unlimited incremental scanning powered by SQLite.
+- **shares**: Define your media folders.
+- **blacklist**: Filter unwanted files/folders.
+
+See `config.example.json` for a full template.
+
 ## Documentation & Help
 
 For configuration, build steps, troubleshooting, and advanced usage, please visit the Project Wiki:

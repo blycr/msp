@@ -1,0 +1,45 @@
+services:
+  msp:
+    build: .
+    image: msp-server:latest
+    container_name: msp
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      # Map config and database to host for persistence
+      - ./data:/data
+      # Map your media folders. Add more as needed.
+      # Example: - /path/to/movies:/media/movies
+      - ./media:/media
+    environment:
+      - MSP_NO_AUTO_OPEN=1
+      # Override config path if your app supports env var for it, 
+      # but currently it looks in exe dir. 
+      # The Dockerfile WORKDIR is /app, so we might need to symlink or adjust code if we want /data/config.json
+      # For now, let's assume user mounts /app/config.json or we adjust entrypoint.
+      # Actually, code uses util.MustExeDir(). In docker /app is exe dir.
+      # So mapping ./data:/app/data isn't quite right if we want config in /data.
+      # Let's just map /app for simplicity or suggest mapping specific files.
+      
+      # Better approach:
+      # Map ./config:/app/config (if we change code to look there) 
+      # OR map config.json directly.
+    
+    # Since the app looks for config.json in the executable directory (/app),
+    # and msp.db in the same place.
+    # We should probably mount a volume to /app/data and symlink?
+    # Or just mount the specific files if they exist.
+    # But for a clean start, let's mount a data volume to /app/data and maybe change the code to prefer /data?
+    # For now, let's keep it simple and assume user maps to /app
+    # BUT /app contains the binary. Overmounting /app hides the binary.
+    
+    # Correction: The app writes config.json and msp.db to ExeDir (/app).
+    # We should probably change the code to respect a DATA_DIR env var or similar.
+    # But to be non-intrusive as requested, let's try to map a volume to /app/data
+    # and maybe symlink? No, Docker doesn't do that easily.
+    
+    # Workaround:
+    # We can use a startup script in the docker image to link /data/config.json to /app/config.json
+    
+    entrypoint: ["/bin/sh", "-c", "ln -sf /data/config.json /app/config.json && ln -sf /data/msp.db /app/msp.db && ./msp-server"]

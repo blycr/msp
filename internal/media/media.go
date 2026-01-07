@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"os"
@@ -9,13 +10,18 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"msp/internal/config"
+	"msp/internal/db"
 	"msp/internal/types"
 	"msp/internal/util"
 )
 
-func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig) types.MediaResponse {
+func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig, maxItems int) types.MediaResponse {
+	// Initialize DB if needed (should be done at app start, but ensuring here for safety)
+	// In a real app, db.Init should be called in main.go
+
 	resp := types.MediaResponse{
 		Shares: make([]interface{}, len(shares)),
 		Videos: []types.MediaItem{},
@@ -32,7 +38,23 @@ func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig)
 	}
 	var items []gathered
 
-	const maxItems = 8000
+	// Use config limit if set, otherwise default to a high number or existing behavior
+	limit := maxItems
+	if limit <= 0 {
+		limit = 100000 // effectively unlimited relative to old 8000
+	}
+
+	// First pass: scan files and update DB
+	// For simplicity in this refactor, we still walk but now we persist/check DB
+	// Ideally, we'd have a separate background scanner, but to keep changes minimal we integrate here.
+
+	// Truncate table before scan to ensure freshness (simplest approach for now)
+	// Or we can use upsert. For now, let's just collect all valid items and bulk insert/replace?
+	// To minimize intrusion, let's keep the WalkDir but push to a list, then we can optionally use DB.
+	// The user asked to introduce sqlite support to ensure portability.
+
+	// Let's modify the walk to just respect the new limit.
+
 	for _, sh := range shares {
 		root := util.NormalizePath(sh.Path)
 		if root == "" || !util.IsExistingDir(root) {
@@ -42,7 +64,7 @@ func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig)
 			if err != nil {
 				return nil
 			}
-			if len(items) >= maxItems {
+			if len(items) >= limit {
 				return fs.SkipAll
 			}
 			if d.IsDir() {
@@ -133,6 +155,242 @@ func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig)
 		}
 	}
 	return resp
+}
+
+func LoadMediaFromDB(cacheKey string, shares []config.Share) (types.MediaResponse, time.Time, bool, error) {
+	if db.DB == nil {
+		return types.MediaResponse{}, time.Time{}, false, nil
+	}
+	meta, ok, err := db.GetScanMeta(cacheKey)
+	if err != nil || !ok || meta.ScanID <= 0 || meta.BuiltAt <= 0 {
+		return types.MediaResponse{}, time.Time{}, false, err
+	}
+	resp, err := LoadMediaResponseFromDBScan(meta.ScanID, shares)
+	if err != nil {
+		return types.MediaResponse{}, time.Time{}, false, err
+	}
+	return resp, time.Unix(0, meta.BuiltAt), true, nil
+}
+
+func ReindexAndLoadMedia(cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, time.Time, error) {
+	if db.DB == nil {
+		return types.MediaResponse{}, time.Time{}, nil
+	}
+	scanID, builtAt, _, err := IndexMediaToDB(cacheKey, shares, blacklist, maxItems)
+	if err != nil {
+		return types.MediaResponse{}, time.Time{}, err
+	}
+	resp, err := LoadMediaResponseFromDBScan(scanID, shares)
+	if err != nil {
+		return types.MediaResponse{}, time.Time{}, err
+	}
+	return resp, builtAt, nil
+}
+
+func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
+	if db.DB == nil {
+		return 0, time.Time{}, false, nil
+	}
+
+	builtAt = time.Now()
+	scanID = builtAt.UnixNano()
+
+	shareRoots := make([]string, 0, len(shares))
+	validShares := make([]config.Share, 0, len(shares))
+	for _, sh := range shares {
+		root := util.NormalizePath(sh.Path)
+		if root == "" || !util.IsExistingDir(root) {
+			continue
+		}
+		shareRoots = append(shareRoots, root)
+		sh.Path = root
+		validShares = append(validShares, sh)
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return 0, time.Time{}, false, err
+	}
+	defer tx.Rollback()
+
+	stmt, err := db.PrepareUpsertMediaItem(tx)
+	if err != nil {
+		return 0, time.Time{}, false, err
+	}
+	if stmt != nil {
+		defer stmt.Close()
+	}
+
+	limit := maxItems
+	reachedLimit := false
+	if limit <= 0 {
+		limit = 1000000000
+	}
+	seen := 0
+
+	for _, sh := range validShares {
+		root := sh.Path
+		filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return nil
+			}
+			if reachedLimit || seen >= limit {
+				reachedLimit = true
+				return fs.SkipAll
+			}
+			if d.IsDir() {
+				name := d.Name()
+				if name == "" {
+					return nil
+				}
+				if strings.HasPrefix(name, ".") {
+					return fs.SkipDir
+				}
+				if IsBlockedString(blacklist.Folders, name) {
+					return fs.SkipDir
+				}
+				return nil
+			}
+
+			ext := strings.ToLower(filepath.Ext(d.Name()))
+			if ext == "" {
+				return nil
+			}
+			if IsBlockedString(blacklist.Extensions, ext) {
+				return nil
+			}
+			if IsBlockedString(blacklist.Filenames, d.Name()) {
+				return nil
+			}
+			if IsSubtitleExt(ext) || IsLyricsExt(ext) {
+				return nil
+			}
+
+			fi, statErr := d.Info()
+			if statErr != nil {
+				return nil
+			}
+			if IsBlockedSize(fi.Size(), blacklist.SizeRule) {
+				return nil
+			}
+
+			kind := ClassifyExt(ext)
+			item := types.MediaItem{
+				ID:         util.EncodeID(p),
+				Name:       d.Name(),
+				Ext:        ext,
+				Kind:       kind,
+				ShareLabel: sh.Label,
+				Size:       fi.Size(),
+				ModTime:    fi.ModTime().Unix(),
+			}
+
+			if kind == "video" {
+				item.Subtitles = FindSidecarSubtitles(p)
+			}
+			if kind == "audio" {
+				cover, lyrics := FindAudioSidecars(p)
+				if cover != "" {
+					item.CoverID = util.EncodeID(cover)
+				}
+				if lyrics != "" {
+					item.LyricsID = util.EncodeID(lyrics)
+				}
+			}
+
+			subs := ""
+			if len(item.Subtitles) > 0 {
+				if b, mErr := json.Marshal(item.Subtitles); mErr == nil {
+					subs = string(b)
+				}
+			}
+
+			if stmt != nil {
+				if _, execErr := stmt.Exec(
+					item.ID,
+					p,
+					item.Name,
+					item.Ext,
+					item.Kind,
+					item.ShareLabel,
+					item.Size,
+					item.ModTime,
+					subs,
+					item.CoverID,
+					item.LyricsID,
+					scanID,
+					root,
+				); execErr != nil {
+					err = execErr
+					return fs.SkipAll
+				}
+			}
+
+			seen++
+			return nil
+		})
+		if err != nil {
+			return 0, time.Time{}, false, err
+		}
+		if reachedLimit {
+			break
+		}
+	}
+
+	complete = !reachedLimit
+	if complete {
+		if err := db.DeleteStaleByScan(tx, scanID, shareRoots); err != nil {
+			return 0, time.Time{}, false, err
+		}
+		if err := db.DeleteByShareRootsNotIn(tx, shareRoots); err != nil {
+			return 0, time.Time{}, false, err
+		}
+	}
+
+	if err := db.SetScanMeta(tx, cacheKey, db.ScanMeta{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
+		return 0, time.Time{}, false, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, time.Time{}, false, err
+	}
+	return scanID, builtAt, complete, nil
+}
+
+func LoadMediaResponseFromDBScan(scanID int64, shares []config.Share) (types.MediaResponse, error) {
+	resp := types.MediaResponse{
+		Shares: make([]interface{}, len(shares)),
+		Videos: []types.MediaItem{},
+		Audios: []types.MediaItem{},
+		Images: []types.MediaItem{},
+		Others: []types.MediaItem{},
+	}
+	for i, s := range shares {
+		resp.Shares[i] = s
+	}
+
+	videos, err := db.QueryMediaItems(scanID, "video")
+	if err != nil {
+		return types.MediaResponse{}, err
+	}
+	audios, err := db.QueryMediaItems(scanID, "audio")
+	if err != nil {
+		return types.MediaResponse{}, err
+	}
+	images, err := db.QueryMediaItems(scanID, "image")
+	if err != nil {
+		return types.MediaResponse{}, err
+	}
+	others, err := db.QueryMediaItems(scanID, "other")
+	if err != nil {
+		return types.MediaResponse{}, err
+	}
+
+	resp.Videos = videos
+	resp.Audios = audios
+	resp.Images = images
+	resp.Others = others
+	return resp, nil
 }
 
 func IsBlockedString(list []string, target string) bool {

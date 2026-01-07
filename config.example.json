@@ -2,6 +2,7 @@
   "logLevel": "info",
   "logFile": "msp.log",
   "port": 8099,
+  "maxItems": 0,
   "shares": [],
   "features": {
     "speed": true,
