@@ -98,7 +98,7 @@ const I18N = {
     empty_tip: "从左侧选择一个媒体文件进行预览",
     playlist: "播放列表",
     not_loaded: "未加载",
-    footer_text: "MSP. A simple media server for personal use.",
+    footer_text: "一个适合个人使用的简易媒体服务器。",
     dlg_title: "共享目录设置",
     path_ph: "例如：D:\\Media 或 D:/Media（会自动兼容斜杠）",
     label_ph: "别名（可选）",
@@ -763,7 +763,7 @@ function renderList() {
 
   if (totalPages > 1) {
     const pager = document.createElement("div");
-    pager.className = "row";
+    pager.className = "pager";
 
     const prevBtn = document.createElement("button");
     prevBtn.className = "btn btn--ghost";
@@ -771,9 +771,12 @@ function renderList() {
     prevBtn.disabled = state.listPage <= 1;
     prevBtn.addEventListener("click", () => { state.listPage = Math.max(1, state.listPage - 1); renderList(); });
 
+    const left = document.createElement("div");
+    left.className = "pager__side";
+    left.appendChild(prevBtn);
+
     const info = document.createElement("div");
-    info.className = "small";
-    info.style.margin = "0 8px";
+    info.className = "small pager__center";
     info.textContent = `${state.listPage}/${totalPages}`;
 
     const nextBtn = document.createElement("button");
@@ -782,9 +785,13 @@ function renderList() {
     nextBtn.disabled = state.listPage >= totalPages;
     nextBtn.addEventListener("click", () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); });
 
-    pager.appendChild(prevBtn);
+    const right = document.createElement("div");
+    right.className = "pager__side";
+    right.appendChild(nextBtn);
+
+    pager.appendChild(left);
     pager.appendChild(info);
-    pager.appendChild(nextBtn);
+    pager.appendChild(right);
     box.appendChild(pager);
   }
 }
@@ -850,20 +857,25 @@ function measurePlaylistHeights(box) {
   wrap.appendChild(row);
 
   const pager = document.createElement("div");
-  pager.className = "row";
+  pager.className = "pager";
   const prevBtn = document.createElement("button");
   prevBtn.className = "btn btn--ghost";
   prevBtn.textContent = t("prev");
   const info = document.createElement("div");
-  info.className = "small";
-  info.style.margin = "0 8px";
+  info.className = "small pager__center";
   info.textContent = "1/99";
   const nextBtn = document.createElement("button");
   nextBtn.className = "btn btn--ghost";
   nextBtn.textContent = t("next");
-  pager.appendChild(prevBtn);
+  const left = document.createElement("div");
+  left.className = "pager__side";
+  left.appendChild(prevBtn);
+  const right = document.createElement("div");
+  right.className = "pager__side";
+  right.appendChild(nextBtn);
+  pager.appendChild(left);
   pager.appendChild(info);
-  pager.appendChild(nextBtn);
+  pager.appendChild(right);
   wrap.appendChild(pager);
 
   const itemH = Math.ceil(row.getBoundingClientRect().height || 0);
@@ -975,7 +987,7 @@ function renderPlaylist() {
 
   if (totalPages > 1) {
     const pager = document.createElement("div");
-    pager.className = "row";
+    pager.className = "pager";
 
     const prevBtn = document.createElement("button");
     prevBtn.className = "btn btn--ghost";
@@ -983,9 +995,12 @@ function renderPlaylist() {
     prevBtn.disabled = state.plPage <= 1;
     prevBtn.addEventListener("click", () => { state.plPage = Math.max(1, state.plPage - 1); renderPlaylist(); });
 
+    const left = document.createElement("div");
+    left.className = "pager__side";
+    left.appendChild(prevBtn);
+
     const info = document.createElement("div");
-    info.className = "small";
-    info.style.margin = "0 8px";
+    info.className = "small pager__center";
     info.textContent = `${state.plPage}/${totalPages}`;
 
     const nextBtn = document.createElement("button");
@@ -994,9 +1009,13 @@ function renderPlaylist() {
     nextBtn.disabled = state.plPage >= totalPages;
     nextBtn.addEventListener("click", () => { state.plPage = Math.min(totalPages, state.plPage + 1); renderPlaylist(); });
 
-    pager.appendChild(prevBtn);
+    const right = document.createElement("div");
+    right.className = "pager__side";
+    right.appendChild(nextBtn);
+
+    pager.appendChild(left);
     pager.appendChild(info);
-    pager.appendChild(nextBtn);
+    pager.appendChild(right);
     box.appendChild(pager);
   }
   scheduleAutoFitPlaylistPageSize();

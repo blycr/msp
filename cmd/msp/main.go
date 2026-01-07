@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -80,21 +81,23 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	go func() {
-		localURL := "http://localhost:" + util.Itoa(port) + "/"
-		addr := "127.0.0.1:" + util.Itoa(port)
+	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {
+		go func() {
+			localURL := "http://localhost:" + util.Itoa(port) + "/"
+			addr := "127.0.0.1:" + util.Itoa(port)
 
-		deadline := time.Now().Add(3 * time.Second)
-		for time.Now().Before(deadline) {
-			c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
-			if err == nil {
-				_ = c.Close()
-				break
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+				if err == nil {
+					_ = c.Close()
+					break
+				}
+				time.Sleep(120 * time.Millisecond)
 			}
-			time.Sleep(120 * time.Millisecond)
-		}
-		_ = openBrowser(localURL)
-	}()
+			_ = openBrowser(localURL)
+		}()
+	}
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)

@@ -643,6 +643,24 @@ body {
   align-items:center;
 }
 
+.pager{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:10px;
+  align-items:center;
+  width:100%;
+}
+.pager__side{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.pager__center{
+  justify-self:center;
+  text-align:center;
+}
+
 .sharelist{
   display:flex;
   flex-direction:column;
@@ -688,6 +706,31 @@ body {
   color: var(--md-sub);
   margin-top: 20px;
   border-top: 1px solid var(--md-border);
+}
+.footer__line {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-weight: 900;
+  font-size: 1.1em;
+  letter-spacing: 1px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+.footer__copy {
+  font-weight: 900;
+}
+.footer__brand {
+  font-weight: 900;
+  color: var(--md-text);
+}
+.footer__text {
+  font-weight: 800;
+}
+.footer__sep {
+  opacity: 0.75;
 }
 .footer a {
   color: inherit;

@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const backend = process.env.MSP_DEV_BACKEND || 'http://127.0.0.1:8099'
+
 export default defineConfig({
   plugins: [
     VitePWA({
@@ -29,6 +31,15 @@ export default defineConfig({
       }
     })
   ],
+  server: {
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: backend,
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
