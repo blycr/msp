@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/fs"
 	"os"
@@ -21,7 +22,7 @@ type WalkCallback func(item types.MediaItem, path string, root string) error
 
 // WalkShares walks through all shares and invokes callback for each valid media item.
 // It respects blacklist and limit.
-func WalkShares(shares []config.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
+func WalkShares(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
 	limit := maxItems
 	if limit <= 0 {
 		limit = 100000 // Default high limit if not specified
@@ -33,8 +34,14 @@ func WalkShares(shares []config.Share, blacklist config.BlacklistConfig, maxItem
 		if root == "" || !util.IsExistingDir(root) {
 			continue
 		}
-		
+
 		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
 			if err != nil {
 				return nil
 			}

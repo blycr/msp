@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"sort"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"msp/internal/types"
 )
 
-func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig, maxItems int) types.MediaResponse {
+func BuildMediaResponse(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) types.MediaResponse {
 	// Initialize DB if needed (should be done at app start, but ensuring here for safety)
 	// In a real app, db.Init should be called in main.go
 
@@ -29,7 +30,7 @@ func BuildMediaResponse(shares []config.Share, blacklist config.BlacklistConfig,
 
 	// We ignore error here as WalkShares only returns error on file system issues or explicit stop,
 	// and we want to return whatever we found.
-	_ = WalkShares(shares, blacklist, maxItems, cb)
+	_ = WalkShares(ctx, shares, blacklist, maxItems, cb)
 
 	sort.Slice(allItems, func(i, j int) bool {
 		if allItems[i].Kind != allItems[j].Kind {

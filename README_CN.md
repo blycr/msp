@@ -42,6 +42,7 @@
 
 ## 更新日志 (Release Notes)
 
+- [v0.5.8](docs/release/v0.5.8.md) - Context 重构与安全修复
 - [v0.5.7](docs/release/v0.5.7.md) - 代码重构与 CI 集成
 - [v0.5.6](docs/release/v0.5.6.md)
 - [v0.5.5](docs/release/v0.5.5.md)

@@ -44,6 +44,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Release Notes
 
+- [v0.5.8](docs/release/v0.5.8.md) - Context Refactoring & Security Fixes
 - [v0.5.7](docs/release/v0.5.7.md) - Code Refactoring & CI Integration
 - [v0.5.6](docs/release/v0.5.6.md)
 - [v0.5.5](docs/release/v0.5.5.md)
