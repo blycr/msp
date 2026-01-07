@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -282,6 +283,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Cache-Control", "private, max-age=0")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
 
 	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
 }

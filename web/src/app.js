@@ -1194,7 +1194,7 @@ function canPlayMedia(kind, ext, name, mediaEl) {
     const mime = mimeFor("video", e);
     if (mime && mediaEl && typeof mediaEl.canPlayType === "function") {
       const res = mediaEl.canPlayType(mime);
-      if (!res && e !== ".mkv") return false;
+      if (!res && e !== ".mkv" && e !== ".avi") return false;
     }
     return true;
   }
@@ -1410,6 +1410,31 @@ function playItem(item, opts) {
     try { state.plyr?.pause?.(); } catch {}
     try { el("videoEl")?.pause?.(); } catch {}
     try { el("audioEl")?.pause?.(); } catch {}
+    if (item.kind === "video" && Array.isArray(item.subtitles) && item.subtitles.length > 0) {
+      const base = String(window.location.origin || "");
+      const toAbs = (u) => {
+        if (!u) return u;
+        return u.startsWith("/") ? (base + u) : u;
+      };
+      const src = toAbs(streamUrl(item.id));
+      const tr = (item.subtitles || []).map(s => {
+        const label = s.label || "字幕";
+        const lang = s.lang || "zh";
+        const tsrc = toAbs(s.src || streamUrl(s.id));
+        const def = s.default ? " default" : "";
+        return `<track kind="subtitles" label="${label}" srclang="${lang}" src="${tsrc}"${def}>`;
+      }).join("");
+      const html =
+        `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<title>${item.name || ""}</title>` +
+        `<style>html,body{height:100%;margin:0;background:#000}body{display:flex;align-items:center;justify-content:center}` +
+        `video{max-width:100%;max-height:100vh;background:#000}</style></head>` +
+        `<body><video controls preload="metadata" src="${src}">${tr}</video></body></html>`;
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
     window.open(streamUrl(item.id), "_blank", "noopener,noreferrer");
   };
 
