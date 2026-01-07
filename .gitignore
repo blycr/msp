@@ -80,3 +80,6 @@ web/.vite/
 # Local IDE / workspace
 msp.code-workspace
 .vs/
+.history/
+.idea/
+*.iml
