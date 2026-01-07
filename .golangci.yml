@@ -13,6 +13,4 @@ linters:
     - typecheck
     - unused
 
-linters-settings:
-  govet:
-    check-shadowing: true
+

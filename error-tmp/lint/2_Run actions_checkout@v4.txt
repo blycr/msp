@@ -1,0 +1,72 @@
+﻿2026-01-07T14:28:36.9089748Z ##[group]Run actions/checkout@v4
+2026-01-07T14:28:36.9091139Z with:
+2026-01-07T14:28:36.9091909Z   repository: blycr/msp
+2026-01-07T14:28:36.9093142Z   token: ***
+2026-01-07T14:28:36.9094212Z   ssh-strict: true
+2026-01-07T14:28:36.9095109Z   ssh-user: git
+2026-01-07T14:28:36.9095923Z   persist-credentials: true
+2026-01-07T14:28:36.9096842Z   clean: true
+2026-01-07T14:28:36.9097661Z   sparse-checkout-cone-mode: true
+2026-01-07T14:28:36.9098651Z   fetch-depth: 1
+2026-01-07T14:28:36.9099428Z   fetch-tags: false
+2026-01-07T14:28:36.9100238Z   show-progress: true
+2026-01-07T14:28:36.9101059Z   lfs: false
+2026-01-07T14:28:36.9101829Z   submodules: false
+2026-01-07T14:28:36.9102642Z   set-safe-directory: true
+2026-01-07T14:28:36.9103977Z ##[endgroup]
+2026-01-07T14:28:37.0242447Z Syncing repository: blycr/msp
+2026-01-07T14:28:37.0245436Z ##[group]Getting Git version info
+2026-01-07T14:28:37.0246767Z Working directory is '/home/runner/work/msp/msp'
+2026-01-07T14:28:37.0248571Z [command]/usr/bin/git version
+2026-01-07T14:28:37.0303745Z git version 2.52.0
+2026-01-07T14:28:37.0331338Z ##[endgroup]
+2026-01-07T14:28:37.0354751Z Temporarily overriding HOME='/home/runner/work/_temp/f8081a9f-9629-414c-9b65-1a0d7aa20cbe' before making global git config changes
+2026-01-07T14:28:37.0357790Z Adding repository directory to the temporary git global config as a safe directory
+2026-01-07T14:28:37.0360455Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/msp/msp
+2026-01-07T14:28:37.0401369Z Deleting the contents of '/home/runner/work/msp/msp'
+2026-01-07T14:28:37.0405519Z ##[group]Initializing the repository
+2026-01-07T14:28:37.0409351Z [command]/usr/bin/git init /home/runner/work/msp/msp
+2026-01-07T14:28:37.0515426Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-01-07T14:28:37.0518842Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-01-07T14:28:37.0521444Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-01-07T14:28:37.0523278Z hint: call:
+2026-01-07T14:28:37.0524585Z hint:
+2026-01-07T14:28:37.0526253Z hint: 	git config --global init.defaultBranch <name>
+2026-01-07T14:28:37.0527457Z hint:
+2026-01-07T14:28:37.0528546Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-01-07T14:28:37.0530390Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-01-07T14:28:37.0532238Z hint:
+2026-01-07T14:28:37.0532997Z hint: 	git branch -m <name>
+2026-01-07T14:28:37.0534125Z hint:
+2026-01-07T14:28:37.0535344Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-01-07T14:28:37.0537290Z Initialized empty Git repository in /home/runner/work/msp/msp/.git/
+2026-01-07T14:28:37.0540322Z [command]/usr/bin/git remote add origin https://github.com/blycr/msp
+2026-01-07T14:28:37.0571645Z ##[endgroup]
+2026-01-07T14:28:37.0573050Z ##[group]Disabling automatic garbage collection
+2026-01-07T14:28:37.0575448Z [command]/usr/bin/git config --local gc.auto 0
+2026-01-07T14:28:37.0607146Z ##[endgroup]
+2026-01-07T14:28:37.0608449Z ##[group]Setting up auth
+2026-01-07T14:28:37.0613637Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-01-07T14:28:37.0646910Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-01-07T14:28:37.0977674Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-01-07T14:28:37.1009553Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-01-07T14:28:37.1238797Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-01-07T14:28:37.1272094Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-01-07T14:28:37.1507712Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-01-07T14:28:37.1544166Z ##[endgroup]
+2026-01-07T14:28:37.1546738Z ##[group]Fetching the repository
+2026-01-07T14:28:37.1556316Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +1bb38c0c242eb0c6b9bb047bfdb5f0593e554154:refs/remotes/origin/main
+2026-01-07T14:28:37.5614363Z From https://github.com/blycr/msp
+2026-01-07T14:28:37.5615892Z  * [new ref]         1bb38c0c242eb0c6b9bb047bfdb5f0593e554154 -> origin/main
+2026-01-07T14:28:37.5646945Z ##[endgroup]
+2026-01-07T14:28:37.5648285Z ##[group]Determining the checkout info
+2026-01-07T14:28:37.5649867Z ##[endgroup]
+2026-01-07T14:28:37.5654661Z [command]/usr/bin/git sparse-checkout disable
+2026-01-07T14:28:37.5696264Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-01-07T14:28:37.5722035Z ##[group]Checking out the ref
+2026-01-07T14:28:37.5725890Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-01-07T14:28:37.5841641Z Switched to a new branch 'main'
+2026-01-07T14:28:37.5843999Z branch 'main' set up to track 'origin/main'.
+2026-01-07T14:28:37.5852866Z ##[endgroup]
+2026-01-07T14:28:37.5891660Z [command]/usr/bin/git log -1 --format=%H
+2026-01-07T14:28:37.5914788Z 1bb38c0c242eb0c6b9bb047bfdb5f0593e554154

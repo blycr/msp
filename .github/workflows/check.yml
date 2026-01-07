@@ -13,6 +13,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Frontend
+        run: |
+          cd web
+          npm install
+          npm run build
       - name: Run Tests
         run: go test -v ./...
       - name: Vet
@@ -25,6 +33,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - name: Create Dummy Frontend
+        run: |
+          mkdir -p web/dist
+          touch web/dist/index.html
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
