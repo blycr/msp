@@ -202,7 +202,7 @@ func QueryMediaItems(scanID int64, kind string) ([]types.MediaItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]types.MediaItem, 0, 128)
 	for rows.Next() {
@@ -252,7 +252,7 @@ func ensureMediaItemsColumn(name string) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	found := false
 	for rows.Next() {
 		var cid int
@@ -289,6 +289,6 @@ func ensureMediaItemsColumn(name string) error {
 
 func Close() {
 	if DB != nil {
-		DB.Close()
+		_ = DB.Close()
 	}
 }

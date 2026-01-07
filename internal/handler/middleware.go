@@ -33,7 +33,7 @@ func WithGzip(next http.Handler) http.Handler {
 		w.Header().Add("Vary", "Accept-Encoding")
 		w.Header().Set("Content-Encoding", "gzip")
 		gw := gzip.NewWriter(w)
-		defer gw.Close()
+		defer func() { _ = gw.Close() }()
 		next.ServeHTTP(gzipResponseWriter{ResponseWriter: w, gw: gw}, r)
 	})
 }

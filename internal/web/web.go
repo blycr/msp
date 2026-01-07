@@ -37,7 +37,7 @@ func ServeEmbeddedFSFile(w http.ResponseWriter, r *http.Request, fsys fs.FS, nam
 		http.NotFound(w, r)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {

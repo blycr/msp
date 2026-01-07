@@ -64,14 +64,16 @@ func IndexMediaToDB(cacheKey string, shares []config.Share, blacklist config.Bla
 	if err != nil {
 		return 0, time.Time{}, false, err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	stmt, err := db.PrepareUpsertMediaItem(tx)
 	if err != nil {
 		return 0, time.Time{}, false, err
 	}
 	if stmt != nil {
-		defer stmt.Close()
+		defer func() { _ = stmt.Close() }()
 	}
 
 	seen := 0

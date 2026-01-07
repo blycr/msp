@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log" // Added this import
 	"mime"
 	"net/http"
 	"os"
@@ -245,7 +246,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "open failed", http.StatusNotFound)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {
@@ -361,7 +362,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "open failed", http.StatusNotFound)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {
@@ -401,5 +402,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
-	enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		log.Printf("writeJSON encode error: %v", err)
+	}
 }

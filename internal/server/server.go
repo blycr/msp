@@ -233,7 +233,7 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 		s.mediaBuilding = true
 		s.mediaMu.Unlock()
 
-		resp := types.MediaResponse{}
+		var resp types.MediaResponse
 		builtAt := time.Now()
 		if db.DB != nil {
 			r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, s.cfg.MaxItems)
@@ -265,7 +265,7 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 }
 
 func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
-	resp := types.MediaResponse{}
+	var resp types.MediaResponse
 	builtAt := time.Now()
 	if db.DB != nil {
 		r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, maxItems)
