@@ -1,5 +1,7 @@
 package types
 
+import "msp/internal/config"
+
 type Subtitle struct {
 	ID      string `json:"id"`
 	Label   string `json:"label"`
@@ -22,16 +24,16 @@ type MediaItem struct {
 }
 
 type MediaResponse struct {
-	Shares      []interface{} `json:"shares"` // Can be []config.Share if needed, but keeping interface{} avoids coupling for now
-	Videos      []MediaItem   `json:"videos"`
-	Audios      []MediaItem   `json:"audios"`
-	Images      []MediaItem   `json:"images"`
-	Others      []MediaItem   `json:"others"`
-	VideosTotal int           `json:"videosTotal,omitempty"`
-	AudiosTotal int           `json:"audiosTotal,omitempty"`
-	ImagesTotal int           `json:"imagesTotal,omitempty"`
-	OthersTotal int           `json:"othersTotal,omitempty"`
-	Limited     bool          `json:"limited,omitempty"`
+	Shares      []config.Share `json:"shares"`
+	Videos      []MediaItem    `json:"videos"`
+	Audios      []MediaItem    `json:"audios"`
+	Images      []MediaItem    `json:"images"`
+	Others      []MediaItem    `json:"others"`
+	VideosTotal int            `json:"videosTotal,omitempty"`
+	AudiosTotal int            `json:"audiosTotal,omitempty"`
+	ImagesTotal int            `json:"imagesTotal,omitempty"`
+	OthersTotal int            `json:"othersTotal,omitempty"`
+	Limited     bool           `json:"limited,omitempty"`
 }
 
 type ConfigResponse struct {
