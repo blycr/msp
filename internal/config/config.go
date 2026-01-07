@@ -102,6 +102,14 @@ func Default() Config {
 				Scope:   &imageScope,
 			},
 		},
+		Blacklist: BlacklistConfig{
+			Extensions: []string{},
+			Filenames:  []string{},
+			Folders:    []string{},
+			SizeRule:   "",
+		},
+		LogLevel: "info",
+		LogFile:  "",
 	}
 }
 
@@ -113,6 +121,11 @@ func ApplyDefaults(cfg *Config) bool {
 
 	if cfg.Port <= 0 {
 		cfg.Port = 8099
+		changed = true
+	}
+
+	if cfg.Shares == nil {
+		cfg.Shares = []Share{}
 		changed = true
 	}
 
@@ -185,6 +198,24 @@ func ApplyDefaults(cfg *Config) bool {
 	if cfg.Playback.Image.Scope == nil {
 		v := "folder"
 		cfg.Playback.Image.Scope = &v
+		changed = true
+	}
+
+	if cfg.Blacklist.Extensions == nil {
+		cfg.Blacklist.Extensions = []string{}
+		changed = true
+	}
+	if cfg.Blacklist.Filenames == nil {
+		cfg.Blacklist.Filenames = []string{}
+		changed = true
+	}
+	if cfg.Blacklist.Folders == nil {
+		cfg.Blacklist.Folders = []string{}
+		changed = true
+	}
+
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
 		changed = true
 	}
 

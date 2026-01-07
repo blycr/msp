@@ -36,6 +36,11 @@
       "enabled": true,
       "scope": "folder"
     }
+  },
+  "blacklist": {
+    "extensions": [],
+    "filenames": [],
+    "folders": [],
+    "sizeRule": ""
   }
 }
-
