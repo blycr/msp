@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"msp/internal/db"
 	"msp/internal/handler"
 	"msp/internal/server"
 	"msp/internal/util"
@@ -26,6 +27,14 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	cfgPath := filepath.Join(util.MustExeDir(), "config.json")
+
+	// Init DB
+	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
+	if err := db.Init(dbPath); err != nil {
+		log.Printf("Warning: Failed to initialize database: %v", err)
+	}
+	defer db.Close()
+
 	s := server.New(cfgPath)
 
 	if err := s.LoadOrInitConfig(); err != nil {

@@ -57,6 +57,7 @@ type Config struct {
 	Blacklist BlacklistConfig `json:"blacklist"`
 	LogLevel  string          `json:"logLevel"`
 	LogFile   string          `json:"logFile"`
+	MaxItems  int             `json:"maxItems"`
 }
 
 // Default configuration values
@@ -73,8 +74,9 @@ func Default() Config {
 	imageScope := "folder"
 
 	return Config{
-		Port:   8099,
-		Shares: []Share{},
+		Port:     8099,
+		MaxItems: 0, // 0 means unlimited (full scan), ideal for SQLite-backed incremental scanning
+		Shares:   []Share{},
 		Features: Features{
 			Speed:        true,
 			SpeedOptions: []float64{0.5, 0.75, 1, 1.25, 1.5, 2},

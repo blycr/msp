@@ -503,10 +503,12 @@ async function loadMedia(refresh, limit) {
     } catch {}
   }
 
-  let url = refresh ? "/api/media?refresh=1" : "/api/media";
-  if (isLimitedRequest) {
-    url += `?limit=${encodeURIComponent(String(Number(limit) || 0))}`;
-  }
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "1");
+  if (isLimitedRequest) params.set("limit", String(Number(limit) || 0));
+  let url = "/api/media";
+  const qs = params.toString();
+  if (qs) url += `?${qs}`;
 
   const res = await fetch(url, { cache: "no-store", headers });
 

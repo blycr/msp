@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"msp/internal/config"
+	"msp/internal/db"
 	"msp/internal/media"
 	"msp/internal/types"
 	"msp/internal/util"
@@ -192,6 +193,16 @@ func (s *Server) InvalidateMediaCache() {
 func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
 	key := mediaCacheKey(shares, blacklist)
 	if !refresh {
+		if resp, builtAt, ok, _ := media.LoadMediaFromDB(key, shares); ok && !builtAt.IsZero() {
+			etag := weakETag(key, builtAt)
+			s.mediaMu.Lock()
+			s.mediaResp = resp
+			s.mediaKey = key
+			s.mediaBuiltAt = builtAt
+			s.mediaETag = etag
+			s.mediaMu.Unlock()
+			return resp, etag
+		}
 		_ = s.LoadMediaCacheFromDisk(key)
 	}
 
@@ -209,7 +220,7 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 			etag := s.mediaETag
 			if !s.mediaBuilding {
 				s.mediaBuilding = true
-				go s.rebuildMediaCache(key, shares, blacklist)
+				go s.rebuildMediaCache(key, shares, blacklist, s.cfg.MaxItems)
 			}
 			s.mediaMu.Unlock()
 			return resp, etag
@@ -222,8 +233,20 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 		s.mediaBuilding = true
 		s.mediaMu.Unlock()
 
-		resp := media.BuildMediaResponse(shares, blacklist)
+		resp := types.MediaResponse{}
 		builtAt := time.Now()
+		if db.DB != nil {
+			r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, s.cfg.MaxItems)
+			if err == nil && !bt.IsZero() {
+				resp = r
+				builtAt = bt
+			} else {
+				resp = media.BuildMediaResponse(shares, blacklist, s.cfg.MaxItems)
+				builtAt = time.Now()
+			}
+		} else {
+			resp = media.BuildMediaResponse(shares, blacklist, s.cfg.MaxItems)
+		}
 		etag := weakETag(key, builtAt)
 
 		s.mediaMu.Lock()
@@ -234,14 +257,28 @@ func (s *Server) GetOrBuildMediaCache(shares []config.Share, blacklist config.Bl
 		s.mediaBuilding = false
 		s.mediaCond.Broadcast()
 		s.mediaMu.Unlock()
-		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+		if db.DB == nil {
+			go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+		}
 		return resp, etag
 	}
 }
 
-func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist config.BlacklistConfig) {
-	resp := media.BuildMediaResponse(shares, blacklist)
+func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
+	resp := types.MediaResponse{}
 	builtAt := time.Now()
+	if db.DB != nil {
+		r, bt, err := media.ReindexAndLoadMedia(key, shares, blacklist, maxItems)
+		if err == nil && !bt.IsZero() {
+			resp = r
+			builtAt = bt
+		} else {
+			resp = media.BuildMediaResponse(shares, blacklist, maxItems)
+			builtAt = time.Now()
+		}
+	} else {
+		resp = media.BuildMediaResponse(shares, blacklist, maxItems)
+	}
 	etag := weakETag(key, builtAt)
 
 	s.mediaMu.Lock()
@@ -252,7 +289,9 @@ func (s *Server) rebuildMediaCache(key string, shares []config.Share, blacklist 
 	s.mediaBuilding = false
 	s.mediaCond.Broadcast()
 	s.mediaMu.Unlock()
-	go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+	if db.DB == nil {
+		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+	}
 }
 
 func mediaCacheKey(shares []config.Share, blacklist config.BlacklistConfig) string {
@@ -300,6 +339,9 @@ type mediaCacheOnDisk struct {
 }
 
 func (s *Server) LoadMediaCacheFromDisk(key string) bool {
+	if db.DB != nil {
+		return false
+	}
 	s.mediaMu.Lock()
 	already := s.mediaKey == key && !s.mediaBuiltAt.IsZero()
 	need := s.mediaKey != key || s.mediaBuiltAt.IsZero()
