@@ -112,11 +112,12 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 func (s *Server) SetupLogger() {
 	s.mu.Lock()
 	if s.cfg.LogFile == "" {
-		s.cfg.LogFile = filepath.Join(util.MustExeDir(), "msp.log")
+		s.cfg.LogFile = filepath.Join(util.MustExeDir(), "logs", "msp.log")
 	}
 	logFile := s.cfg.LogFile
 	s.mu.Unlock()
 
+	_ = os.MkdirAll(filepath.Dir(logFile), 0755)
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
