@@ -51,10 +51,6 @@ func createTables() error {
 		share_root TEXT,
 		UNIQUE(path)
 	);
-	CREATE INDEX IF NOT EXISTS idx_kind ON media_items(kind);
-	CREATE INDEX IF NOT EXISTS idx_share_label ON media_items(share_label);
-	CREATE INDEX IF NOT EXISTS idx_scan_kind ON media_items(scan_id, kind);
-	CREATE INDEX IF NOT EXISTS idx_scan_share_label ON media_items(scan_id, share_label);
 
 	CREATE TABLE IF NOT EXISTS media_scans (
 		cache_key TEXT PRIMARY KEY,
@@ -73,7 +69,16 @@ func createTables() error {
 	if err := ensureMediaItemsColumn("share_root"); err != nil {
 		return err
 	}
-	return nil
+
+	indices := `
+	CREATE INDEX IF NOT EXISTS idx_kind ON media_items(kind);
+	CREATE INDEX IF NOT EXISTS idx_share_label ON media_items(share_label);
+	CREATE INDEX IF NOT EXISTS idx_scan_kind ON media_items(scan_id, kind);
+	CREATE INDEX IF NOT EXISTS idx_scan_share_label ON media_items(scan_id, share_label);
+	CREATE INDEX IF NOT EXISTS idx_scan_id ON media_items(scan_id);
+	`
+	_, err = DB.Exec(indices)
+	return err
 }
 
 type ScanMeta struct {
