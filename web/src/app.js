@@ -190,6 +190,10 @@ const LS = {
   audioLastTime: "msp.audio.lastTime",
   audioShuffle: "msp.audio.shuffle",
   audioLoop: "msp.audio.loop",
+  videoLastID: "msp.video.lastId",
+  videoLastTime: "msp.video.lastTime",
+  imageLastID: "msp.image.lastId",
+  lastActiveKind: "msp.lastActiveKind", // "audio" | "video" | "image"
   mediaETag: "msp.media.etag",
   theme: "msp.theme",
   lang: "msp.lang",
@@ -574,11 +578,92 @@ async function loadMedia(refresh, limit) {
   const res = await fetch(url, { cache: "no-store", headers });
 
   if (res.status === 304) {
-    if (!state.media) return loadMedia(true, limit);
-    renderList();
-    return;
+    if (state.config) {
+      applyConfigToUI();
+      // Switch to the last active tab if possible, defaults to video
+      const lastKind = localStorage.getItem(LS.lastActiveKind);
+      if (lastKind && ["video", "audio", "image"].includes(lastKind)) {
+        state.tab = lastKind;
+      } else {
+        state.tab = "video";
+      }
+      renderList();
+      tryResumeLastMedia();
+      return;
+    }
   }
 
+  async function tryResumeLastMedia() {
+    const kind = localStorage.getItem(LS.lastActiveKind);
+    if (!kind) {
+      // Fallback: try resume audio if no kind set (migration)
+      tryResumeAudioCompat();
+      return;
+    }
+
+    if (kind === "audio" && getCfg("playback.audio.remember", true)) {
+      resumeMedia("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
+    } else if (kind === "video" && getCfg("playback.video.remember", true)) {
+      resumeMedia("video", LS.videoLastID, LS.videoLastTime, "videoEl");
+    } else if (kind === "image" && getCfg("playback.image.remember", true)) {
+      const lastID = localStorage.getItem(LS.imageLastID);
+      if (lastID) resumeMedia("image", lastID, null, "imgEl");
+    }
+  }
+
+  function tryResumeAudioCompat() {
+    if (!getCfg("playback.audio.remember", true)) return;
+    const lastID = localStorage.getItem(LS.audioLastID);
+    if (lastID) resumeMedia("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
+  }
+
+  function resumeMedia(kind, idKey, timeKey, elId) {
+    if (!state.media) return;
+    let pool = [];
+    if (kind === "audio") pool = state.media.audios || [];
+    if (kind === "video") pool = state.media.videos || [];
+    if (kind === "image") pool = state.media.images || [];
+    if (!pool.length) return;
+
+    const id = idKey.startsWith("msp.") ? (localStorage.getItem(idKey) || "") : idKey;
+    if (!id) return;
+
+    const item = pool.find(x => x.id === id);
+    if (!item) return;
+
+    // Setup playlist
+    if (getCfg("features.playlist", true)) {
+      let pl = { items: [], index: -1 };
+      if (kind === "audio") pl = buildAudioPlaylist(item);
+      if (kind === "video") pl = buildVideoPlaylist(item);
+      if (kind === "image") pl = buildImagePlaylist(item);
+      setPlaylist(kind, pl.items, pl.index);
+      playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
+    } else {
+      playItem(item, { autoplay: false, resume: true });
+    }
+
+    if (!timeKey) return; // Image doesn't need seek
+
+    const timeVal = Number(localStorage.getItem(timeKey) || "0") || 0;
+    if (timeVal <= 0) return;
+
+    const mediaEl = el(elId);
+    if (!mediaEl) return;
+
+    const seek = () => {
+      try { mediaEl.currentTime = timeVal; } catch { }
+    };
+    if (mediaEl.readyState >= 1) {
+      queueMicrotask(seek);
+    } else {
+      const onLoaded = () => {
+        seek();
+        mediaEl.removeEventListener("loadedmetadata", onLoaded);
+      };
+      mediaEl.addEventListener("loadedmetadata", onLoaded);
+    }
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 
   if (!isLimitedRequest) {
@@ -647,41 +732,6 @@ function applyConfigToUI() {
   for (const x of tabs) x.classList.toggle("tab--active", x.getAttribute("data-tab") === state.tab);
 }
 
-function tryResumeAudio() {
-  if (!getCfg("playback.audio.remember", true)) return;
-  if (!state.media || !(state.media.audios || []).length) return;
-  if (state.current) return;
-
-  let lastID = "";
-  let lastTime = 0;
-  try { lastID = localStorage.getItem(LS.audioLastID) || ""; } catch { }
-  try { lastTime = Number(localStorage.getItem(LS.audioLastTime) || "0") || 0; } catch { lastTime = 0; }
-  if (!lastID) return;
-
-  const item = (state.media.audios || []).find(x => x.id === lastID);
-  if (!item) return;
-
-  if (getCfg("features.playlist", true)) {
-    const pl = buildAudioPlaylist(item);
-    setPlaylist("audio", pl.items, pl.index);
-    playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
-  } else {
-    playItem(item, { autoplay: false, resume: true });
-  }
-
-  const audio = el("audioEl");
-  if (!audio) return;
-  const t = Math.max(0, lastTime);
-  if (!t) return;
-  const seek = () => {
-    try { audio.currentTime = t; } catch { }
-  };
-  if (audio.readyState >= 1) {
-    queueMicrotask(seek);
-    return;
-  }
-  audio.addEventListener("loadedmetadata", seek, { once: true });
-}
 
 function currentList() {
   if (!state.media) return [];
@@ -1551,6 +1601,9 @@ function playItem(item, opts) {
     if (options.autoplay) {
       try { img.decode?.(); } catch { }
     }
+    if (getCfg("playback.image.remember", true)) {
+      saveProgress("image", item.id);
+    }
     return;
   }
 
@@ -1607,9 +1660,8 @@ function playItem(item, opts) {
     });
 
     if (getCfg("playback.audio.remember", true)) {
-      try { localStorage.setItem(LS.audioLastID, item.id); } catch { }
       if (options.user && !options.resume) {
-        try { localStorage.setItem(LS.audioLastTime, "0"); } catch { }
+        saveProgress("audio", item.id, 0);
       }
     }
 
@@ -1884,17 +1936,37 @@ function bindUI() {
   const audio = el("audioEl");
 
   let lastSaveAt = 0;
+  function saveProgress(kind, id, t) {
+    try { localStorage.setItem(LS.lastActiveKind, kind); } catch { }
+    if (kind === "audio") {
+      try { localStorage.setItem(LS.audioLastID, id); } catch { }
+      if (t !== undefined) try { localStorage.setItem(LS.audioLastTime, String(t)); } catch { }
+    } else if (kind === "video") {
+      try { localStorage.setItem(LS.videoLastID, id); } catch { }
+      if (t !== undefined) try { localStorage.setItem(LS.videoLastTime, String(t)); } catch { }
+    } else if (kind === "image") {
+      try { localStorage.setItem(LS.imageLastID, id); } catch { }
+    }
+  }
+
   audio.addEventListener("timeupdate", () => {
     if (!state.current || state.current.kind !== "audio") return;
     if (!getCfg("playback.audio.remember", true)) return;
     const now = Date.now();
     if (now - lastSaveAt < 1500) return;
     lastSaveAt = now;
-    try { localStorage.setItem(LS.audioLastID, state.current.id); } catch { }
-    try { localStorage.setItem(LS.audioLastTime, String(Math.max(0, audio.currentTime || 0))); } catch { }
+    saveProgress("audio", state.current.id, Math.max(0, audio.currentTime || 0));
   });
 
   const video = el("videoEl");
+  video.addEventListener("timeupdate", () => {
+    if (!state.current || state.current.kind !== "video") return;
+    if (!getCfg("playback.video.remember", true)) return;
+    const now = Date.now();
+    if (now - lastSaveAt < 1500) return;
+    lastSaveAt = now;
+    saveProgress("video", state.current.id, Math.max(0, video.currentTime || 0));
+  });
   const img = el("imgEl");
 
   try {
