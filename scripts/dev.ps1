@@ -47,7 +47,7 @@ function Stop-Frontend {
   }
 }
 
-function Ensure-DevConfig {
+function Initialize-DevConfig {
   if (-not (Test-Path $devDir)) {
     New-Item -ItemType Directory -Force -Path $devDir | Out-Null
   }
@@ -91,7 +91,7 @@ function Ensure-DevConfig {
 
 function Start-Backend {
   Stop-Backend
-  Ensure-DevConfig
+  Initialize-DevConfig
   Write-Host "[dev] Starting backend..."
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $backendExe
