@@ -179,6 +179,7 @@ const state = {
   // 播放列表分页
   plPageSize: 10,
   plPage: 1,
+  isSwitchingMedia: false, // Guard for auto-play skipping
   sort: {
     field: "name",
     order: 1, // 1 for asc, -1 for desc
@@ -1318,6 +1319,7 @@ let lastMediaEndedAt = 0;
 function onMediaEnded() {
   const now = Date.now();
   if (now - lastMediaEndedAt < 500) return;
+  if (state.isSwitchingMedia) return;
   lastMediaEndedAt = now;
 
   if (!state.current) return;
@@ -1691,35 +1693,89 @@ function playItem(item, opts) {
 
     if (isVideoSwitch) {
       if (state.plyr) {
-        state.plyr.source = {
-          type: "video",
-          title: item.name || "",
-          sources: [{ src: streamUrl(item.id), type: mimeFor("video", item.ext) }],
-          tracks: (item.subtitles || []).map(s => ({
-            kind: "captions",
-            label: s.label || "字幕",
-            srclang: s.lang || "zh",
-            src: s.src || streamUrl(s.id),
-            default: !!s.default
-          })),
-          poster: item.coverId ? streamUrl(item.coverId) : undefined
-        };
-        if (options.autoplay) {
-          state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
+        state.isSwitchingMedia = true;
+        // Detach listener before changing source to avoid spurious 'ended' events
+        state.plyr.off("ended", onMediaEnded);
+
+        try {
+          state.plyr.source = {
+            type: "video",
+            title: item.name || "",
+            // Omit 'type' to let browser sniff, improves MKV/AVI support
+            sources: [{ src: streamUrl(item.id) }],
+            tracks: (item.subtitles || []).map(s => ({
+              kind: "subtitles", // Use 'subtitles' as it's more standard
+              label: s.label || "字幕",
+              srclang: s.lang || "zh",
+              src: s.src || streamUrl(s.id),
+              default: !!s.default
+            })),
+            poster: item.coverId ? streamUrl(item.coverId) : undefined
+          };
+
+          // Reset time and play
+          try { video.currentTime = 0; } catch (e) { }
+
+          const forceCaptions = () => {
+            try {
+              if (state.plyr.captions) {
+                state.plyr.currentTrack = 0;
+                state.plyr.captions.active = true;
+              }
+              const tt = video.textTracks;
+              if (tt && tt.length > 0) {
+                for (let i = 0; i < tt.length; i++) tt[i].mode = "disabled";
+                tt[0].mode = "showing";
+              }
+            } catch (e) { }
+          };
+
+          if (options.autoplay) {
+            // Give browser a tick to process source change
+            setTimeout(() => {
+              state.plyr.play().catch(() => { });
+              forceCaptions();
+              // Re-attach listener after switch is mostly done
+              state.plyr.on("ended", onMediaEnded);
+              state.isSwitchingMedia = false;
+            }, 150);
+          } else {
+            setTimeout(() => {
+              forceCaptions();
+              state.plyr.on("ended", onMediaEnded);
+              state.isSwitchingMedia = false;
+            }, 150);
+          }
+        } catch (e) {
+          console.error("Plyr source switch failed", e);
+          state.plyr.on("ended", onMediaEnded);
+          state.isSwitchingMedia = false;
         }
+
         // Ensure fit button is visible/active
         try {
           const fitBtn = el("btnToggleFit");
           fitBtn.hidden = false;
           fitBtn.disabled = false;
+          const fit = video.dataset.fit || "contain";
+          fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
         } catch { }
         return;
       } else {
         // Raw video switch (touch devices mostly)
+        state.isSwitchingMedia = true;
         video.src = streamUrl(item.id);
         setTracks(video, item.subtitles || []);
         try { video.load(); } catch { }
-        if (options.autoplay) video.play().catch(() => { });
+        if (options.autoplay) {
+          video.play().then(() => {
+            state.isSwitchingMedia = false;
+          }).catch(() => {
+            state.isSwitchingMedia = false;
+          });
+        } else {
+          state.isSwitchingMedia = false;
+        }
         return;
       }
     }
