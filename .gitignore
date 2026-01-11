@@ -83,3 +83,7 @@ msp.code-workspace
 .history/
 .idea/
 *.iml
+
+// Shared files
+.shared/
+.agent/
