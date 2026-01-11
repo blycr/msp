@@ -1172,3 +1172,18 @@ body {
 [data-theme="dark"] .plyr__time {
   color: var(--md-text) !important;
 }
+
+/* Global Scrollbar Hiding */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Fix Plyr Audio Overflow for Tooltips */
+.plyr--audio {
+  overflow: visible !important;
+}
