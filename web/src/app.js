@@ -258,6 +258,20 @@ function setLang(lang) {
   scheduleAutoFitPlaylistPageSize();
   updateNavLabels();
 
+
+  // Update previewSub for current item
+  if (state.current) {
+    const item = state.current;
+    state.currentMetaBase = `${item.shareLabel || ""} · ${(item.ext || "").toUpperCase()} · ${formatBytes(item.size)} · ${formatTime(item.modTime)}`;
+    if (item.kind === "video") {
+      probeItem(item.id).then(p => {
+        el("previewSub").textContent = state.currentMetaBase + probeText(p) + probeWarnText(p);
+      });
+    } else {
+      el("previewSub").textContent = state.currentMetaBase;
+    }
+  }
+
   // Update specific dynamic texts if needed (meta, etc)
   if (state.config) loadConfig();
 }
@@ -406,7 +420,8 @@ function formatBytes(n) {
 function formatTime(ts) {
   if (!ts) return "";
   const d = new Date(ts * 1000);
-  return d.toLocaleString();
+  const locale = state.lang === "zh" ? "zh-CN" : "en-US";
+  return d.toLocaleString(locale);
 }
 
 function formatName(item) {
