@@ -110,13 +110,22 @@ should_build() {
 }
 
 log "Build Frontend" "INFO"
+# Check if pnpm is installed
+if ! command -v pnpm >/dev/null 2>&1; then
+  log "pnpm not found. Enabling corepack..." "INFO"
+  corepack enable || {
+    log "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm" "ERROR"
+    exit 1
+  }
+fi
+
 cd "$root/web"
 if [[ ! -d node_modules ]]; then
-  log "Installing npm dependencies..." "INFO"
-  npm install
+  log "Installing pnpm dependencies..." "INFO"
+  pnpm install
 fi
 log "Building frontend..." "INFO"
-npm run build
+pnpm run build
 log "Build Frontend done." "INFO"
 
 log "go test ./..." "INFO"

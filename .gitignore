@@ -12,6 +12,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 msp.log
 
 # OS / Editor
@@ -68,6 +69,10 @@ web/node_modules/
 vendor/
 .npm/
 .pnpm-store/
+.pnpm/
+# Lock files (keep pnpm-lock.yaml, ignore npm/yarn locks)
+package-lock.json
+yarn.lock
 
 # Local wiki & temp exports
 wiki_temp/
