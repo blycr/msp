@@ -12,7 +12,7 @@
     <div class="topbar__title" data-i18n="title">MSP Media Share</div>
     <div class="topbar__meta" id="meta"></div>
     <button class="theme-btn" id="langBtn" title="Language" style="margin-right: 4px; font-size: 14px; font-weight: bold;">EN</button>
-    <button class="theme-btn" id="themeBtn" title="Switch Theme">🌞</button>
+    <button class="theme-btn" id="themeBtn" title="Switch Theme" aria-label="Switch Theme"></button>
     <button class="btn btn--ghost" id="btnSettings" data-i18n="settings">Settings</button>
     <button class="btn btn--ghost" id="btnRefresh" data-i18n="refresh">Refresh</button>
   </header>
@@ -34,7 +34,12 @@
             <option value="size" data-i18n="sort_size">Size</option>
             <option value="date" data-i18n="sort_date">Date</option>
           </select>
-          <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order" style="padding: 8px 12px;">⬇️</button>
+          <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order" style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;" aria-label="Toggle sort order">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -108,7 +113,7 @@
 
       <div class="sharelist" id="shareList"></div>
 
-      <div class="dialog__subtitle" style="margin-top: 1rem; font-weight: bold; margin-bottom: 0.5rem;" data-i18n="bl_title">Blacklist Settings</div>
+      <div class="dialog__subtitle" data-i18n="bl_title">Blacklist Settings</div>
       <div class="row">
         <input class="textfield" id="blExts" placeholder="Block Exts" data-i18n-ph="bl_exts_ph" />
       </div>

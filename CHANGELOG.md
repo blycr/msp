@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- **UI/UX 全面升级**：遵循 UI/UX Pro Max 设计规范，替换 emoji 为 SVG 图标，优化颜色对比度和交互体验
+- **交互改进**：所有可交互元素添加 hover 反馈和键盘导航支持，统一过渡动画为 200ms
+- **无障碍性**：添加 `aria-label`、支持 `prefers-reduced-motion`、改进焦点可见性
+- **响应式优化**：改进移动端布局和对话框显示
+- **构建修复**：修复 PowerShell 构建脚本中 npm 调用问题
+
 ## 0.5.8
 
 - **重构**：后端全面引入 `context.Context`，支持请求超时与优雅取消

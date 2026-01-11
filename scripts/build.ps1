@@ -40,11 +40,11 @@ Invoke-Step 'Build Frontend' {
   try {
     if (-not (Test-Path 'node_modules')) {
         Write-Log 'Installing npm dependencies...' 'INFO'
-        & npm install
+        npm install
         if ($LASTEXITCODE -ne 0) { throw ("npm install failed. exitCode=" + $LASTEXITCODE) }
     }
     Write-Log 'Building frontend...' 'INFO'
-    & npm run build
+    npm run build
     if ($LASTEXITCODE -ne 0) { throw ("npm run build failed. exitCode=" + $LASTEXITCODE) }
   } finally {
     Pop-Location
