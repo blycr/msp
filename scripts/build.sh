@@ -91,9 +91,14 @@ should_build() {
   arch_or_variant="$2"
   IFS=',' read -r -a p_arr <<< "$PLATFORMS"
   IFS=',' read -r -a a_arr <<< "$ARCHITECTURES"
+  
+  platform_lower="$(echo "$platform" | tr '[:upper:]' '[:lower:]')"
+  arch_variant_lower="$(echo "$arch_or_variant" | tr '[:upper:]' '[:lower:]')"
+
   p_match="false"
   for p in "${p_arr[@]}"; do
-    if [[ "${p,,}" == "${platform,,}" ]]; then
+    p_lower="$(echo "$p" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$p_lower" == "$platform_lower" ]]; then
       p_match="true"
       break
     fi
@@ -102,7 +107,8 @@ should_build() {
     return 1
   fi
   for a in "${a_arr[@]}"; do
-    if [[ "${a,,}" == "${arch_or_variant,,}" ]]; then
+    a_lower="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$a_lower" == "$arch_variant_lower" ]]; then
       return 0
     fi
   done
