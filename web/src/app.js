@@ -1264,14 +1264,17 @@ function canPlayMedia(kind, ext, name, mediaEl) {
   return true;
 }
 
-let lastAudioEndedAt = 0;
-function onAudioEnded() {
+let lastMediaEndedAt = 0;
+function onMediaEnded() {
   const now = Date.now();
-  if (now - lastAudioEndedAt < 500) return;
-  lastAudioEndedAt = now;
+  if (now - lastMediaEndedAt < 500) return;
+  lastMediaEndedAt = now;
 
-  if (!state.current || state.current.kind !== "audio") return;
-  if (state.playlist.kind !== "audio") return;
+  if (!state.current) return;
+  const k = state.current.kind;
+  if (k !== "audio" && k !== "video") return;
+  if (state.playlist.kind !== k) return;
+
   if (state.playlist.index < 0) return;
   if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
     if (state.playlist.loop) playAtIndex(0, true);
@@ -1297,6 +1300,10 @@ function applyPlyr(element) {
       if (String(element?.tagName || "").toUpperCase() === "VIDEO") element.playsInline = true;
     } catch { }
     try {
+      element.removeEventListener("ended", onMediaEnded);
+      element.addEventListener("ended", onMediaEnded);
+    } catch { }
+    try {
       const wrap = element.closest?.(".plyr");
       if (wrap) wrap.style.display = "block";
     } catch { }
@@ -1316,9 +1323,7 @@ function applyPlyr(element) {
 
   opts.fullscreen = { enabled: true, fallback: true };
   state.plyr = new Plyr(element, opts);
-  if (state.current?.kind === "audio") {
-    state.plyr.on("ended", onAudioEnded);
-  }
+  state.plyr.on("ended", onMediaEnded);
   try {
     const wrap = element.closest?.(".plyr");
     if (wrap) wrap.style.display = "block";
@@ -1561,8 +1566,8 @@ function playItem(item, opts) {
     });
 
     // Ensure event listener is attached even if DOM or Plyr changes
-    audio.removeEventListener("ended", onAudioEnded);
-    audio.addEventListener("ended", onAudioEnded);
+    audio.removeEventListener("ended", onMediaEnded);
+    audio.addEventListener("ended", onMediaEnded);
 
     applyPlyr(audio);
     try { audio.load(); } catch { }
