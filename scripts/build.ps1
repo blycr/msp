@@ -36,16 +36,25 @@ function Invoke-Step {
 
 
 Invoke-Step 'Build Frontend' {
+  # Check if pnpm is installed
+  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    Write-Log 'pnpm not found. Installing pnpm via corepack...' 'INFO'
+    corepack enable
+    if ($LASTEXITCODE -ne 0) {
+      throw "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm"
+    }
+  }
+  
   Push-Location (Join-Path $root 'web')
   try {
     if (-not (Test-Path 'node_modules')) {
-        Write-Log 'Installing npm dependencies...' 'INFO'
-        npm install
-        if ($LASTEXITCODE -ne 0) { throw ("npm install failed. exitCode=" + $LASTEXITCODE) }
+        Write-Log 'Installing pnpm dependencies...' 'INFO'
+        pnpm install
+        if ($LASTEXITCODE -ne 0) { throw ("pnpm install failed. exitCode=" + $LASTEXITCODE) }
     }
     Write-Log 'Building frontend...' 'INFO'
-    npm run build
-    if ($LASTEXITCODE -ne 0) { throw ("npm run build failed. exitCode=" + $LASTEXITCODE) }
+    pnpm run build
+    if ($LASTEXITCODE -ne 0) { throw ("pnpm run build failed. exitCode=" + $LASTEXITCODE) }
   } finally {
     Pop-Location
   }

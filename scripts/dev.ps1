@@ -98,16 +98,25 @@ function Start-Backend {
 
 function Start-Frontend {
   Stop-Frontend
+  # Check if pnpm is installed
+  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    Write-Host "[dev] pnpm not found. Enabling corepack..." 
+    corepack enable
+    if ($LASTEXITCODE -ne 0) {
+      throw "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm"
+    }
+  }
+  
   Write-Host "[dev] Starting frontend (Vite dev server)..."
   $webRoot = Join-Path $root 'web'
   Push-Location $webRoot
   try {
     if (-not (Test-Path 'node_modules')) {
-      Write-Host "[dev] Installing npm dependencies..."
-      & npm install
-      if ($LASTEXITCODE -ne 0) { throw "npm install failed. exitCode=$LASTEXITCODE" }
+      Write-Host "[dev] Installing pnpm dependencies..."
+      pnpm install
+      if ($LASTEXITCODE -ne 0) { throw "pnpm install failed. exitCode=$LASTEXITCODE" }
     }
-    $cmd = "`$env:MSP_DEV_BACKEND='http://127.0.0.1:$BackendPort'; npm run dev"
+    $cmd = "`$env:MSP_DEV_BACKEND='http://127.0.0.1:$BackendPort'; pnpm run dev"
     $script:frontendProc = Start-Process -FilePath "pwsh" -ArgumentList "-NoLogo","-NoProfile","-Command",$cmd -WorkingDirectory $webRoot -PassThru
   } finally {
     Pop-Location
