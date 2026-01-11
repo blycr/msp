@@ -45,7 +45,7 @@ const I18N = {
     save_bl: "Save Blacklist",
     dlg_note: "Note: Browser cannot open the system folder picker due to security limits. Please input the path manually.",
     close: "Close",
-    
+
     // JS Dynamic
     kind_video: "Video",
     kind_audio: "Audio",
@@ -59,7 +59,7 @@ const I18N = {
     next_audio: "Next Audio",
     prev_item: "Prev Item",
     next_item: "Next Item",
-    
+
     codec_info: " · Codec: ",
     audio_warn: " · Note: Audio is {0}, browser may not support.",
     err_aborted: "Aborted",
@@ -67,7 +67,7 @@ const I18N = {
     err_decode: "Decode Failed",
     err_src: "Source Not Supported",
     err_unknown: "Unknown Error",
-    
+
     meta_urls: "Available: {0}",
     meta_noip: "No LAN IP detected (127.0.0.1 available)",
     hint_stats: "Current: {0}, Total {1}",
@@ -125,7 +125,7 @@ const I18N = {
     next_audio: "下一首",
     prev_item: "上一个",
     next_item: "下一个",
-    
+
     codec_info: " · 编码/容器：",
     audio_warn: " · 提示：音频为 {0}，浏览器常不支持",
     err_aborted: "播放被中止",
@@ -133,7 +133,7 @@ const I18N = {
     err_decode: "解码失败（常见于编码不支持）",
     err_src: "媒体源不支持",
     err_unknown: "未知错误",
-    
+
     meta_urls: "可用地址：{0}",
     meta_noip: "未检测到局域网 IP（仍可用 127.0.0.1 访问）",
     hint_stats: "当前分类：{0}，共 {1} 个",
@@ -209,14 +209,15 @@ function setLang(lang) {
   state.lang = lang;
   localStorage.setItem(LS.lang, lang);
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-  
+
   // Update button text
   const btn = el("langBtn");
   if (btn) btn.textContent = lang === "en" ? "CN" : "EN"; // Toggle text
-  
+
   // Update static elements
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const k = el.getAttribute("data-i18n");
+    if (k === "preview_none" && state.current) return;
     if (k) el.textContent = t(k);
   });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => {
@@ -227,7 +228,7 @@ function setLang(lang) {
     const k = el.getAttribute("data-i18n-title");
     if (k) el.title = t(k);
   });
-  
+
   // Platform-specific placeholder for share path
   const sharePathEl = el("sharePath");
   if (sharePathEl) {
@@ -242,7 +243,7 @@ function setLang(lang) {
     }
     sharePathEl.placeholder = ph;
   }
-  
+
   // Update HTML content (like blacklist hint)
   const blHint = el("blHint");
   if (blHint) blHint.innerHTML = t("bl_hint");
@@ -253,19 +254,19 @@ function setLang(lang) {
   try {
     plAutoFit.last.itemH = 0;
     plAutoFit.last.pagerH = 0;
-  } catch {}
+  } catch { }
   scheduleAutoFitPlaylistPageSize();
   updateNavLabels();
-  
+
   // Update specific dynamic texts if needed (meta, etc)
-  if (state.config) loadConfig(); 
+  if (state.config) loadConfig();
 }
 
 function initLang() {
   const saved = localStorage.getItem(LS.lang);
   const lang = saved === "zh" ? "zh" : "en"; // Default en
   setLang(lang);
-  
+
   const btn = el("langBtn");
   if (btn) {
     btn.addEventListener("click", () => {
@@ -316,7 +317,7 @@ function initTheme() {
 
   const saved = localStorage.getItem(LS.theme);
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
-  
+
   const updateTheme = (isDark) => {
     document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
     btn.innerHTML = isDark ? createMoonIcon() : createSunIcon();
@@ -387,7 +388,7 @@ document.addEventListener("fullscreenchange", () => {
   try {
     const el = document.fullscreenElement;
     console.log(el && (el.id || el.className || el.tagName));
-  } catch {}
+  } catch { }
 });
 
 function formatBytes(n) {
@@ -406,6 +407,16 @@ function formatTime(ts) {
   if (!ts) return "";
   const d = new Date(ts * 1000);
   return d.toLocaleString();
+}
+
+function formatName(item) {
+  if (!item || !item.name) return "";
+  const name = item.name;
+  const ext = item.ext || "";
+  if (ext && name.toLowerCase().endsWith(ext.toLowerCase())) {
+    return name.slice(0, -ext.length);
+  }
+  return name;
 }
 
 function getCfg(path, fallback) {
@@ -535,7 +546,7 @@ async function loadMedia(refresh, limit) {
     try {
       const etag = localStorage.getItem(LS.mediaETag);
       if (etag) headers["If-None-Match"] = etag;
-    } catch {}
+    } catch { }
   }
 
   const params = new URLSearchParams();
@@ -558,7 +569,7 @@ async function loadMedia(refresh, limit) {
   if (!isLimitedRequest) {
     const newETag = res.headers.get("ETag");
     if (newETag) {
-      try { localStorage.setItem(LS.mediaETag, newETag); } catch {}
+      try { localStorage.setItem(LS.mediaETag, newETag); } catch { }
     }
   }
 
@@ -612,7 +623,7 @@ function applyConfigToUI() {
   try {
     const saved = localStorage.getItem(LS.audioLoop);
     loop = saved === "1";
-  } catch {}
+  } catch { }
   state.playlist.loop = loop;
   const tl = el("toggleLoop");
   if (tl) tl.checked = loop;
@@ -628,7 +639,7 @@ function tryResumeAudio() {
 
   let lastID = "";
   let lastTime = 0;
-  try { lastID = localStorage.getItem(LS.audioLastID) || ""; } catch {}
+  try { lastID = localStorage.getItem(LS.audioLastID) || ""; } catch { }
   try { lastTime = Number(localStorage.getItem(LS.audioLastTime) || "0") || 0; } catch { lastTime = 0; }
   if (!lastID) return;
 
@@ -648,7 +659,7 @@ function tryResumeAudio() {
   const t = Math.max(0, lastTime);
   if (!t) return;
   const seek = () => {
-    try { audio.currentTime = t; } catch {}
+    try { audio.currentTime = t; } catch { }
   };
   if (audio.readyState >= 1) {
     queueMicrotask(seek);
@@ -713,7 +724,7 @@ function filterFiles(list) {
       try {
         const re = new RegExp(match[1], match[2] || "i");
         return list.filter(x => re.test(x.name));
-      } catch {}
+      } catch { }
     }
   }
 
@@ -780,7 +791,7 @@ function renderList() {
 
     const name = document.createElement("div");
     name.className = "item__name";
-    name.textContent = item.name || "";
+    name.textContent = formatName(item);
 
     const sub = document.createElement("div");
     sub.className = "item__sub";
@@ -1008,7 +1019,7 @@ function renderPlaylist() {
 
     const name = document.createElement("div");
     name.className = "plitem__name";
-    name.textContent = it.name || "";
+    name.textContent = formatName(it);
 
     const sub = document.createElement("div");
     sub.className = "plitem__sub";
@@ -1149,7 +1160,7 @@ function buildImagePlaylist(item) {
 
 function destroyPlyr() {
   if (state.plyr) {
-    try { state.plyr.destroy(); } catch {}
+    try { state.plyr.destroy(); } catch { }
     state.plyr = null;
   }
 }
@@ -1163,8 +1174,8 @@ function hideAllMedia() {
   }
   resetMediaEl(el("videoEl"));
   resetMediaEl(el("audioEl"));
-  try { el("imgEl").removeAttribute("src"); } catch {}
-  try { el("audioCover").removeAttribute("src"); } catch {}
+  try { el("imgEl").removeAttribute("src"); } catch { }
+  try { el("audioCover").removeAttribute("src"); } catch { }
   el("videoEl").style.display = "none";
   el("audioEl").style.display = "none";
   el("audioMeta").style.display = "none";
@@ -1184,15 +1195,15 @@ function showPreviewError(text) {
 
 function resetMediaEl(mediaEl) {
   if (!mediaEl) return;
-  try { mediaEl.pause(); } catch {}
-  try { mediaEl.currentTime = 0; } catch {}
-  try { mediaEl.srcObject = null; } catch {}
-  try { mediaEl.removeAttribute("src"); } catch {}
+  try { mediaEl.pause(); } catch { }
+  try { mediaEl.currentTime = 0; } catch { }
+  try { mediaEl.srcObject = null; } catch { }
+  try { mediaEl.removeAttribute("src"); } catch { }
   try {
     const sources = Array.from(mediaEl.querySelectorAll("source"));
     for (const s of sources) s.remove();
-  } catch {}
-  try { mediaEl.load(); } catch {}
+  } catch { }
+  try { mediaEl.load(); } catch { }
 }
 
 function mimeFor(kind, ext) {
@@ -1261,19 +1272,19 @@ function applyPlyr(element) {
     try {
       if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
       if (window.matchMedia && window.matchMedia("(max-width: 980px)").matches) return true;
-    } catch {}
+    } catch { }
     return false;
   })();
 
   if (isTouch) {
-    try { element.controls = true; } catch {}
+    try { element.controls = true; } catch { }
     try {
       if (String(element?.tagName || "").toUpperCase() === "VIDEO") element.playsInline = true;
-    } catch {}
+    } catch { }
     try {
       const wrap = element.closest?.(".plyr");
       if (wrap) wrap.style.display = "block";
-    } catch {}
+    } catch { }
     return;
   }
 
@@ -1296,26 +1307,26 @@ function applyPlyr(element) {
   try {
     const wrap = element.closest?.(".plyr");
     if (wrap) wrap.style.display = "block";
-  } catch {}
+  } catch { }
   try {
     if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
       state.plyr.on("enterfullscreen", () => {
-        try { element.dataset.fit = "cover"; } catch {}
-        try { console.log(document.fullscreenElement); } catch {}
+        try { element.dataset.fit = "cover"; } catch { }
+        try { console.log(document.fullscreenElement); } catch { }
         try {
           const fitBtn = el("btnToggleFit");
           fitBtn.textContent = t("fit_cover");
-        } catch {}
+        } catch { }
       });
       state.plyr.on("exitfullscreen", () => {
-        try { element.dataset.fit = "contain"; } catch {}
+        try { element.dataset.fit = "contain"; } catch { }
         try {
           const fitBtn = el("btnToggleFit");
           fitBtn.textContent = t("fit_contain");
-        } catch {}
+        } catch { }
       });
     }
-  } catch {}
+  } catch { }
   window.plyrPlayer = state.plyr;
   window.callPlyr = (method, ...args) => {
     if (!state.plyr) throw new Error("Plyr 未初始化");
@@ -1350,7 +1361,7 @@ function setTracks(videoEl, subtitles) {
       if (!tt || tt.length === 0) return;
       for (let i = 0; i < tt.length; i++) tt[i].mode = "disabled";
       tt[0].mode = "showing";
-    } catch {}
+    } catch { }
   });
 }
 
@@ -1429,7 +1440,7 @@ function playItem(item, opts) {
 
   setFitBtnVisible(state.tab === "video" && item.kind === "video");
 
-  el("previewTitle").textContent = item.name || "";
+  el("previewTitle").textContent = formatName(item);
   state.currentMetaBase = `${item.shareLabel || ""} · ${(item.ext || "").toUpperCase()} · ${formatBytes(item.size)} · ${formatTime(item.modTime)}`;
   el("previewSub").textContent = state.currentMetaBase;
 
@@ -1438,15 +1449,15 @@ function playItem(item, opts) {
       if (token !== state.selectionToken) return;
       if (!state.current || state.current.id !== item.id) return;
       el("previewSub").textContent = state.currentMetaBase + probeText(p) + probeWarnText(p);
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   const openBtn = el("btnOpenRaw");
   openBtn.disabled = false;
   openBtn.onclick = () => {
-    try { state.plyr?.pause?.(); } catch {}
-    try { el("videoEl")?.pause?.(); } catch {}
-    try { el("audioEl")?.pause?.(); } catch {}
+    try { state.plyr?.pause?.(); } catch { }
+    try { el("videoEl")?.pause?.(); } catch { }
+    try { el("audioEl")?.pause?.(); } catch { }
     if (item.kind === "video" && Array.isArray(item.subtitles) && item.subtitles.length > 0) {
       const base = String(window.location.origin || "");
       const toAbs = (u) => {
@@ -1463,7 +1474,7 @@ function playItem(item, opts) {
       }).join("");
       const html =
         `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
-        `<title>${item.name || ""}</title>` +
+        `<title>${formatName(item)}</title>` +
         `<style>html,body{height:100%;margin:0;background:#000}body{display:flex;align-items:center;justify-content:center}` +
         `video{max-width:100%;max-height:100vh;background:#000}</style></head>` +
         `<body><video controls preload="metadata" src="${src}">${tr}</video></body></html>`;
@@ -1484,7 +1495,7 @@ function playItem(item, opts) {
   if (options.user && window.matchMedia && window.matchMedia("(max-width: 980px)").matches) {
     try {
       document.querySelector(".stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch {}
+    } catch { }
   }
 
   if (options.user && getCfg("features.playlist", true)) {
@@ -1514,7 +1525,7 @@ function playItem(item, opts) {
       img.style.opacity = "1";
     });
     if (options.autoplay) {
-      try { img.decode?.(); } catch {}
+      try { img.decode?.(); } catch { }
     }
     return;
   }
@@ -1533,19 +1544,19 @@ function playItem(item, opts) {
       audio.style.transition = "opacity 0.25s ease";
       audio.style.opacity = "1";
     });
-    
+
     // Ensure event listener is attached even if DOM or Plyr changes
     audio.removeEventListener("ended", onAudioEnded);
     audio.addEventListener("ended", onAudioEnded);
 
     applyPlyr(audio);
-    try { audio.load(); } catch {}
+    try { audio.load(); } catch { }
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => state.plyr.play().catch(() => {}));
+        state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
       } else {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
       }
     }
 
@@ -1572,9 +1583,9 @@ function playItem(item, opts) {
     });
 
     if (getCfg("playback.audio.remember", true)) {
-      try { localStorage.setItem(LS.audioLastID, item.id); } catch {}
+      try { localStorage.setItem(LS.audioLastID, item.id); } catch { }
       if (options.user && !options.resume) {
-        try { localStorage.setItem(LS.audioLastTime, "0"); } catch {}
+        try { localStorage.setItem(LS.audioLastTime, "0"); } catch { }
       }
     }
 
@@ -1589,7 +1600,7 @@ function playItem(item, opts) {
           // Use a loop to check time update more aggressively for lyrics
           requestAnimationFrame(() => updateLyricsByTime(audio.currentTime || 0, true));
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     return;
@@ -1611,15 +1622,15 @@ function playItem(item, opts) {
       fitBtn.disabled = false;
       const fit = video.dataset.fit || "contain";
       fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
-    } catch {}
+    } catch { }
     applyPlyr(video);
-    try { video.load(); } catch {}
+    try { video.load(); } catch { }
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => state.plyr.play().catch(() => {}));
+        state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
       } else {
-        video.play().catch(() => {});
+        video.play().catch(() => { });
       }
     }
     return;
@@ -1737,7 +1748,7 @@ function bindUI() {
   if (sortBtn) {
     sortBtn.innerHTML = state.sort.order === 1 ? createArrowDownIcon() : createArrowUpIcon();
   }
-  
+
   el("sortOrder").addEventListener("click", () => {
     state.sort.order *= -1;
     const sortBtn = el("sortOrder");
@@ -1762,7 +1773,7 @@ function bindUI() {
           fitBtn.disabled = false;
           const fit = v?.dataset?.fit || "contain";
           fitBtn.textContent = fit === "cover" ? "填充模式：铺满" : "填充模式：适配";
-        } catch {}
+        } catch { }
       }
     });
   }
@@ -1785,7 +1796,7 @@ function bindUI() {
   el("toggleShuffle").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.shuffle = on;
-    try { localStorage.setItem(LS.audioShuffle, on ? "1" : "0"); } catch {}
+    try { localStorage.setItem(LS.audioShuffle, on ? "1" : "0"); } catch { }
     if (state.current?.kind === "audio" && getCfg("playback.audio.enabled", true)) {
       const pl = buildAudioPlaylist(state.current);
       setPlaylist("audio", pl.items, pl.index);
@@ -1795,7 +1806,7 @@ function bindUI() {
   el("toggleLoop").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.loop = on;
-    try { localStorage.setItem(LS.audioLoop, on ? "1" : "0"); } catch {}
+    try { localStorage.setItem(LS.audioLoop, on ? "1" : "0"); } catch { }
   });
   try {
     const fitBtn = el("btnToggleFit");
@@ -1805,10 +1816,10 @@ function bindUI() {
       if (!v) return;
       const cur = v.dataset.fit || "cover";
       const next = cur === "cover" ? "contain" : "cover";
-      try { v.dataset.fit = next; } catch {}
-      try { fitBtn.textContent = next === "cover" ? t("fit_cover") : t("fit_contain"); } catch {}
+      try { v.dataset.fit = next; } catch { }
+      try { fitBtn.textContent = next === "cover" ? t("fit_cover") : t("fit_contain"); } catch { }
     });
-  } catch {}
+  } catch { }
 
   const audio = el("audioEl");
 
@@ -1819,8 +1830,8 @@ function bindUI() {
     const now = Date.now();
     if (now - lastSaveAt < 1500) return;
     lastSaveAt = now;
-    try { localStorage.setItem(LS.audioLastID, state.current.id); } catch {}
-    try { localStorage.setItem(LS.audioLastTime, String(Math.max(0, audio.currentTime || 0))); } catch {}
+    try { localStorage.setItem(LS.audioLastID, state.current.id); } catch { }
+    try { localStorage.setItem(LS.audioLastTime, String(Math.max(0, audio.currentTime || 0))); } catch { }
   });
 
   const video = el("videoEl");
@@ -1834,7 +1845,7 @@ function bindUI() {
     }
     window.addEventListener("resize", () => scheduleAutoFitPlaylistPageSize());
     document.addEventListener("fullscreenchange", () => scheduleAutoFitPlaylistPageSize());
-  } catch {}
+  } catch { }
 
   audio.addEventListener("error", () => {
     const ext = state.current?.ext || "";
@@ -1883,7 +1894,7 @@ async function boot() {
   try {
     await loadConfig();
     await loadMedia(false, 200);
-    setTimeout(() => loadMedia(false).catch(() => {}), 0);
+    setTimeout(() => loadMedia(false).catch(() => { }), 0);
     if (state.tab === "audio") {
       tryResumeAudio();
     }
