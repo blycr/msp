@@ -1454,6 +1454,7 @@ function playItem(item, opts) {
   const options = opts || {};
   if (!item) return;
 
+  const prevKind = state.current?.kind;
   const token = ++state.selectionToken;
   state.current = item;
   updateNavLabels();
@@ -1509,7 +1510,10 @@ function playItem(item, opts) {
   const shuffleWrap = el("shuffleWrap");
   shuffleWrap.hidden = !getCfg("features.playlist", true) || item.kind !== "audio";
 
-  hideAllMedia();
+  const isVideoSwitch = prevKind === "video" && item.kind === "video";
+  if (!isVideoSwitch) {
+    hideAllMedia();
+  }
   resetLyrics();
 
   if (options.user && window.matchMedia && window.matchMedia("(max-width: 980px)").matches) {
@@ -1632,6 +1636,42 @@ function playItem(item, opts) {
       showPreviewError(`该视频格式浏览器可能不支持（${item.ext || ""}）。请用“在新标签打开”。`);
       return;
     }
+
+    if (isVideoSwitch) {
+      if (state.plyr) {
+        state.plyr.source = {
+          type: "video",
+          title: item.name || "",
+          sources: [{ src: streamUrl(item.id), type: mimeFor("video", item.ext) }],
+          tracks: (item.subtitles || []).map(s => ({
+            kind: "captions",
+            label: s.label || "字幕",
+            srclang: s.lang || "zh",
+            src: s.src || streamUrl(s.id),
+            default: !!s.default
+          })),
+          poster: item.coverId ? streamUrl(item.coverId) : undefined
+        };
+        if (options.autoplay) {
+          state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
+        }
+        // Ensure fit button is visible/active
+        try {
+          const fitBtn = el("btnToggleFit");
+          fitBtn.hidden = false;
+          fitBtn.disabled = false;
+        } catch { }
+        return;
+      } else {
+        // Raw video switch (touch devices mostly)
+        video.src = streamUrl(item.id);
+        setTracks(video, item.subtitles || []);
+        try { video.load(); } catch { }
+        if (options.autoplay) video.play().catch(() => { });
+        return;
+      }
+    }
+
     resetMediaEl(video);
     video.src = streamUrl(item.id);
     setTracks(video, item.subtitles || []);
