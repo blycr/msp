@@ -16,7 +16,8 @@ function Build-Backend {
   try {
     & go build -o $backendExe ./cmd/msp
     if ($LASTEXITCODE -ne 0) { throw "go build failed. exitCode=$LASTEXITCODE" }
-  } finally {
+  }
+  finally {
     Pop-Location
   }
 }
@@ -30,7 +31,8 @@ function Stop-Backend {
     try {
       $script:backendProc.Kill()
       $script:backendProc.WaitForExit()
-    } catch {}
+    }
+    catch {}
   }
 }
 
@@ -40,7 +42,8 @@ function Stop-Frontend {
     try {
       $script:frontendProc.Kill()
       $script:frontendProc.WaitForExit()
-    } catch {}
+    }
+    catch {}
   }
 }
 
@@ -51,13 +54,15 @@ function Ensure-DevConfig {
   if (-not (Test-Path $devConfig)) {
     if (Test-Path $devConfigExample) {
       Copy-Item -LiteralPath $devConfigExample -Destination $devConfig -Force
-    } else {
+    }
+    else {
       '{}' | Out-File -FilePath $devConfig -Encoding utf8
     }
   }
   try {
     $cfg = Get-Content -LiteralPath $devConfig -Raw | ConvertFrom-Json -ErrorAction Stop
-  } catch {
+  }
+  catch {
     $cfg = [pscustomobject]@{}
   }
   if ($null -eq $cfg.port -or [int]$cfg.port -ne $BackendPort) {
@@ -117,8 +122,10 @@ function Start-Frontend {
       if ($LASTEXITCODE -ne 0) { throw "pnpm install failed. exitCode=$LASTEXITCODE" }
     }
     $cmd = "`$env:MSP_DEV_BACKEND='http://127.0.0.1:$BackendPort'; pnpm run dev"
-    $script:frontendProc = Start-Process -FilePath "pwsh" -ArgumentList "-NoLogo","-NoProfile","-Command",$cmd -WorkingDirectory $webRoot -PassThru
-  } finally {
+    $psExe = (Get-Process -Id $PID).Path
+    $script:frontendProc = Start-Process -FilePath $psExe -ArgumentList "-NoLogo", "-NoProfile", "-Command", $cmd -WorkingDirectory $webRoot -PassThru
+  }
+  finally {
     Pop-Location
   }
 }
@@ -156,7 +163,8 @@ try {
     Build-Backend
     Start-Backend
   }
-} finally {
+}
+finally {
   $fsw.EnableRaisingEvents = $false
   $fsw.Dispose()
   Stop-Backend

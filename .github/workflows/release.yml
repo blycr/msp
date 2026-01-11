@@ -33,17 +33,23 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.23"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Cache npm
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+      - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('web/package-lock.json', 'web/package.json') }}
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('web/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-npm-
+            ${{ runner.os }}-pnpm-store-
       - name: Set release tag
         shell: bash
         run: |
@@ -65,6 +71,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf bin checksums debug || true
+          # Fix permissions and line endings just in case
+          chmod +x scripts/build.sh
+          sed -i 's/\r$//' scripts/build.sh
           git fetch --force --tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" >/dev/null 2>&1 || true
 
           if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
@@ -91,6 +100,8 @@ jobs:
         shell: bash
         run: |
           rm -rf bin checksums debug || true
+          chmod +x scripts/build.sh
+          sed -i 's/\r$//' scripts/build.sh
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
       - name: Prepare release notes
         shell: bash
