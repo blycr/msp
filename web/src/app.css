@@ -1157,3 +1157,18 @@ body {
     min-height: calc(100vh - 76px)
   }
 }
+
+/* Fix Plyr Audio in Dark Mode */
+[data-theme="dark"] .plyr--audio .plyr__controls {
+  background: var(--md-surface) !important;
+  color: var(--md-text) !important;
+  border: 1px solid var(--md-border);
+}
+
+[data-theme="dark"] .plyr__control:hover {
+  background: var(--md-hover) !important;
+}
+
+[data-theme="dark"] .plyr__time {
+  color: var(--md-text) !important;
+}
