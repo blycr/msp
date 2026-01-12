@@ -283,10 +283,12 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Cache-Control", "private, max-age=0")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
 
-	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
+	http.ServeContent(w, r, st.Name(), time.Time{}, f)
 }
 
 func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {

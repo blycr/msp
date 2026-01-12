@@ -196,6 +196,7 @@ func (s *Server) InvalidateMediaCache() {
 }
 
 func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
+	// 并发控制与缓存策略：复用已有结果；过期时后台重建
 	key := mediaCacheKey(shares, blacklist)
 	if !refresh {
 		if resp, builtAt, ok, _ := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
@@ -225,12 +226,14 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 			etag := s.mediaETag
 			if !s.mediaBuilding {
 				s.mediaBuilding = true
+				// TTL 过期：启动后台重建，不阻塞当前请求
 				go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
 			}
 			s.mediaMu.Unlock()
 			return resp, etag
 		}
 		if s.mediaBuilding {
+			// 已有构建在进行：等待信号，避免重复构建
 			s.mediaCond.Wait()
 			s.mediaMu.Unlock()
 			continue
@@ -246,10 +249,12 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 				resp = r
 				builtAt = bt
 			} else {
+				// DB 可用但索引失败：退化为内存扫描
 				resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
 				builtAt = time.Now()
 			}
 		} else {
+			// 无 DB：直接内存扫描生成响应
 			resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
 		}
 		etag := weakETag(key, builtAt)
@@ -263,6 +268,7 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 		s.mediaCond.Broadcast()
 		s.mediaMu.Unlock()
 		if db.DB == nil {
+			// 无 DB 时，异步保存到磁盘以供下次快速加载
 			go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
 		}
 		return resp, etag
@@ -413,6 +419,7 @@ func sharesCacheKey(shares []config.Share) string {
 }
 
 func weakETag(key string, builtAt time.Time) string {
+	// 弱 ETag：对 key 与构建时间做哈希，用于客户端缓存协商
 	h := fnv.New64a()
 	h.Write([]byte(key))
 	var t [8]byte

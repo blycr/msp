@@ -200,6 +200,26 @@ const LS = {
   lang: "msp.lang",
 };
 
+const canStorage = (() => {
+  try {
+    const k = "__msp__probe__";
+    localStorage.setItem(k, "1");
+    localStorage.removeItem(k);
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const lsGet = (k) => {
+  if (!canStorage) return null;
+  try { return localStorage.getItem(k); } catch { return null; }
+};
+const lsSet = (k, v) => {
+  if (!canStorage) return;
+  try { localStorage.setItem(k, v); } catch { }
+};
+
 function t(key, ...args) {
   const dict = I18N[state.lang] || I18N.en;
   let val = dict[key] || I18N.en[key] || key;
@@ -212,7 +232,7 @@ function t(key, ...args) {
 function setLang(lang) {
   if (lang !== "en" && lang !== "zh") return;
   state.lang = lang;
-  localStorage.setItem(LS.lang, lang);
+  lsSet(LS.lang, lang);
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
 
   // Update button text
@@ -282,7 +302,7 @@ function setLang(lang) {
 }
 
 function initLang() {
-  const saved = localStorage.getItem(LS.lang);
+  const saved = lsGet(LS.lang);
   const lang = saved === "zh" ? "zh" : "en"; // Default en
   setLang(lang);
 
@@ -334,7 +354,7 @@ function initTheme() {
   const btn = el("themeBtn");
   if (!btn) return;
 
-  const saved = localStorage.getItem(LS.theme);
+  const saved = lsGet(LS.theme);
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
   const updateTheme = (isDark) => {
@@ -363,7 +383,7 @@ function initTheme() {
     const next = !isDark;
     const apply = () => {
       updateTheme(next);
-      localStorage.setItem(LS.theme, next ? "dark" : "light");
+      lsSet(LS.theme, next ? "dark" : "light");
     };
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) { apply(); return; }
@@ -378,7 +398,7 @@ function initTheme() {
 
   // System preference listener (only if no manual override)
   systemDark.addEventListener("change", (e) => {
-    if (!localStorage.getItem(LS.theme)) {
+    if (!lsGet(LS.theme)) {
       const next = e.matches || (new Date().getHours() < 6 || new Date().getHours() >= 18);
       const apply = () => updateTheme(next);
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -429,6 +449,19 @@ function formatTime(ts) {
   return d.toLocaleString(locale);
 }
 
+function saveProgress(kind, id, t) {
+  lsSet(LS.lastActiveKind, kind);
+  if (kind === "audio") {
+    lsSet(LS.audioLastID, id);
+    if (t !== undefined) lsSet(LS.audioLastTime, String(t));
+  } else if (kind === "video") {
+    lsSet(LS.videoLastID, id);
+    if (t !== undefined) lsSet(LS.videoLastTime, String(t));
+  } else if (kind === "image") {
+    lsSet(LS.imageLastID, id);
+  }
+}
+
 function formatName(item) {
   if (!item || !item.name) return "";
   const name = item.name;
@@ -470,7 +503,8 @@ function dirOfAbsPath(p) {
 }
 
 function streamUrl(id) {
-  return `/api/stream?id=${encodeURIComponent(id)}`;
+  const ts = Date.now();
+  return `/api/stream?id=${encodeURIComponent(id)}&ts=${ts}`;
 }
 
 function setMeta(text) {
@@ -563,10 +597,8 @@ async function loadMedia(refresh, limit) {
 
   const headers = {};
   if (!refresh && !isLimitedRequest && !state.media?.limited) {
-    try {
-      const etag = localStorage.getItem(LS.mediaETag);
-      if (etag) headers["If-None-Match"] = etag;
-    } catch { }
+    const etag = lsGet(LS.mediaETag);
+    if (etag) headers["If-None-Match"] = etag;
   }
 
   const params = new URLSearchParams();
@@ -579,10 +611,10 @@ async function loadMedia(refresh, limit) {
   const res = await fetch(url, { cache: "no-store", headers });
 
   if (res.status === 304) {
-    if (state.config) {
+    if (state.config && state.media) {
       applyConfigToUI();
       // Switch to the last active tab if possible, defaults to video
-      const lastKind = localStorage.getItem(LS.lastActiveKind);
+      const lastKind = lsGet(LS.lastActiveKind);
       if (lastKind && ["video", "audio", "image"].includes(lastKind)) {
         state.tab = lastKind;
       } else {
@@ -592,10 +624,12 @@ async function loadMedia(refresh, limit) {
       tryResumeLastMedia();
       return;
     }
+    // Fallback: if media not in memory (first load or cache cleared), force reload ignoring ETag
+    return loadMedia(true, 0);
   }
 
   async function tryResumeLastMedia() {
-    const kind = localStorage.getItem(LS.lastActiveKind);
+    const kind = lsGet(LS.lastActiveKind);
     if (!kind) {
       // Fallback: try resume audio if no kind set (migration)
       tryResumeAudioCompat();
@@ -607,14 +641,14 @@ async function loadMedia(refresh, limit) {
     } else if (kind === "video" && getCfg("playback.video.remember", true)) {
       resumeMedia("video", LS.videoLastID, LS.videoLastTime, "videoEl");
     } else if (kind === "image" && getCfg("playback.image.remember", true)) {
-      const lastID = localStorage.getItem(LS.imageLastID);
+      const lastID = lsGet(LS.imageLastID);
       if (lastID) resumeMedia("image", lastID, null, "imgEl");
     }
   }
 
   function tryResumeAudioCompat() {
     if (!getCfg("playback.audio.remember", true)) return;
-    const lastID = localStorage.getItem(LS.audioLastID);
+    const lastID = lsGet(LS.audioLastID);
     if (lastID) resumeMedia("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
   }
 
@@ -626,7 +660,7 @@ async function loadMedia(refresh, limit) {
     if (kind === "image") pool = state.media.images || [];
     if (!pool.length) return;
 
-    const id = idKey.startsWith("msp.") ? (localStorage.getItem(idKey) || "") : idKey;
+    const id = idKey.startsWith("msp.") ? (lsGet(idKey) || "") : idKey;
     if (!id) return;
 
     const item = pool.find(x => x.id === id);
@@ -646,7 +680,7 @@ async function loadMedia(refresh, limit) {
 
     if (!timeKey) return; // Image doesn't need seek
 
-    const timeVal = Number(localStorage.getItem(timeKey) || "0") || 0;
+    const timeVal = Number(lsGet(timeKey) || "0") || 0;
     if (timeVal <= 0) return;
 
     const mediaEl = el(elId);
@@ -670,7 +704,7 @@ async function loadMedia(refresh, limit) {
   if (!isLimitedRequest) {
     const newETag = res.headers.get("ETag");
     if (newETag) {
-      try { localStorage.setItem(LS.mediaETag, newETag); } catch { }
+      lsSet(LS.mediaETag, newETag);
     }
   }
 
@@ -708,23 +742,21 @@ function applyConfigToUI() {
   }
 
   let shuffle = false;
-  try {
-    const saved = localStorage.getItem(LS.audioShuffle);
+  {
+    const saved = lsGet(LS.audioShuffle);
     if (saved === "1") shuffle = true;
     else if (saved === "0") shuffle = false;
     else shuffle = !!getCfg("playback.audio.shuffle", false);
-  } catch {
-    shuffle = !!getCfg("playback.audio.shuffle", false);
   }
   state.playlist.shuffle = shuffle;
   const t = el("toggleShuffle");
   if (t) t.checked = shuffle;
 
   let loop = false;
-  try {
-    const saved = localStorage.getItem(LS.audioLoop);
+  {
+    const saved = lsGet(LS.audioLoop);
     loop = saved === "1";
-  } catch { }
+  }
   state.playlist.loop = loop;
   const tl = el("toggleLoop");
   if (tl) tl.checked = loop;
@@ -1446,7 +1478,7 @@ function parseLrc(text) {
   const s = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const out = [];
   for (const line of s.split("\n")) {
-    const matches = [...line.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];
+    const matches = [...line.matchAll(/\[(\d{1,2}):(\d{2})(?:[.,](\d{1,3}))?\]/g)];
     if (matches.length === 0) continue;
     const content = line.replace(/\[[^\]]+\]/g, "").trim();
     for (const m of matches) {
@@ -1964,7 +1996,7 @@ function bindUI() {
   el("toggleShuffle").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.shuffle = on;
-    try { localStorage.setItem(LS.audioShuffle, on ? "1" : "0"); } catch { }
+    lsSet(LS.audioShuffle, on ? "1" : "0");
     if (state.current?.kind === "audio" && getCfg("playback.audio.enabled", true)) {
       const pl = buildAudioPlaylist(state.current);
       setPlaylist("audio", pl.items, pl.index);
@@ -1974,7 +2006,7 @@ function bindUI() {
   el("toggleLoop").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.loop = on;
-    try { localStorage.setItem(LS.audioLoop, on ? "1" : "0"); } catch { }
+    lsSet(LS.audioLoop, on ? "1" : "0");
   });
   try {
     const fitBtn = el("btnToggleFit");
@@ -1992,18 +2024,6 @@ function bindUI() {
   const audio = el("audioEl");
 
   let lastSaveAt = 0;
-  function saveProgress(kind, id, t) {
-    try { localStorage.setItem(LS.lastActiveKind, kind); } catch { }
-    if (kind === "audio") {
-      try { localStorage.setItem(LS.audioLastID, id); } catch { }
-      if (t !== undefined) try { localStorage.setItem(LS.audioLastTime, String(t)); } catch { }
-    } else if (kind === "video") {
-      try { localStorage.setItem(LS.videoLastID, id); } catch { }
-      if (t !== undefined) try { localStorage.setItem(LS.videoLastTime, String(t)); } catch { }
-    } else if (kind === "image") {
-      try { localStorage.setItem(LS.imageLastID, id); } catch { }
-    }
-  }
 
   audio.addEventListener("timeupdate", () => {
     if (!state.current || state.current.kind !== "audio") return;
@@ -2039,20 +2059,36 @@ function bindUI() {
     const ext = state.current?.ext || "";
     showPreviewError(t("err_audio_load", ext));
   });
+  let videoErrTimer = 0;
+  const clearVideoErrTimer = () => { if (videoErrTimer) { try { clearTimeout(videoErrTimer); } catch {} videoErrTimer = 0; } };
+  video.addEventListener("canplay", clearVideoErrTimer);
+  video.addEventListener("loadeddata", clearVideoErrTimer);
   video.addEventListener("error", () => {
+    if (state.isSwitchingMedia) return;
     if (!state.current || state.current.kind !== "video") return;
     const item = state.current;
+    try {
+      const cur = new URL(video.currentSrc || "", window.location.origin);
+      const id = cur.searchParams.get("id") || "";
+      if (id && id !== item.id) return;
+    } catch {}
     const token = state.selectionToken;
     const ext = item.ext || "";
     const err = mediaErrorText(video.error);
-    probeItem(item.id).then((p) => {
+    clearVideoErrTimer();
+    videoErrTimer = setTimeout(() => {
       if (token !== state.selectionToken) return;
       if (!state.current || state.current.id !== item.id) return;
-      const hint = probeText(p) + probeWarnText(p);
-      showPreviewError(t("err_video_load", ext, err, hint));
-    }).catch(() => {
-      showPreviewError(t("err_video_load", ext, err, ""));
-    });
+      if (video.readyState >= 2) return;
+      probeItem(item.id).then((p) => {
+        if (token !== state.selectionToken) return;
+        if (!state.current || state.current.id !== item.id) return;
+        const hint = probeText(p) + probeWarnText(p);
+        showPreviewError(t("err_video_load", ext, err, hint));
+      }).catch(() => {
+        showPreviewError(t("err_video_load", ext, err, ""));
+      });
+    }, 180);
   });
   img.addEventListener("error", () => {
     const ext = state.current?.ext || "";
