@@ -23,12 +23,12 @@ type WalkCallback func(item types.MediaItem, path string, root string) error
 // WalkShares walks through all shares and invokes callback for each valid media item.
 // It respects blacklist and limit.
 func WalkShares(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
-	// 受限遍历：按黑名单与数量上限筛选，遇到目录/隐藏项直接跳过
 	limit := maxItems
 	if limit <= 0 {
-		limit = 100000 // Default high limit if not specified
+		limit = 100000
 	}
 	seen := 0
+	dirCache := make(map[string][]fs.DirEntry)
 
 	for _, sh := range shares {
 		root := util.NormalizePath(sh.Path)
@@ -99,10 +99,10 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 			}
 
 			if kind == "video" {
-				item.Subtitles = FindSidecarSubtitles(p)
+				item.Subtitles = FindSidecarSubtitlesCached(p, dirCache)
 			}
 			if kind == "audio" {
-				cover, lyrics := FindAudioSidecars(p)
+				cover, lyrics := FindAudioSidecarsCached(p, dirCache)
 				if cover != "" {
 					item.CoverID = util.EncodeID(cover)
 				}
@@ -116,7 +116,7 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 		})
 
 		if err == fs.SkipAll {
-			return nil // Limit reached or intentional stop
+			return nil
 		}
 		if err != nil {
 			return err
@@ -133,7 +133,6 @@ func IsBlockedString(list []string, target string) bool {
 			continue
 		}
 
-		// Regex support: /pattern/
 		if strings.HasPrefix(rule, "/") && strings.HasSuffix(rule, "/") && len(rule) > 2 {
 			pattern := rule[1 : len(rule)-1]
 			if matched, _ := regexp.MatchString(pattern, target); matched {
@@ -142,10 +141,7 @@ func IsBlockedString(list []string, target string) bool {
 			continue
 		}
 
-		if strings.EqualFold(rule, target) {
-			return true
-		}
-		if strings.EqualFold(rule, targetLower) {
+		if strings.EqualFold(rule, target) || strings.EqualFold(rule, targetLower) {
 			return true
 		}
 	}
@@ -157,7 +153,6 @@ func IsBlockedSize(size int64, rule string) bool {
 	if rule == "" {
 		return false
 	}
-
 	if parts := strings.Split(rule, "-"); len(parts) == 2 {
 		min := util.ParseSize(parts[0])
 		max := util.ParseSize(parts[1])
@@ -165,22 +160,17 @@ func IsBlockedSize(size int64, rule string) bool {
 			return size >= min && size <= max
 		}
 	}
-
 	if strings.HasPrefix(rule, ">=") {
-		val := util.ParseSize(strings.TrimPrefix(rule, ">="))
-		return size >= val
+		return size >= util.ParseSize(strings.TrimPrefix(rule, ">="))
 	}
 	if strings.HasPrefix(rule, "<=") {
-		val := util.ParseSize(strings.TrimPrefix(rule, "<="))
-		return size <= val
+		return size <= util.ParseSize(strings.TrimPrefix(rule, "<="))
 	}
 	if strings.HasPrefix(rule, ">") {
-		val := util.ParseSize(strings.TrimPrefix(rule, ">"))
-		return size > val
+		return size > util.ParseSize(strings.TrimPrefix(rule, ">"))
 	}
 	if strings.HasPrefix(rule, "<") {
-		val := util.ParseSize(strings.TrimPrefix(rule, "<"))
-		return size < val
+		return size < util.ParseSize(strings.TrimPrefix(rule, "<"))
 	}
 	return false
 }
@@ -199,31 +189,29 @@ func ClassifyExt(ext string) string {
 }
 
 func IsSubtitleExt(ext string) bool {
-	switch ext {
-	case ".vtt", ".srt":
-		return true
-	default:
-		return false
-	}
+	return ext == ".vtt" || ext == ".srt"
 }
 
 func IsLyricsExt(ext string) bool {
-	switch ext {
-	case ".lrc":
-		return true
-	default:
-		return false
-	}
+	return ext == ".lrc"
 }
 
 func FindSidecarSubtitles(mediaAbs string) []types.Subtitle {
+	return FindSidecarSubtitlesCached(mediaAbs, make(map[string][]fs.DirEntry))
+}
+
+func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry) []types.Subtitle {
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
+	ents, ok := cache[dir]
+	if !ok {
+		var err error
+		ents, err = os.ReadDir(dir)
+		if err != nil {
+			return nil
+		}
+		cache[dir] = ents
 	}
-
 	baseLower := strings.ToLower(base)
 	var out []types.Subtitle
 
@@ -238,7 +226,6 @@ func FindSidecarSubtitles(mediaAbs string) []types.Subtitle {
 			continue
 		}
 		stem := strings.TrimSuffix(low, ext)
-
 		token := ""
 		if stem == baseLower {
 			token = ""
@@ -247,33 +234,23 @@ func FindSidecarSubtitles(mediaAbs string) []types.Subtitle {
 		} else {
 			continue
 		}
-
 		abs := filepath.Join(dir, name)
 		id := util.EncodeID(abs)
 		src := "/api/stream?id=" + id
 		if ext == ".srt" {
 			src = "/api/subtitle?id=" + id
 		}
-
 		lang := "zh"
 		label := "字幕"
 		if token != "" {
 			lang = token
 			label = SubtitleLabel(token)
 		}
-
-		out = append(out, types.Subtitle{
-			ID:    id,
-			Label: label,
-			Lang:  lang,
-			Src:   src,
-		})
+		out = append(out, types.Subtitle{ID: id, Label: label, Lang: lang, Src: src})
 	}
-
 	if len(out) == 0 {
 		return nil
 	}
-
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Lang == "zh" && out[j].Lang != "zh" {
 			return true
@@ -283,7 +260,6 @@ func FindSidecarSubtitles(mediaAbs string) []types.Subtitle {
 		}
 		return strings.ToLower(out[i].Label) < strings.ToLower(out[j].Label)
 	})
-
 	out[0].Default = true
 	return out
 }
@@ -314,171 +290,144 @@ func SubtitleLabel(token string) string {
 	}
 }
 
-func FindAudioSidecars(mediaAbs string) (coverAbs string, lyricsAbs string) {
+func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (coverAbs string, lyricsAbs string) {
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
-
-	// 查找同目录下的 .lrc 歌词：优先精确同名，其次同名前缀+语言标记，最后任意 .lrc
-	if ents, err := os.ReadDir(dir); err == nil {
-		baseLower := strings.ToLower(base)
-		best := ""
-		langMatch := ""
-		for _, e := range ents {
-			if e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			low := strings.ToLower(name)
-			ext := strings.ToLower(filepath.Ext(low))
-			if ext != ".lrc" {
-				continue
-			}
+	ents, ok := cache[dir]
+	if !ok {
+		var err error
+		ents, err = os.ReadDir(dir)
+		if err != nil {
+			return "", ""
+		}
+		cache[dir] = ents
+	}
+	baseLower := strings.ToLower(base)
+	bestLrc := ""
+	langLrc := ""
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		low := strings.ToLower(name)
+		ext := strings.ToLower(filepath.Ext(low))
+		if ext == ".lrc" {
 			stem := strings.TrimSuffix(low, ext)
 			if stem == baseLower {
-				best = name
-				break
-			}
-			if strings.HasPrefix(stem, baseLower+".") && langMatch == "" {
-				langMatch = name
-			}
-			if best == "" && langMatch == "" {
-				best = name
+				bestLrc = name
+			} else if strings.HasPrefix(stem, baseLower+".") && langLrc == "" {
+				langLrc = name
+			} else if bestLrc == "" && langLrc == "" {
+				bestLrc = name
 			}
 		}
-		candidate := best
-		if candidate == "" {
-			candidate = langMatch
-		}
-		if candidate != "" {
-			p := filepath.Join(dir, candidate)
-			if st, err := os.Stat(p); err == nil && !st.IsDir() {
-				lyricsAbs = p
-			}
-		}
+	}
+	candidate := bestLrc
+	if candidate == "" {
+		candidate = langLrc
+	}
+	if candidate != "" {
+		lyricsAbs = filepath.Join(dir, candidate)
 	}
 
 	candidates := []string{
-		filepath.Join(dir, base+".jpg"),
-		filepath.Join(dir, base+".jpeg"),
-		filepath.Join(dir, base+".png"),
-		filepath.Join(dir, base+".webp"),
-		filepath.Join(dir, "cover.jpg"),
-		filepath.Join(dir, "folder.jpg"),
-		filepath.Join(dir, "front.jpg"),
-		filepath.Join(dir, "album.jpg"),
-		filepath.Join(dir, "albumart.jpg"),
+		baseLower + ".jpg", baseLower + ".jpeg", baseLower + ".png", baseLower + ".webp",
+		"cover.jpg", "folder.jpg", "front.jpg", "album.jpg", "albumart.jpg",
 	}
-	for _, p := range candidates {
-		st, err := os.Stat(p)
-		if err == nil && !st.IsDir() {
-			coverAbs = p
-			break
+	for _, c := range candidates {
+		for _, e := range ents {
+			if !e.IsDir() && strings.EqualFold(e.Name(), c) {
+				coverAbs = filepath.Join(dir, e.Name())
+				goto done
+			}
 		}
 	}
+done:
 	return coverAbs, lyricsAbs
 }
 
 func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
-	// 轻量嗅探：读取文件头与尾部少量字节，通过标记判断常见封装/编解码
 	f, err := os.Open(fileAbs)
 	if err != nil {
 		return "", ""
 	}
-	defer func() { _ = f.Close() }()
-
+	defer f.Close()
 	const max = 2 << 20
 	head, err := io.ReadAll(io.LimitReader(f, max))
 	if err != nil || len(head) == 0 {
 		return "", ""
 	}
 	b := head
-	if st, statErr := f.Stat(); statErr == nil {
-		size := st.Size()
-		if size > max {
-			tailSize := int64(max)
-			if size < tailSize {
-				tailSize = size
-			}
-			tail := make([]byte, tailSize)
-			_, _ = f.ReadAt(tail, size-tailSize)
-			b = append(head, tail...)
+	if st, err := f.Stat(); err == nil && st.Size() > max {
+		tailSize := int64(max)
+		if st.Size() < tailSize {
+			tailSize = st.Size()
 		}
+		tail := make([]byte, tailSize)
+		_, _ = f.ReadAt(tail, st.Size()-tailSize)
+		b = append(head, tail...)
 	}
-
 	video := ""
-	audioParts := make([]string, 0, 2)
-
-	has := func(s string) bool {
-		return bytes.Contains(b, []byte(s))
-	}
-
+	var audioParts []string
+	has := func(s string) bool { return bytes.Contains(b, []byte(s)) }
 	if ext == ".mkv" {
-		switch {
-		case has("V_MPEGH/ISO/HEVC"):
+		if has("V_MPEGH/ISO/HEVC") {
 			video = "H.265/HEVC"
-		case has("V_MPEG4/ISO/AVC"):
+		} else if has("V_MPEG4/ISO/AVC") {
 			video = "H.264/AVC"
-		case has("V_AV1"):
+		} else if has("V_AV1") {
 			video = "AV1"
-		case has("V_VP9"):
+		} else if has("V_VP9") {
 			video = "VP9"
 		}
-		switch {
-		case has("A_EAC3"):
+		if has("A_EAC3") {
 			audioParts = append(audioParts, "E-AC-3")
-		case has("A_AC3"):
+		} else if has("A_AC3") {
 			audioParts = append(audioParts, "AC-3")
-		case has("A_OPUS"):
+		} else if has("A_OPUS") {
 			audioParts = append(audioParts, "Opus")
-		case has("A_AAC"):
+		} else if has("A_AAC") {
 			audioParts = append(audioParts, "AAC")
-		case has("A_VORBIS"):
+		} else if has("A_VORBIS") {
 			audioParts = append(audioParts, "Vorbis")
-		case has("A_FLAC"):
+		} else if has("A_FLAC") {
 			audioParts = append(audioParts, "FLAC")
-		case has("A_DTS"):
+		} else if has("A_DTS") {
 			audioParts = append(audioParts, "DTS")
-		case has("A_TRUEHD"):
+		} else if has("A_TRUEHD") {
 			audioParts = append(audioParts, "TrueHD")
 		}
 		return video, strings.Join(audioParts, " + ")
 	}
-
 	if ext == ".mp4" || ext == ".m4v" || ext == ".mov" {
-		switch {
-		case has("hvc1") || has("hev1"):
+		if has("hvc1") || has("hev1") {
 			video = "H.265/HEVC"
-		case has("avc1"):
+		} else if has("avc1") {
 			video = "H.264/AVC"
-		case has("av01"):
+		} else if has("av01") {
 			video = "AV1"
-		case has("vp09"):
+		} else if has("vp09") {
 			video = "VP9"
 		}
-		switch {
-		case has("ec-3"):
+		if has("ec-3") {
 			audioParts = append(audioParts, "E-AC-3")
-		case has("ac-3"):
+		} else if has("ac-3") {
 			audioParts = append(audioParts, "AC-3")
-		case has("mp4a"):
+		} else if has("mp4a") {
 			audioParts = append(audioParts, "AAC/MP4A")
-		case has("opus"):
+		} else if has("opus") {
 			audioParts = append(audioParts, "Opus")
 		}
 		return video, strings.Join(audioParts, " + ")
 	}
-
 	return "", ""
 }
 
 func SrtToVtt(in []byte) []byte {
-	// 简单转码：去 BOM、统一换行、替换逗号为点，保留文本
 	in = bytes.TrimPrefix(in, []byte{0xEF, 0xBB, 0xBF})
-	s := string(in)
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
+	s := strings.ReplaceAll(strings.ReplaceAll(string(in), "\r\n", "\n"), "\r", "\n")
 	lines := strings.Split(s, "\n")
-
 	var out strings.Builder
 	out.WriteString("WEBVTT\n\n")
 	for _, line := range lines {

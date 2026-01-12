@@ -31,6 +31,11 @@ func Init(dbPath string) error {
 		return err
 	}
 
+	// Performance and concurrency tuning
+	_, _ = DB.Exec("PRAGMA journal_mode=WAL;")
+	_, _ = DB.Exec("PRAGMA synchronous=NORMAL;")
+	_, _ = DB.Exec("PRAGMA cache_size=-2000;") // 2MB cache
+
 	return createTables()
 }
 
@@ -58,6 +63,11 @@ func createTables() error {
 		scan_id INTEGER NOT NULL,
 		built_at INTEGER NOT NULL,
 		complete INTEGER NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS user_prefs (
+		key TEXT PRIMARY KEY,
+		value TEXT
 	);
 	`
 	_, err := DB.Exec(query)
@@ -243,6 +253,61 @@ func CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error
 		return 0, err
 	}
 	return n, nil
+}
+
+func GetAllPrefs(ctx context.Context) (map[string]string, error) {
+	if DB == nil {
+		return map[string]string{}, nil
+	}
+	rows, err := DB.QueryContext(ctx, `SELECT key, value FROM user_prefs`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[string]string, 32)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func SetPrefs(ctx context.Context, kv map[string]string) error {
+	if DB == nil || len(kv) == 0 {
+		return nil
+	}
+	tx, err := DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO user_prefs (key, value)
+		VALUES (?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = stmt.Close() }()
+	for k, v := range kv {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		if _, err := stmt.ExecContext(ctx, k, v); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ensureMediaItemsColumn(name string) error {

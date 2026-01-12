@@ -34,6 +34,7 @@ type MediaResponse struct {
 	ImagesTotal int            `json:"imagesTotal,omitempty"`
 	OthersTotal int            `json:"othersTotal,omitempty"`
 	Limited     bool           `json:"limited,omitempty"`
+	Scanning    bool           `json:"scanning,omitempty"`
 }
 
 type ConfigResponse struct {
@@ -65,4 +66,18 @@ type ProbeResponse struct {
 	Audio     string     `json:"audio,omitempty"`
 	Subtitles []Subtitle `json:"subtitles,omitempty"`
 	Error     *ApiError  `json:"error,omitempty"`
+}
+
+type PrefsResponse struct {
+	Prefs map[string]string `json:"prefs"`
+	Error *ApiError         `json:"error,omitempty"`
+}
+
+type PrefsUpdateRequest struct {
+	Prefs map[string]string `json:"prefs"`
+}
+
+type LogRequest struct {
+	Level string `json:"level"`
+	Msg   string `json:"msg"`
 }
