@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "workbox-window": "^7.0.0"
+  },
   "devDependencies": {
     "vite": "^5.0.0",
     "vite-plugin-pwa": "^1.2.0"
