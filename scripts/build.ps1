@@ -63,6 +63,16 @@ Invoke-Step 'Build Frontend' {
 Invoke-Step 'go test ./...' {
   Push-Location $root
   try {
+    Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+    Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+    Remove-Item Env:GOARM -ErrorAction SilentlyContinue
+    Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
+    & go env -u GOOS
+    & go env -u GOARCH
+    & go env -u GOARM
+    & go env -u CGO_ENABLED
+    & go env -w GOOS=windows
+    & go env -w GOARCH=amd64
     & go test ./...
     if ($LASTEXITCODE -ne 0) { throw ("go test failed. exitCode=" + $LASTEXITCODE) }
   } finally {

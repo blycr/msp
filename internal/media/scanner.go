@@ -23,6 +23,7 @@ type WalkCallback func(item types.MediaItem, path string, root string) error
 // WalkShares walks through all shares and invokes callback for each valid media item.
 // It respects blacklist and limit.
 func WalkShares(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
+	// 受限遍历：按黑名单与数量上限筛选，遇到目录/隐藏项直接跳过
 	limit := maxItems
 	if limit <= 0 {
 		limit = 100000 // Default high limit if not specified
@@ -48,7 +49,7 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 			if seen >= limit {
 				return fs.SkipAll
 			}
-			
+
 			if d.IsDir() {
 				name := d.Name()
 				if name == "" {
@@ -317,9 +318,43 @@ func FindAudioSidecars(mediaAbs string) (coverAbs string, lyricsAbs string) {
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
 
-	lyrics := filepath.Join(dir, base+".lrc")
-	if st, err := os.Stat(lyrics); err == nil && !st.IsDir() {
-		lyricsAbs = lyrics
+	// 查找同目录下的 .lrc 歌词：优先精确同名，其次同名前缀+语言标记，最后任意 .lrc
+	if ents, err := os.ReadDir(dir); err == nil {
+		baseLower := strings.ToLower(base)
+		best := ""
+		langMatch := ""
+		for _, e := range ents {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			low := strings.ToLower(name)
+			ext := strings.ToLower(filepath.Ext(low))
+			if ext != ".lrc" {
+				continue
+			}
+			stem := strings.TrimSuffix(low, ext)
+			if stem == baseLower {
+				best = name
+				break
+			}
+			if strings.HasPrefix(stem, baseLower+".") && langMatch == "" {
+				langMatch = name
+			}
+			if best == "" && langMatch == "" {
+				best = name
+			}
+		}
+		candidate := best
+		if candidate == "" {
+			candidate = langMatch
+		}
+		if candidate != "" {
+			p := filepath.Join(dir, candidate)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				lyricsAbs = p
+			}
+		}
 	}
 
 	candidates := []string{
@@ -344,6 +379,7 @@ func FindAudioSidecars(mediaAbs string) (coverAbs string, lyricsAbs string) {
 }
 
 func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
+	// 轻量嗅探：读取文件头与尾部少量字节，通过标记判断常见封装/编解码
 	f, err := os.Open(fileAbs)
 	if err != nil {
 		return "", ""
@@ -436,6 +472,7 @@ func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
 }
 
 func SrtToVtt(in []byte) []byte {
+	// 简单转码：去 BOM、统一换行、替换逗号为点，保留文本
 	in = bytes.TrimPrefix(in, []byte{0xEF, 0xBB, 0xBF})
 	s := string(in)
 	s = strings.ReplaceAll(s, "\r\n", "\n")
