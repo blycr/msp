@@ -26,6 +26,7 @@ const I18N = {
     next: "Next",
     shuffle: "Shuffle",
     loop: "Loop",
+    resume: "Resume",
     open_raw: "Open Raw",
     fit_mode: "Fit Mode: Adapt",
     empty_tip: "Select a file to preview",
@@ -93,6 +94,7 @@ const I18N = {
     next: "下一个",
     shuffle: "随机",
     loop: "循环",
+    resume: "继续播放",
     open_raw: "在新标签打开",
     fit_mode: "填充模式：适配",
     empty_tip: "从左侧选择一个媒体文件进行预览",
@@ -165,6 +167,8 @@ const state = {
   currentMetaBase: "",
   plyr: null,
   lyrics: null,
+  prefs: {},
+  plyrPersistTimer: 0,
   selectionToken: 0,
   playlist: {
     kind: null,
@@ -186,6 +190,26 @@ const state = {
   },
 };
 
+// Storage check hoisted as functions
+function canStorage() {
+  try {
+    const k = "__msp__probe__";
+    localStorage.setItem(k, "1");
+    localStorage.removeItem(k);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function lsGet(k) {
+  try { return localStorage.getItem(k); } catch { return null; }
+}
+
+function lsSet(k, v) {
+  try { localStorage.setItem(k, v); } catch { }
+}
+
 const LS = {
   audioLastID: "msp.audio.lastId",
   audioLastTime: "msp.audio.lastTime",
@@ -198,26 +222,8 @@ const LS = {
   mediaETag: "msp.media.etag",
   theme: "msp.theme",
   lang: "msp.lang",
-};
-
-const canStorage = (() => {
-  try {
-    const k = "__msp__probe__";
-    localStorage.setItem(k, "1");
-    localStorage.removeItem(k);
-    return true;
-  } catch {
-    return false;
-  }
-})();
-
-const lsGet = (k) => {
-  if (!canStorage) return null;
-  try { return localStorage.getItem(k); } catch { return null; }
-};
-const lsSet = (k, v) => {
-  if (!canStorage) return;
-  try { localStorage.setItem(k, v); } catch { }
+  volume: "msp.volume",
+  playlist: "msp.playlist", // { kind, items: [{id}], index }
 };
 
 function t(key, ...args) {
@@ -421,13 +427,19 @@ function setFitBtnVisible(visible) {
   if (!visible) btn.disabled = true;
 }
 
+function updateFitBtnFromVideo(videoEl) {
+  const btn = el("btnToggleFit");
+  if (!btn || !videoEl) return;
+  btn.hidden = false;
+  btn.disabled = false;
+  let fit = videoEl.dataset.fit || gpGet("msp.video.fit") || "contain";
+  try { videoEl.dataset.fit = fit; } catch { }
+  btn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
+}
+
 document.addEventListener("fullscreenchange", () => {
   const isFull = !!document.fullscreenElement;
   document.documentElement.style.overflow = isFull ? "hidden" : "";
-  try {
-    const el = document.fullscreenElement;
-    console.log(el && (el.id || el.className || el.tagName));
-  } catch { }
 });
 
 function formatBytes(n) {
@@ -450,15 +462,125 @@ function formatTime(ts) {
 }
 
 function saveProgress(kind, id, t) {
-  lsSet(LS.lastActiveKind, kind);
+  gpSet(LS.lastActiveKind, kind);
   if (kind === "audio") {
-    lsSet(LS.audioLastID, id);
-    if (t !== undefined) lsSet(LS.audioLastTime, String(t));
+    gpSet(LS.audioLastID, id);
+    if (t !== undefined) {
+      gpSet(LS.audioLastTime, String(t));
+      gpSet(`msp.audio.time.${id}`, String(t)); // Per-file time
+    }
   } else if (kind === "video") {
-    lsSet(LS.videoLastID, id);
-    if (t !== undefined) lsSet(LS.videoLastTime, String(t));
+    gpSet(LS.videoLastID, id);
+    if (t !== undefined) {
+      gpSet(LS.videoLastTime, String(t));
+      gpSet(`msp.video.time.${id}`, String(t)); // Per-file time
+    }
   } else if (kind === "image") {
-    lsSet(LS.imageLastID, id);
+    gpSet(LS.imageLastID, id);
+  }
+
+  // Save full playlist state
+  if (state.playlist && state.playlist.items && state.playlist.items.length > 0) {
+    const plData = {
+      kind: state.playlist.kind,
+      index: state.playlist.index,
+      ids: state.playlist.items.map(x => x.id),
+    };
+    gpSet(LS.playlist, JSON.stringify(plData));
+  }
+
+  // Save volume
+  const act = getActiveMedia();
+  if (act && act.el && act.el.volume !== undefined) {
+    gpSet(LS.volume, String(act.el.volume));
+  }
+
+  logRemote("info", `Playback progress saved: kind=${kind} id=${id} time=${t}`);
+}
+function hasResumeCandidate() {
+  const kind = gpGet(LS.lastActiveKind);
+  if (!kind) return false;
+  if (kind === "audio" && !rememberEnabled("audio")) return false;
+  if (kind === "video" && !rememberEnabled("video")) return false;
+  if (kind === "image" && !rememberEnabled("image")) return false;
+  if (kind === "audio") return !!gpGet(LS.audioLastID);
+  if (kind === "video") return !!gpGet(LS.videoLastID);
+  if (kind === "image") return !!gpGet(LS.imageLastID);
+  return false;
+}
+function updateResumeButton() {
+  const btn = el("btnResume");
+  if (!btn) return;
+  const show = !state.current && hasResumeCandidate();
+  btn.hidden = !show;
+  btn.disabled = !show;
+}
+async function resumeLast() {
+  if (!state.media) return;
+  const kind = gpGet(LS.lastActiveKind);
+  if (!kind) return;
+  if (kind !== "audio" && kind !== "video" && kind !== "image") return;
+  let pool = [];
+  if (kind === "audio") pool = state.media.audios || [];
+  if (kind === "video") pool = state.media.videos || [];
+  if (kind === "image") pool = state.media.images || [];
+  if (!pool.length) return;
+  const id = kind === "audio" ? gpGet(LS.audioLastID)
+    : kind === "video" ? gpGet(LS.videoLastID)
+      : gpGet(LS.imageLastID);
+  if (!id) return;
+  const item = pool.find(x => x.id === id);
+  if (!item) return;
+
+  state.tab = kind;
+
+  // Restore playlist if available
+  if (getCfg("features.playlist", true)) {
+    let restored = false;
+    const savedPlRaw = gpGet(LS.playlist);
+    if (savedPlRaw) {
+      try {
+        const plData = JSON.parse(savedPlRaw);
+        if (plData.kind === kind && Array.isArray(plData.ids)) {
+          const items = plData.ids.map(id => pool.find(x => x.id === id)).filter(Boolean);
+          if (items.length > 0) {
+            setPlaylist(kind, items, plData.index);
+            restored = true;
+          }
+        }
+      } catch { }
+    }
+    if (!restored) {
+      const pl = buildPlaylist(item, kind);
+      setPlaylist(kind, pl.items, pl.index);
+    }
+    playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
+  } else {
+    playItem(item, { autoplay: false, resume: true });
+  }
+
+  if (kind === "image") return;
+
+  // Restore volume
+  const savedVol = gpGet(LS.volume);
+  const elId = kind === "audio" ? "audioEl" : "videoEl";
+  if (savedVol) {
+    const mediaEl = el(elId);
+    if (mediaEl) mediaEl.volume = Number(savedVol);
+  }
+
+  // Per-file time has priority over global last time in the Resume Last flow
+  const perFileTime = gpGet(`msp.${kind}.time.${id}`);
+  const timeVal = Number(perFileTime || (kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
+  if (timeVal <= 0) return;
+  const mediaEl = el(elId);
+  if (!mediaEl) return;
+  const seek = () => { try { mediaEl.currentTime = timeVal; } catch { } };
+  if (mediaEl.readyState >= 1) {
+    queueMicrotask(seek);
+  } else {
+    const onLoaded = () => { seek(); mediaEl.removeEventListener("loadedmetadata", onLoaded); };
+    mediaEl.addEventListener("loadedmetadata", onLoaded);
   }
 }
 
@@ -516,10 +638,23 @@ function showDlg(show) {
   el("dlg").hidden = !show;
 }
 
+async function apiRetry(fn, retries = 3, delay = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
 async function apiGet(url) {
   const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
+  if (data?.error?.message) throw new Error(data.error.message);
+  return data;
 }
 
 const probeCache = new Map();
@@ -529,6 +664,11 @@ async function probeItem(id) {
   if (probeCache.has(id)) return probeCache.get(id);
   try {
     const data = await apiGet(`/api/probe?id=${encodeURIComponent(id)}`);
+    // Limit cache size to 100 items
+    if (probeCache.size > 100) {
+      const first = probeCache.keys().next().value;
+      probeCache.delete(first);
+    }
     probeCache.set(id, data);
     return data;
   } catch {
@@ -571,25 +711,101 @@ async function apiPost(url, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
   if (data?.error?.message) throw new Error(data.error.message);
   return data;
 }
 
-async function loadConfig() {
-  const data = await apiGet("/api/config");
-  state.config = data.config;
-  const urls = (data.urls || []).slice(0, 3).join("  ");
-  setMeta(urls ? t("meta_urls", urls) : t("meta_noip"));
-  applyConfigToUI();
-  renderShares();
+function logRemote(level, msg) {
+  apiPost("/api/log", { level, msg }).catch(() => { });
+}
 
-  const bl = state.config.blacklist || {};
-  el("blExts").value = (bl.extensions || []).join(", ");
-  el("blFiles").value = (bl.filenames || []).join(", ");
-  el("blFolders").value = (bl.folders || []).join(", ");
-  el("blMinSize").value = bl.sizeRule || "";
+async function loadPrefs() {
+  try {
+    const data = await apiGet("/api/prefs");
+    state.prefs = data.prefs || {};
+  } catch {
+    state.prefs = {};
+  }
+}
+
+function gpGet(k) {
+  const v = state.prefs?.[k];
+  if (v !== undefined && v !== null) return v;
+  return lsGet(k);
+}
+let gpBatchQueue = {};
+let gpBatchTimer = 0;
+
+function gpSet(k, v) {
+  state.prefs[k] = v;
+  lsSet(k, v);
+  gpBatchQueue[k] = v;
+  if (gpBatchTimer) return;
+  gpBatchTimer = setTimeout(async () => {
+    const batch = { ...gpBatchQueue };
+    gpBatchQueue = {};
+    gpBatchTimer = 0;
+    try {
+      await apiPost("/api/prefs", { prefs: batch });
+    } catch (e) {
+      console.warn("Batch preference save failed", e);
+    }
+  }, 300); // 300ms batching windows
+}
+
+function rememberEnabled(kind) {
+  const override = gpGet(`msp.remember.${kind}`);
+  if (override === "1") return true;
+  if (override === "0") return false;
+  if (kind === "audio") return !!getCfg("playback.audio.remember", true);
+  if (kind === "video") return !!getCfg("playback.video.remember", true);
+  if (kind === "image") return !!getCfg("playback.image.remember", true);
+  return true;
+}
+
+async function loadConfig() {
+  try {
+    const data = await apiGet("/api/config");
+    state.config = data.config;
+    const urls = (data.urls || []).slice(0, 3).join("  ");
+    setMeta(urls ? t("meta_urls", urls) : t("meta_noip"));
+    applyConfigToUI();
+    renderShares();
+
+    const bl = state.config.blacklist || {};
+    el("blExts").value = (bl.extensions || []).join(", ");
+    el("blFiles").value = (bl.filenames || []).join(", ");
+    el("blFolders").value = (bl.folders || []).join(", ");
+    el("blMinSize").value = bl.sizeRule || "";
+  } catch (e) {
+    console.error("Failed to load config:", e);
+    setMeta(t("meta_fail"));
+    state.config = {}; // Ensure state.config is an object even on error
+    applyConfigToUI();
+    renderShares();
+  }
+}
+
+// Helper to trigger resume logic (migration or normal)
+function tryResumeLastMediaInternal() {
+  const kind = gpGet(LS.lastActiveKind);
+  if (!kind) {
+    if (rememberEnabled("audio") && gpGet(LS.audioLastID)) {
+      resumeMediaInternal("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
+    }
+    return;
+  }
+  if (kind === "audio" && rememberEnabled("audio")) {
+    resumeMediaInternal("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
+  } else if (kind === "video" && rememberEnabled("video")) {
+    resumeMediaInternal("video", LS.videoLastID, LS.videoLastTime, "videoEl");
+  } else if (kind === "image" && rememberEnabled("image")) {
+    const lastID = gpGet(LS.imageLastID);
+    if (lastID) resumeMediaInternal("image", lastID, null, "imgEl");
+  }
 }
 
 async function loadMedia(refresh, limit) {
@@ -611,94 +827,22 @@ async function loadMedia(refresh, limit) {
   const res = await fetch(url, { cache: "no-store", headers });
 
   if (res.status === 304) {
-    if (state.config && state.media) {
+    const hadLimited = !!state.media?.limited;
+    if (state.config && state.media && !hadLimited) {
       applyConfigToUI();
-      // Switch to the last active tab if possible, defaults to video
-      const lastKind = lsGet(LS.lastActiveKind);
+      const lastKind = gpGet(LS.lastActiveKind);
       if (lastKind && ["video", "audio", "image"].includes(lastKind)) {
         state.tab = lastKind;
       } else {
         state.tab = "video";
       }
       renderList();
-      tryResumeLastMedia();
+      tryResumeLastMediaInternal(); // Changed from tryResumeLastMedia()
       return;
     }
-    // Fallback: if media not in memory (first load or cache cleared), force reload ignoring ETag
     return loadMedia(true, 0);
   }
 
-  async function tryResumeLastMedia() {
-    const kind = lsGet(LS.lastActiveKind);
-    if (!kind) {
-      // Fallback: try resume audio if no kind set (migration)
-      tryResumeAudioCompat();
-      return;
-    }
-
-    if (kind === "audio" && getCfg("playback.audio.remember", true)) {
-      resumeMedia("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
-    } else if (kind === "video" && getCfg("playback.video.remember", true)) {
-      resumeMedia("video", LS.videoLastID, LS.videoLastTime, "videoEl");
-    } else if (kind === "image" && getCfg("playback.image.remember", true)) {
-      const lastID = lsGet(LS.imageLastID);
-      if (lastID) resumeMedia("image", lastID, null, "imgEl");
-    }
-  }
-
-  function tryResumeAudioCompat() {
-    if (!getCfg("playback.audio.remember", true)) return;
-    const lastID = lsGet(LS.audioLastID);
-    if (lastID) resumeMedia("audio", LS.audioLastID, LS.audioLastTime, "audioEl");
-  }
-
-  function resumeMedia(kind, idKey, timeKey, elId) {
-    if (!state.media) return;
-    let pool = [];
-    if (kind === "audio") pool = state.media.audios || [];
-    if (kind === "video") pool = state.media.videos || [];
-    if (kind === "image") pool = state.media.images || [];
-    if (!pool.length) return;
-
-    const id = idKey.startsWith("msp.") ? (lsGet(idKey) || "") : idKey;
-    if (!id) return;
-
-    const item = pool.find(x => x.id === id);
-    if (!item) return;
-
-    // Setup playlist
-    if (getCfg("features.playlist", true)) {
-      let pl = { items: [], index: -1 };
-      if (kind === "audio") pl = buildAudioPlaylist(item);
-      if (kind === "video") pl = buildVideoPlaylist(item);
-      if (kind === "image") pl = buildImagePlaylist(item);
-      setPlaylist(kind, pl.items, pl.index);
-      playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
-    } else {
-      playItem(item, { autoplay: false, resume: true });
-    }
-
-    if (!timeKey) return; // Image doesn't need seek
-
-    const timeVal = Number(lsGet(timeKey) || "0") || 0;
-    if (timeVal <= 0) return;
-
-    const mediaEl = el(elId);
-    if (!mediaEl) return;
-
-    const seek = () => {
-      try { mediaEl.currentTime = timeVal; } catch { }
-    };
-    if (mediaEl.readyState >= 1) {
-      queueMicrotask(seek);
-    } else {
-      const onLoaded = () => {
-        seek();
-        mediaEl.removeEventListener("loadedmetadata", onLoaded);
-      };
-      mediaEl.addEventListener("loadedmetadata", onLoaded);
-    }
-  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 
   if (!isLimitedRequest) {
@@ -710,7 +854,78 @@ async function loadMedia(refresh, limit) {
 
   const data = await res.json();
   state.media = data;
+  state.scanning = !!data.scanning;
   renderList();
+  updateResumeButton();
+
+  if (!refresh && !isLimitedRequest) {
+    tryResumeLastMediaInternal();
+  }
+}
+
+function resumeMediaInternal(kind, idKey, timeKey, elId) {
+  if (!state.media) return;
+  let pool = [];
+  if (kind === "audio") pool = state.media.audios || [];
+  if (kind === "video") pool = state.media.videos || [];
+  if (kind === "image") pool = state.media.images || [];
+  if (!pool.length) return;
+
+  const id = idKey.startsWith("msp.") ? (gpGet(idKey) || "") : idKey;
+  if (!id) return;
+
+  const item = pool.find(x => x.id === id);
+  if (!item) return;
+
+  // Setup playlist
+  if (getCfg("features.playlist", true)) {
+    let restored = false;
+    const savedPlRaw = gpGet(LS.playlist);
+    if (savedPlRaw) {
+      try {
+        const plData = JSON.parse(savedPlRaw);
+        if (plData.kind === kind && Array.isArray(plData.ids)) {
+          const items = plData.ids.map(id => pool.find(x => x.id === id)).filter(Boolean);
+          if (items.length > 0) {
+            setPlaylist(kind, items, plData.index);
+            restored = true;
+          }
+        }
+      } catch { }
+    }
+
+    if (!restored) {
+      const pl = buildPlaylist(item, kind);
+      setPlaylist(kind, pl.items, pl.index);
+    }
+    playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
+  } else {
+    playItem(item, { autoplay: false, resume: true });
+  }
+
+  // Restore volume
+  const savedVol = gpGet(LS.volume);
+  if (savedVol) {
+    const mediaEl = el(elId);
+    if (mediaEl) mediaEl.volume = Number(savedVol);
+  }
+
+  if (!timeKey) return; // Image doesn't need seek
+
+  // Per-file time has priority over global last time
+  const perFileTime = gpGet(`msp.${kind}.time.${item.id}`);
+  const timeVal = Number(perFileTime || gpGet(timeKey) || "0") || 0;
+  if (timeVal <= 0) return;
+
+  const mediaEl = el(elId);
+  if (!mediaEl) return;
+
+  const seek = () => { try { mediaEl.currentTime = timeVal; } catch { } };
+  if (mediaEl.readyState >= 1) queueMicrotask(seek);
+  else {
+    const onLoaded = () => { seek(); mediaEl.removeEventListener("loadedmetadata", onLoaded); };
+    mediaEl.addEventListener("loadedmetadata", onLoaded);
+  }
 }
 
 function applyConfigToUI() {
@@ -743,7 +958,7 @@ function applyConfigToUI() {
 
   let shuffle = false;
   {
-    const saved = lsGet(LS.audioShuffle);
+    const saved = gpGet(LS.audioShuffle);
     if (saved === "1") shuffle = true;
     else if (saved === "0") shuffle = false;
     else shuffle = !!getCfg("playback.audio.shuffle", false);
@@ -754,7 +969,7 @@ function applyConfigToUI() {
 
   let loop = false;
   {
-    const saved = lsGet(LS.audioLoop);
+    const saved = gpGet(LS.audioLoop);
     loop = saved === "1";
   }
   state.playlist.loop = loop;
@@ -801,12 +1016,18 @@ function getSortVal(item, field) {
 function sortFiles(list) {
   const field = state.sort?.field || "name";
   const order = state.sort?.order || 1;
-  return list.sort((a, b) => {
+  // Use a copy to avoid mutating the source list if it's the global one
+  return [...list].sort((a, b) => {
     const va = getSortVal(a, field);
     const vb = getSortVal(b, field);
+    if (field === "name") {
+      // Natural sort with Chinese support
+      return String(a.name || "").localeCompare(String(b.name || ""), "zh", { numeric: true, sensitivity: "base" }) * order;
+    }
     if (va < vb) return -1 * order;
     if (va > vb) return 1 * order;
-    return 0;
+    // Fallback to name if other values are equal
+    return String(a.name || "").localeCompare(String(b.name || ""), "zh", { numeric: true, sensitivity: "base" });
   });
 }
 
@@ -950,6 +1171,7 @@ function setPlaylist(kind, items, index) {
   scheduleAutoFitPlaylistPageSize();
   updateNavButtons();
   updateNavLabels();
+  logRemote("info", `Playlist updated: kind=${kind} count=${items?.length} index=${index}`);
 }
 
 const plAutoFit = {
@@ -1106,7 +1328,7 @@ function renderPlaylist() {
     const it = items[i];
     const row = document.createElement("div");
     row.className = "plitem" + (i === state.playlist.index ? " plitem--active" : "");
-    row.addEventListener("click", () => playAtIndex(i, true, true));
+    row.addEventListener("click", () => playAtIndex(i, true));
 
     const idx = document.createElement("div");
     idx.className = "plitem__idx";
@@ -1187,71 +1409,33 @@ function playAtIndex(i, autoplay, user) {
   playItem(items[idx], { fromPlaylist: true, autoplay: !!autoplay, user: !!user });
 }
 
-function buildVideoPlaylist(item) {
-  const scope = getCfg("playback.video.scope", "folder");
-  const all = state.media?.videos || [];
+function buildPlaylist(item, kind) {
+  const scope = getCfg(`playback.${kind}.scope`, kind === "audio" ? "all" : "folder");
+  const poolMap = { video: "videos", audio: "audios", image: "images" };
+  const all = state.media?.[poolMap[kind]] || [];
   if (!all.length) return { items: [], index: -1 };
 
-  if (scope !== "folder") {
-    const index = all.findIndex(x => x.id === item.id);
-    return { items: all, index };
-  }
-
-  const p = absPathOfItem(item);
-  const dir = dirOfAbsPath(p);
-  // Robust check: if dir is empty, ensure we match others with empty dir
-  const items = all.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
-  items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh"));
-  let index = items.findIndex(x => x.id === item.id);
-  if (index < 0 && items.length > 0) {
-    // Fallback: try matching by name/path if ID lookup fails
-    index = items.findIndex(x => absPathOfItem(x) === p);
-  }
-  return { items, index };
-}
-
-function buildAudioPlaylist(item) {
-  const scope = getCfg("playback.audio.scope", "all");
-  const all = state.media?.audios || [];
-  if (!all.length) return { items: [], index: -1 };
-
-  let items = all;
-  if (scope === "share") {
-    items = all.filter(x => x.shareLabel === item.shareLabel);
-  } else if (scope === "folder") {
+  let items = [...all];
+  if (scope === "folder") {
     const dir = dirOfAbsPath(absPathOfItem(item));
-    items = all.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
+    items = items.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
+  } else if (scope === "share") {
+    items = items.filter(x => x.shareLabel === item.shareLabel);
   }
 
-  const shuffle = !!state.playlist.shuffle;
-  if (shuffle) {
-    // Shuffle all items randomly
+  // INTUITIVE SORTING LOGIC:
+  // For Video & Images: Always use natural name sorting (1, 2, 3...) regardless of UI sort.
+  // People expect episodes to follow name order even if they found the file by "recent date".
+  // For Audio: Base order is name, but then shuffled if shuffle is toggled.
+  items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh", { numeric: true, sensitivity: "base" }));
+
+  if (kind === "audio" && state.playlist.shuffle) {
     for (let i = items.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [items[i], items[j]] = [items[j], items[i]];
     }
-    // Find the current item in the shuffled list
-    const index = items.findIndex(x => x.id === item.id);
-    return { items, index };
   }
 
-  const index = items.findIndex(x => x.id === item.id);
-  return { items, index };
-}
-
-function buildImagePlaylist(item) {
-  const scope = getCfg("playback.image.scope", "folder");
-  const all = state.media?.images || [];
-  if (!all.length) return { items: [], index: -1 };
-
-  if (scope !== "folder") {
-    const index = all.findIndex(x => x.id === item.id);
-    return { items: all, index };
-  }
-
-  const dir = dirOfAbsPath(absPathOfItem(item));
-  const items = all.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
-  items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh"));
   const index = items.findIndex(x => x.id === item.id);
   return { items, index };
 }
@@ -1261,6 +1445,12 @@ function destroyPlyr() {
     try { state.plyr.destroy(); } catch { }
     state.plyr = null;
   }
+  try {
+    if (state.plyrPersistTimer) {
+      clearInterval(state.plyrPersistTimer);
+      state.plyrPersistTimer = 0;
+    }
+  } catch { }
 }
 
 function hideAllMedia() {
@@ -1395,6 +1585,22 @@ function applyPlyr(element) {
   }
 
   const features = state.config?.features || {};
+  try {
+    const vol = Number(gpGet("msp.volume") || "");
+    if (!Number.isNaN(vol) && vol >= 0 && vol <= 1) element.volume = vol;
+    const muted = gpGet("msp.muted");
+    if (muted === "1") element.muted = true;
+    const rate = Number(gpGet("msp.rate") || "");
+    const opts = Array.isArray((state.config?.features || {}).speedOptions) ? state.config.features.speedOptions : null;
+    if (!Number.isNaN(rate) && rate > 0.1 && rate <= 4) {
+      if (opts && opts.length) {
+        const has = opts.some(x => Number(x) === rate);
+        if (has) element.playbackRate = rate;
+      } else {
+        element.playbackRate = rate;
+      }
+    }
+  } catch { }
   const opts = {};
 
   if (features.speed) {
@@ -1406,6 +1612,11 @@ function applyPlyr(element) {
   }
 
   opts.fullscreen = { enabled: true, fallback: true };
+  opts.storage = { enabled: !!canStorage() };
+  opts.tooltips = { controls: true, seek: true };
+  // Use Plyr's built-in keyboard logic as requested. 
+  // 'global: true' allows keys to work even if the focus is on the document.
+  try { opts.keyboard = { focused: true, global: true }; } catch { }
   state.plyr = new Plyr(element, opts);
   state.plyr.on("ended", onMediaEnded);
   try {
@@ -1416,7 +1627,6 @@ function applyPlyr(element) {
     if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
       state.plyr.on("enterfullscreen", () => {
         try { element.dataset.fit = "cover"; } catch { }
-        try { console.log(document.fullscreenElement); } catch { }
         try {
           const fitBtn = el("btnToggleFit");
           fitBtn.textContent = t("fit_cover");
@@ -1438,6 +1648,140 @@ function applyPlyr(element) {
     if (typeof fn !== "function") throw new Error("不支持的 Plyr 方法: " + method);
     return fn.apply(state.plyr, args);
   };
+  try {
+    element.addEventListener("volumechange", () => {
+      gpSet("msp.volume", String(element.volume || 1), 500); // Debounce volume
+      gpSet("msp.muted", element.muted ? "1" : "0", 500);
+    });
+  } catch { }
+  try {
+    element.addEventListener("ratechange", () => {
+      try { gpSet("msp.rate", String(element.playbackRate || 1)); } catch { }
+    });
+  } catch { }
+  try {
+    if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
+      const applyCaptionPref = () => {
+        try {
+          const tt = element.textTracks;
+          const n = tt ? tt.length : 0;
+          const mid = String(state.current?.id || "");
+          const idxPref = Number(gpGet(mid ? ("msp.subTrack." + mid) : "msp.subTrack") || "");
+          const activePref = gpGet(mid ? ("msp.subActive." + mid) : "msp.subActive");
+          const idx = (!Number.isNaN(idxPref) && idxPref >= 0 && idxPref < n) ? idxPref : 0;
+          if (state.plyr && typeof state.plyr.currentTrack === "number") state.plyr.currentTrack = idx;
+          if (tt && n > 0) {
+            for (let i = 0; i < n; i++) tt[i].mode = "disabled";
+            tt[idx].mode = (activePref === "0") ? "disabled" : "showing";
+            if (state.plyr && state.plyr.captions) state.plyr.captions.active = activePref !== "0";
+          }
+        } catch { }
+      };
+      // Apply persisted preference shortly after init
+      setTimeout(applyCaptionPref, 150);
+      // Periodically persist caption changes to DB（低频）
+      let lastIdx = -1;
+      let lastActive = "";
+      state.plyrPersistTimer = setInterval(() => {
+        try {
+          let idx = -1;
+          let active = "";
+          if (state.plyr && typeof state.plyr.currentTrack === "number") idx = Number(state.plyr.currentTrack);
+          if (state.plyr && state.plyr.captions) active = state.plyr.captions.active ? "1" : "0";
+          const mid = String(state.current?.id || "");
+          const tKey = mid ? ("msp.subTrack." + mid) : "msp.subTrack";
+          const aKey = mid ? ("msp.subActive." + mid) : "msp.subActive";
+          if (idx !== lastIdx && idx >= 0) { gpSet(tKey, String(idx)); lastIdx = idx; }
+          if (active !== lastActive && active) { gpSet(aKey, active); lastActive = active; }
+        } catch { }
+      }, 2000);
+    }
+  } catch { }
+}
+
+function getActiveMedia() {
+  const kind = state.current?.kind;
+  if (kind === "video") return { el: el("videoEl"), kind: "video" };
+  if (kind === "audio") return { el: el("audioEl"), kind: "audio" };
+  return { el: null, kind: "" };
+}
+
+function bindGlobalHotkeys() {
+  let lastVolAt = 0;
+  const onKey = (ev) => {
+    // 1. Ignore if the user is typing in an input or editable element
+    const active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+
+    // 2. Only intercept keys if we have an active selection (media is being viewed/played)
+    if (!state.current) return;
+
+    const k = ev.key;
+    if (!k) return;
+    const now = Date.now();
+    const act = getActiveMedia(); // { el: mediaElement, kind: "video" | "audio" }
+    const media = act.el;
+
+    // A helper to prevent browser defaults (like space scrolling) and stop further bubbling
+    const handled = () => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
+    };
+
+    // Space: Play/Pause toggle
+    // Only applies to Audio and Video. We prevent default to stop page scrolling.
+    if (k === " " || k === "Spacebar") {
+      if (media && (act.kind === "video" || act.kind === "audio")) {
+        handled();
+        if (media.paused) {
+          media.play().catch(() => { });
+        } else {
+          media.pause();
+        }
+      }
+      return;
+    }
+
+    // [ / ]: Previous / Next Item
+    // This is the "unique" way to navigate. Reuses the playlist logic.
+    // Works for ALL types: Video, Audio, and Image.
+    if (k === "[" || k === "]") {
+      const pl = state.playlist;
+      if (pl && pl.items && pl.items.length > 0) {
+        handled();
+        if (k === "[") {
+          if (pl.index > 0) playAtIndex(pl.index - 1, true, true);
+        } else {
+          if (pl.index < pl.items.length - 1) playAtIndex(pl.index + 1, true, true);
+        }
+      }
+      return;
+    }
+
+    // F: Fullscreen Toggle (Video only)
+    if (k.toLowerCase() === "f") {
+      if (act.kind === "video") {
+        handled();
+        if (state.plyr && state.plyr.fullscreen) {
+          state.plyr.fullscreen.toggle();
+        } else if (media) {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => { });
+          } else {
+            media.requestFullscreen?.().catch(() => { });
+          }
+        }
+      }
+      return;
+    }
+
+    // Arrow keys: Abandon custom logic as requested and rely on Plyr's built-in shortcuts.
+    // We only prevent default for spacebar and brackets in this handler.
+  };
+
+  // Add the listener to document using capture phase (true) to intercept events early
+  document.addEventListener("keydown", onKey, true);
 }
 
 function setTracks(videoEl, subtitles) {
@@ -1541,7 +1885,17 @@ function playItem(item, opts) {
   const prevKind = state.current?.kind;
   const token = ++state.selectionToken;
   state.current = item;
+  state.tab = item.kind;
+  logRemote("info", `Playing item: ${item.name} (${item.id})`);
+
+  // Restore volume
+  const savedVol = gpGet(LS.volume);
+  if (savedVol && (item.kind === "audio" || item.kind === "video")) {
+    const mediaEl = el(item.kind === "audio" ? "audioEl" : "videoEl");
+    if (mediaEl) mediaEl.volume = Number(savedVol);
+  }
   updateNavLabels();
+  updateResumeButton();
 
   setFitBtnVisible(state.tab === "video" && item.kind === "video");
 
@@ -1606,16 +1960,11 @@ function playItem(item, opts) {
     } catch { }
   }
 
-  if (options.user && getCfg("features.playlist", true)) {
-    if (item.kind === "video" && getCfg("playback.video.enabled", true)) {
-      const pl = buildVideoPlaylist(item);
-      setPlaylist("video", pl.items, pl.index);
-    } else if (item.kind === "audio" && getCfg("playback.audio.enabled", true)) {
-      const pl = buildAudioPlaylist(item);
-      setPlaylist("audio", pl.items, pl.index);
-    } else if (item.kind === "image" && getCfg("playback.image.enabled", true)) {
-      const pl = buildImagePlaylist(item);
-      setPlaylist("image", pl.items, pl.index);
+  // ONLY build a new playlist if the user clicked from the main list (not from playlist panel/nav)
+  if (options.user && !options.fromPlaylist && getCfg("features.playlist", true)) {
+    const pl = buildPlaylist(item, item.kind);
+    if (pl.items.length) {
+      setPlaylist(item.kind, pl.items, pl.index);
     }
   }
 
@@ -1635,7 +1984,7 @@ function playItem(item, opts) {
     if (options.autoplay) {
       try { img.decode?.(); } catch { }
     }
-    if (getCfg("playback.image.remember", true)) {
+    if (rememberEnabled("image")) {
       saveProgress("image", item.id);
     }
     return;
@@ -1665,8 +2014,15 @@ function playItem(item, opts) {
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
+        state.plyr.once("ready", () => {
+          // Resume per-file time
+          const perFileTime = Number(gpGet(`msp.audio.time.${item.id}`) || "0");
+          if (perFileTime > 0) state.plyr.currentTime = perFileTime;
+          state.plyr.play().catch(() => { });
+        });
       } else {
+        const perFileTime = Number(gpGet(`msp.audio.time.${item.id}`) || "0");
+        if (perFileTime > 0) audio.currentTime = perFileTime;
         audio.play().catch(() => { });
       }
     }
@@ -1693,7 +2049,7 @@ function playItem(item, opts) {
       meta.style.opacity = "1";
     });
 
-    if (getCfg("playback.audio.remember", true)) {
+    if (rememberEnabled("audio")) {
       if (options.user && !options.resume) {
         saveProgress("audio", item.id, 0);
       }
@@ -1784,14 +2140,7 @@ function playItem(item, opts) {
           state.isSwitchingMedia = false;
         }
 
-        // Ensure fit button is visible/active
-        try {
-          const fitBtn = el("btnToggleFit");
-          fitBtn.hidden = false;
-          fitBtn.disabled = false;
-          const fit = video.dataset.fit || "contain";
-          fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
-        } catch { }
+        updateFitBtnFromVideo(video);
         return;
       } else {
         // Raw video switch (touch devices mostly)
@@ -1816,20 +2165,21 @@ function playItem(item, opts) {
     video.src = streamUrl(item.id);
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
-    try {
-      const fitBtn = el("btnToggleFit");
-      fitBtn.hidden = false;
-      fitBtn.disabled = false;
-      const fit = video.dataset.fit || "contain";
-      fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
-    } catch { }
+    updateFitBtnFromVideo(video);
     applyPlyr(video);
     try { video.load(); } catch { }
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => state.plyr.play().catch(() => { }));
+        state.plyr.once("ready", () => {
+          // Resume per-file time
+          const perFileTime = Number(gpGet(`msp.video.time.${item.id}`) || "0");
+          if (perFileTime > 0) state.plyr.currentTime = perFileTime;
+          state.plyr.play().catch(() => { });
+        });
       } else {
+        const perFileTime = Number(gpGet(`msp.video.time.${item.id}`) || "0");
+        if (perFileTime > 0) video.currentTime = perFileTime;
         video.play().catch(() => { });
       }
     }
@@ -1879,7 +2229,7 @@ function renderShares() {
         const data = await apiPost("/api/shares", { op: "remove", path: sh.path });
         state.config = data.config;
         renderShares();
-        await loadMedia(false);
+        await loadMedia(true);
       } catch (e) {
         alert(String(e?.message || e));
       }
@@ -1895,6 +2245,7 @@ function bindUI() {
   el("btnSettings").addEventListener("click", () => showDlg(true));
   el("btnCloseDlg").addEventListener("click", () => showDlg(false));
   el("dlgBackdrop").addEventListener("click", () => showDlg(false));
+  el("topbarTitle").addEventListener("click", () => location.reload());
 
   el("btnRefresh").addEventListener("click", async () => {
     try { await loadConfig(); await loadMedia(true); } catch (e) { alert(String(e?.message || e)); }
@@ -1909,7 +2260,7 @@ function bindUI() {
       el("sharePath").value = "";
       el("shareLabel").value = "";
       renderShares();
-      await loadMedia(false);
+      await loadMedia(true);
     } catch (e) {
       alert(String(e?.message || e));
     }
@@ -1985,20 +2336,27 @@ function bindUI() {
   el("btnNext").disabled = true;
   el("previewSub").textContent = "";
   setFitBtnVisible(false);
+  try {
+    const btnResume = el("btnResume");
+    btnResume.disabled = true;
+    btnResume.hidden = true;
+    btnResume.addEventListener("click", () => resumeLast());
+    updateResumeButton();
+  } catch { }
 
   el("btnPrev").addEventListener("click", () => {
-    if (state.playlist.index > 0) playAtIndex(state.playlist.index - 1, true, true);
+    if (state.playlist.index > 0) playAtIndex(state.playlist.index - 1, true);
   });
   el("btnNext").addEventListener("click", () => {
-    if (state.playlist.items?.length && state.playlist.index < state.playlist.items.length - 1) playAtIndex(state.playlist.index + 1, true, true);
+    if (state.playlist.items?.length && state.playlist.index < state.playlist.items.length - 1) playAtIndex(state.playlist.index + 1, true);
   });
 
   el("toggleShuffle").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.shuffle = on;
-    lsSet(LS.audioShuffle, on ? "1" : "0");
+    gpSet(LS.audioShuffle, on ? "1" : "0");
     if (state.current?.kind === "audio" && getCfg("playback.audio.enabled", true)) {
-      const pl = buildAudioPlaylist(state.current);
+      const pl = buildPlaylist(state.current, "audio");
       setPlaylist("audio", pl.items, pl.index);
     }
   });
@@ -2006,7 +2364,7 @@ function bindUI() {
   el("toggleLoop").addEventListener("change", (ev) => {
     const on = !!ev.target.checked;
     state.playlist.loop = on;
-    lsSet(LS.audioLoop, on ? "1" : "0");
+    gpSet(LS.audioLoop, on ? "1" : "0");
   });
   try {
     const fitBtn = el("btnToggleFit");
@@ -2018,6 +2376,7 @@ function bindUI() {
       const next = cur === "cover" ? "contain" : "cover";
       try { v.dataset.fit = next; } catch { }
       try { fitBtn.textContent = next === "cover" ? t("fit_cover") : t("fit_contain"); } catch { }
+      gpSet("msp.video.fit", next);
     });
   } catch { }
 
@@ -2027,7 +2386,7 @@ function bindUI() {
 
   audio.addEventListener("timeupdate", () => {
     if (!state.current || state.current.kind !== "audio") return;
-    if (!getCfg("playback.audio.remember", true)) return;
+    if (!rememberEnabled("audio")) return;
     const now = Date.now();
     if (now - lastSaveAt < 1500) return;
     lastSaveAt = now;
@@ -2037,7 +2396,7 @@ function bindUI() {
   const video = el("videoEl");
   video.addEventListener("timeupdate", () => {
     if (!state.current || state.current.kind !== "video") return;
-    if (!getCfg("playback.video.remember", true)) return;
+    if (!rememberEnabled("video")) return;
     const now = Date.now();
     if (now - lastSaveAt < 1500) return;
     lastSaveAt = now;
@@ -2060,7 +2419,7 @@ function bindUI() {
     showPreviewError(t("err_audio_load", ext));
   });
   let videoErrTimer = 0;
-  const clearVideoErrTimer = () => { if (videoErrTimer) { try { clearTimeout(videoErrTimer); } catch {} videoErrTimer = 0; } };
+  const clearVideoErrTimer = () => { if (videoErrTimer) { try { clearTimeout(videoErrTimer); } catch { } videoErrTimer = 0; } };
   video.addEventListener("canplay", clearVideoErrTimer);
   video.addEventListener("loadeddata", clearVideoErrTimer);
   video.addEventListener("error", () => {
@@ -2071,7 +2430,7 @@ function bindUI() {
       const cur = new URL(video.currentSrc || "", window.location.origin);
       const id = cur.searchParams.get("id") || "";
       if (id && id !== item.id) return;
-    } catch {}
+    } catch { }
     const token = state.selectionToken;
     const ext = item.ext || "";
     const err = mediaErrorText(video.error);
@@ -2109,19 +2468,41 @@ function bindUI() {
 
 async function boot() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW fail:', err));
+    navigator.serviceWorker.register('/sw.js').catch(() => { });
   }
 
   initLang();
   initTheme();
   bindUI();
+  bindGlobalHotkeys();
+
   try {
-    await loadConfig();
-    await loadMedia(false, 200);
-    setTimeout(() => loadMedia(false).catch(() => { }), 0);
-    if (state.tab === "audio") {
-      tryResumeAudio();
-    }
+    // Retry initial config/prefs as the server might still be starting
+    await apiRetry(loadConfig).catch(e => console.warn("Load config failed", e));
+    await apiRetry(loadPrefs).catch(e => console.warn("Load prefs failed", e));
+
+    // Initial fast load (limited items)
+    await loadMedia(false, 200).catch(() => { });
+
+    // Call resume logic after we have at least partial media info
+    tryResumeLastMediaInternal();
+
+    // Full load in background
+    setTimeout(async () => {
+      await loadMedia(false).catch(() => { }); // Use non-refresh first to get what's in DB
+
+      // If still scanning or empty, poll for a while to update the list incrementally
+      let polls = 0;
+      const poll = setInterval(async () => {
+        polls++;
+        if (polls > 10 || !state.scanning) {
+          clearInterval(poll);
+          return;
+        }
+        await loadMedia(false).catch(() => { });
+        renderList();
+      }, 2000);
+    }, 50);
   } catch (e) {
     setMeta(t("meta_fail"));
     alert(String(e?.message || e));

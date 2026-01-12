@@ -61,10 +61,12 @@ button,
 input,
 select,
 textarea {
-  color: var(--md-text) !important;
+  color: inherit;
   background-color: transparent;
   font-family: inherit;
   cursor: pointer;
+  border: none;
+  outline: none;
 }
 
 select:focus-visible,
@@ -113,6 +115,7 @@ textarea:focus-visible {
 html,
 body {
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -169,6 +172,13 @@ body {
 .topbar__title {
   font-weight: 700;
   letter-spacing: .2px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  user-select: none;
+}
+
+.topbar__title:hover {
+  opacity: 0.7;
 }
 
 .topbar__meta {
@@ -474,58 +484,147 @@ body {
   touch-action: pan-x
 }
 
-.plyr__controls {
-  color: var(--md-text) !important
-}
-
-.plyr__control {
-  color: var(--md-text) !important
-}
-
-.plyr__control:hover {
-  background: var(--md-hover) !important;
-  color: var(--md-text) !important
-}
-
-.plyr__controls svg {
-  fill: currentColor !important
-}
-
-.plyr__time {
-  color: var(--md-text) !important
-}
-
-.plyr__progress__buffer {
-  color: var(--md-sub) !important;
-  background: rgba(255, 255, 255, 0.1)
-}
-
-.plyr__tooltip {
-  background: var(--md-surface);
-  color: var(--md-text);
-  border: 1px solid var(--md-border);
-  z-index: 100;
-  pointer-events: none;
-}
-
-.plyr__progress input[type="range"],
-.plyr__volume input[type="range"] {
-  color: var(--md-primary);
-}
-
-.plyr__menu__container {
-  background: var(--md-surface);
-  color: var(--md-text);
-  border: 1px solid var(--md-border);
+/* --- Plyr Theming --- */
+.plyr {
+  --plyr-color-main: var(--md-primary);
+  --plyr-video-control-color: #ffffff;
+  --plyr-video-control-color-hover: #ffffff;
+  --plyr-video-controls-background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75));
+  --plyr-menu-background: var(--md-surface);
+  --plyr-menu-color: var(--md-text);
+  --plyr-tooltip-background: rgba(0, 0, 0, 0.8);
+  --plyr-tooltip-color: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
   box-shadow: var(--elev-1);
 }
 
+/* Video specific - always dark controls for better focus */
+.plyr--video .plyr__controls {
+  background: var(--plyr-video-controls-background) !important;
+  color: #fff !important;
+  padding-top: 24px !important;
+  padding-bottom: 8px !important;
+  overflow: visible !important;
+  /* Allow tooltips */
+}
+
+/* Ensure plyr container itself doesn't clip tooltips */
+.plyr--video {
+  overflow: visible !important;
+}
+
+.plyr--video .plyr__control {
+  color: #fff !important;
+  transition: all 0.2s ease;
+}
+
+.plyr--video .plyr__control:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+}
+
+.plyr--video .plyr__control[aria-expanded="true"] {
+  background: var(--md-primary) !important;
+  color: #fff !important;
+}
+
+.plyr--video .plyr__controls svg {
+  fill: #fff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.plyr--video .plyr__time {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 500;
+}
+
+.plyr--video .plyr__progress__buffer {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.plyr--video .plyr__tooltip {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(8px);
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 5px 8px !important;
+  font-weight: 600;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000 !important;
+}
+
+/* Audio specific - follow theme */
+.plyr--audio .plyr__controls {
+  background: var(--md-surface) !important;
+  color: var(--md-text) !important;
+  border: 1px solid var(--md-border);
+  border-radius: 12px;
+  padding: 10px !important;
+}
+
+.plyr--audio .plyr__control {
+  color: var(--md-text) !important;
+}
+
+.plyr--audio .plyr__control:hover {
+  background: var(--md-hover) !important;
+  color: var(--md-primary) !important;
+}
+
+.plyr--audio .plyr__time {
+  color: var(--md-sub) !important;
+}
+
+.plyr--audio .plyr__progress__buffer {
+  background: var(--md-border) !important;
+}
+
+/* Common Plyr Overrides */
+.plyr__progress input[type="range"],
+.plyr__volume input[type="range"] {
+  color: var(--md-primary) !important;
+}
+
+.plyr__menu__container {
+  background: var(--md-surface) !important;
+  border: 1px solid var(--md-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  padding: 8px !important;
+  animation: plyr-popup 0.2s ease;
+}
+
+@keyframes plyr-popup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .plyr__menu__container .plyr__control {
-  color: var(--md-text);
+  color: var(--md-text) !important;
+  border-radius: 8px !important;
+  margin: 2px 0;
+}
+
+.plyr__menu__container .plyr__control:hover {
+  background: var(--md-hover) !important;
+}
+
+.plyr__menu__container .plyr__control[role="menuitemradio"][aria-checked="true"]::before {
+  background: var(--md-primary) !important;
 }
 
 .plyr__menu__value {
-  color: var(--md-sub);
+  color: var(--md-sub) !important;
+  font-size: 12px;
 }
 
 .plyr:fullscreen,
@@ -1158,20 +1257,7 @@ body {
   }
 }
 
-/* Fix Plyr Audio in Dark Mode */
-[data-theme="dark"] .plyr--audio .plyr__controls {
-  background: var(--md-surface) !important;
-  color: var(--md-text) !important;
-  border: 1px solid var(--md-border);
-}
-
-[data-theme="dark"] .plyr__control:hover {
-  background: var(--md-hover) !important;
-}
-
-[data-theme="dark"] .plyr__time {
-  color: var(--md-text) !important;
-}
+/* Audio specific adjustments removed as they are now handled in the unified Plyr section */
 
 /* Global Scrollbar Hiding */
 ::-webkit-scrollbar {

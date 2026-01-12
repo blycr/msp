@@ -92,13 +92,20 @@ should_build() {
   IFS=',' read -r -a p_arr <<< "$PLATFORMS"
   IFS=',' read -r -a a_arr <<< "$ARCHITECTURES"
   
-  platform_lower="$(echo "$platform" | tr '[:upper:]' '[:lower:]')"
-  arch_variant_lower="$(echo "$arch_or_variant" | tr '[:upper:]' '[:lower:]')"
+  normalize_arch() {
+    local a="$1"
+    a="${a,,}" # lowercase
+    if [[ "$a" == "x64" ]]; then echo "amd64"; 
+    elif [[ "$a" == "x86" ]]; then echo "386";
+    else echo "$a"; fi
+  }
+
+  target="$(normalize_arch "$arch_or_variant")"
+  platform_lower="${platform,,}"
 
   p_match="false"
   for p in "${p_arr[@]}"; do
-    p_lower="$(echo "$p" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$p_lower" == "$platform_lower" ]]; then
+    if [[ "${p,,}" == "$platform_lower" ]]; then
       p_match="true"
       break
     fi
@@ -107,8 +114,7 @@ should_build() {
     return 1
   fi
   for a in "${a_arr[@]}"; do
-    a_lower="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$a_lower" == "$arch_variant_lower" ]]; then
+    if [[ "$(normalize_arch "$a")" == "$target" ]]; then
       return 0
     fi
   done

@@ -63,45 +63,14 @@ jobs:
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
           echo "RELEASE_TARGET=${{ github.sha }}" >> "$GITHUB_ENV"
-      - name: Build all targets via scripts/build.sh (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Build all targets via scripts/build.sh
         shell: bash
-        env:
-          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           rm -rf bin checksums debug || true
-          # Fix permissions and line endings just in case
           chmod +x scripts/build.sh
           sed -i 's/\r$//' scripts/build.sh
-          git fetch --force --tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" >/dev/null 2>&1 || true
-
-          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
-            tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
-            echo "[Info] Tag exists: $RELEASE_TAG ($tag_sha)"
-            git checkout "$RELEASE_TAG"
-            if bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8; then
-              echo "RELEASE_TARGET=$tag_sha" >> "$GITHUB_ENV"
-            else
-              echo "[Warn] Build failed at tag, fallback to HEAD: $HEAD_SHA"
-              git checkout "$HEAD_SHA"
-              rm -rf bin checksums debug || true
-              bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
-              echo "RELEASE_TARGET=$HEAD_SHA" >> "$GITHUB_ENV"
-            fi
-          else
-            echo "[Info] Tag not found locally, build at HEAD: $HEAD_SHA"
-            git checkout "$HEAD_SHA"
-            bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
-            echo "RELEASE_TARGET=$HEAD_SHA" >> "$GITHUB_ENV"
-          fi
-      - name: Build all targets via scripts/build.sh (push event)
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          rm -rf bin checksums debug || true
-          chmod +x scripts/build.sh
-          sed -i 's/\r$//' scripts/build.sh
+          # Build specified platforms and architectures
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
       - name: Prepare release notes
         shell: bash

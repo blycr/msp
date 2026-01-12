@@ -59,34 +59,21 @@ function Initialize-DevConfig {
       '{}' | Out-File -FilePath $devConfig -Encoding utf8
     }
   }
-  try {
-    $cfg = Get-Content -LiteralPath $devConfig -Raw | ConvertFrom-Json -ErrorAction Stop
-  }
-  catch {
-    $cfg = [pscustomobject]@{}
-  }
-  if ($null -eq $cfg.port -or [int]$cfg.port -ne $BackendPort) {
-    $cfg | Add-Member -MemberType NoteProperty -Name port -Value $BackendPort -Force
+  
+  $cfg = try { Get-Content -LiteralPath $devConfig -Raw | ConvertFrom-Json -ErrorAction Stop } catch { [pscustomobject]@{} }
+  
+  # Ensure necessary fields exist
+  $changed = $false
+  if ($null -eq $cfg.port -or $cfg.port -ne $BackendPort) { $cfg | Add-Member -Name port -Value $BackendPort -MemberType NoteProperty -Force; $changed = $true }
+  if ($null -eq $cfg.blacklist) { $cfg | Add-Member -Name blacklist -Value ([pscustomobject]@{}) -MemberType NoteProperty -Force; $changed = $true }
+  if ($null -eq $cfg.blacklist.extensions) { $cfg.blacklist | Add-Member -Name extensions -Value @() -MemberType NoteProperty -Force; $changed = $true }
+  if ($null -eq $cfg.blacklist.filenames) { $cfg.blacklist | Add-Member -Name filenames -Value @() -MemberType NoteProperty -Force; $changed = $true }
+  if ($null -eq $cfg.blacklist.folders) { $cfg.blacklist | Add-Member -Name folders -Value @() -MemberType NoteProperty -Force; $changed = $true }
+  if ($null -eq $cfg.blacklist.sizeRule) { $cfg.blacklist | Add-Member -Name sizeRule -Value "" -MemberType NoteProperty -Force; $changed = $true }
+
+  if ($changed) {
     $cfg | ConvertTo-Json -Depth 20 | Out-File -FilePath $devConfig -Encoding utf8
   }
-
-  if ($null -eq $cfg.blacklist) {
-    $cfg | Add-Member -MemberType NoteProperty -Name blacklist -Value ([pscustomobject]@{}) -Force
-  }
-  if ($null -eq $cfg.blacklist.extensions) {
-    $cfg.blacklist | Add-Member -MemberType NoteProperty -Name extensions -Value @() -Force
-  }
-  if ($null -eq $cfg.blacklist.filenames) {
-    $cfg.blacklist | Add-Member -MemberType NoteProperty -Name filenames -Value @() -Force
-  }
-  if ($null -eq $cfg.blacklist.folders) {
-    $cfg.blacklist | Add-Member -MemberType NoteProperty -Name folders -Value @() -Force
-  }
-  if ($null -eq $cfg.blacklist.sizeRule) {
-    $cfg.blacklist | Add-Member -MemberType NoteProperty -Name sizeRule -Value "" -Force
-  }
-
-  $cfg | ConvertTo-Json -Depth 20 | Out-File -FilePath $devConfig -Encoding utf8
 }
 
 function Start-Backend {

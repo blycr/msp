@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -42,6 +43,8 @@ func main() {
 	}
 
 	s.SetupLogger()
+	// Trigger first scan in background early
+	go s.GetOrBuildMediaCache(context.Background(), s.Config().Shares, s.Config().Blacklist, false)
 
 	webRoot, err := fs.Sub(webassets.FS, "dist")
 	if err != nil {
@@ -60,6 +63,8 @@ func main() {
 	mux.Handle("/api/subtitle", http.HandlerFunc(h.HandleSubtitle))
 	mux.Handle("/api/probe", http.HandlerFunc(h.HandleProbe))
 	mux.Handle("/api/ip", http.HandlerFunc(h.HandleIP))
+	mux.Handle("/api/prefs", http.HandlerFunc(h.HandlePrefs))
+	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.ServeEmbeddedWeb(w, r, webRoot)

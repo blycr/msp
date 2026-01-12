@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"msp/internal/config"
@@ -35,12 +37,22 @@ type Server struct {
 	mediaKey      string
 	mediaBuiltAt  time.Time
 	mediaTTL      time.Duration
-	mediaResp     types.MediaResponse
+	mediaRespJSON []byte
 	mediaETag     string
 	mediaBuilding bool
 
 	seenIPs sync.Map
+	logMu   sync.Mutex
+	logFile *os.File
+	logCnt  int32
 }
+
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelError = "error"
+	LogLevelNone  = "none"
+)
 
 func New(cfgPath string) *Server {
 	s := &Server{
@@ -82,10 +94,6 @@ func (s *Server) LoadOrInitConfig() error {
 }
 
 func (s *Server) saveConfigLocked() error {
-	// Assumes s.mu is locked (read or write) by caller if reading s.cfg
-	// But we need to marshal it.
-	// If caller holds Lock, we are fine.
-
 	b, err := json.MarshalIndent(s.cfg, "", "  ")
 	if err != nil {
 		return err
@@ -124,12 +132,86 @@ func (s *Server) SetupLogger() {
 		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
 		return
 	}
+
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+
+	if s.logFile != nil {
+		s.logFile.Close()
+	}
+
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
 		return
 	}
+	s.logFile = f
 	log.SetOutput(f)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+}
+
+func (s *Server) Log(level string, msg string) {
+	s.mu.RLock()
+	cfgLevel := strings.ToLower(s.cfg.LogLevel)
+	s.mu.RUnlock()
+
+	// Level priority: error > info > debug
+	shouldLog := false
+	switch strings.ToLower(level) {
+	case LogLevelError:
+		shouldLog = cfgLevel != LogLevelNone
+	case LogLevelInfo:
+		shouldLog = cfgLevel == LogLevelInfo || cfgLevel == LogLevelDebug
+	case LogLevelDebug:
+		shouldLog = cfgLevel == LogLevelDebug
+	}
+
+	if shouldLog {
+		ts := time.Now().Format("2006/01/02 15:04:05.000000")
+		line := fmt.Sprintf("%s [%s] %s", ts, strings.ToUpper(level), msg)
+		log.Println(line)
+
+		// Rotate only every 100 logs or so to reduce Stat overhead
+		if cnt := atomic.AddInt32(&s.logCnt, 1); cnt%100 == 0 {
+			s.RotateLogIfNeeded()
+		}
+	}
+}
+
+func (s *Server) RotateLogIfNeeded() {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+
+	if s.logFile == nil {
+		return
+	}
+
+	st, err := s.logFile.Stat()
+	if err != nil {
+		return
+	}
+
+	// 10MB limit
+	if st.Size() < 10*1024*1024 {
+		return
+	}
+
+	s.logFile.Close()
+	s.logFile = nil
+
+	s.mu.RLock()
+	path := s.cfg.LogFile
+	s.mu.RUnlock()
+
+	oldPath := path + ".1"
+	_ = os.Remove(oldPath)
+	_ = os.Rename(path, oldPath)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err == nil {
+		s.logFile = f
+		log.SetOutput(f)
+	}
 }
 
 func (s *Server) LogRequest(r *http.Request, status int, start time.Time) {
@@ -141,38 +223,21 @@ func (s *Server) LogRequest(r *http.Request, status int, start time.Time) {
 
 	msg := fmt.Sprintf("%s %s status=%d ua=%s ms=%d", r.Method, r.URL.Path, status, ua, duration)
 
-	s.mu.RLock()
-	level := strings.ToLower(s.cfg.LogLevel)
-	s.mu.RUnlock()
-
-	if level != "silent" && level != "none" {
-		log.Println(msg)
+	level := LogLevelInfo
+	if status >= 500 {
+		level = LogLevelError
 	}
-
-	isSevere := status >= 500
+	s.Log(level, msg)
 
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip == "" {
 		ip = r.RemoteAddr
 	}
-	isNewDevice := false
 	if ip != "" && ip != "127.0.0.1" && ip != "::1" {
 		if _, seen := s.seenIPs.Load(ip); !seen {
 			s.seenIPs.Store(ip, true)
-			isNewDevice = true
+			s.Log(LogLevelInfo, fmt.Sprintf("[NEW DEVICE] %s %s", ip, msg))
 		}
-	}
-
-	if isSevere || isNewDevice {
-		ts := time.Now().Format("2006/01/02 15:04:05.000000")
-		prefix := ""
-		if isSevere {
-			prefix = "[ERROR] "
-		}
-		if isNewDevice {
-			prefix += "[NEW DEVICE] "
-		}
-		fmt.Fprintf(os.Stderr, "%s %s%s\n", ts, prefix, msg)
 	}
 }
 
@@ -190,89 +255,106 @@ func (s *Server) InvalidateMediaCache() {
 	s.mediaKey = ""
 	s.mediaETag = ""
 	s.mediaBuiltAt = time.Time{}
-	s.mediaResp = types.MediaResponse{}
+	s.mediaRespJSON = nil
 	s.mediaMu.Unlock()
 	_ = os.Remove(s.mediaCachePath)
 }
 
 func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
-	// 并发控制与缓存策略：复用已有结果；过期时后台重建
 	key := mediaCacheKey(shares, blacklist)
-	if !refresh {
+
+	s.mediaMu.Lock()
+	// 1. Check if we have valid memory cache
+	if s.mediaKey == key && !s.mediaBuiltAt.IsZero() && !refresh {
+		if time.Since(s.mediaBuiltAt) >= s.mediaTTL && !s.mediaBuilding {
+			s.mediaBuilding = true
+			go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
+		}
+		var r types.MediaResponse
+		_ = json.Unmarshal(s.mediaRespJSON, &r)
+		etag := s.mediaETag
+		s.mediaMu.Unlock()
+		return r, etag
+	}
+
+	// 2. If already building, return current (partial/old) data
+	if s.mediaBuilding {
+		var r types.MediaResponse
+		_ = json.Unmarshal(s.mediaRespJSON, &r)
+		r.Scanning = true
+		etag := s.mediaETag
+		s.mediaMu.Unlock()
+		return r, etag
+	}
+
+	// 3. If refresh requested, trigger in background and return what we have
+	if refresh {
+		s.mediaBuilding = true
+		go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
+		var r types.MediaResponse
+		_ = json.Unmarshal(s.mediaRespJSON, &r)
+		r.Scanning = true
+		etag := s.mediaETag
+		s.mediaMu.Unlock()
+		return r, etag
+	}
+
+	// 4. Try DB if not building and key changed or expired
+	if s.mediaKey != key {
+		s.mediaMu.Unlock()
 		if resp, builtAt, ok, _ := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
 			etag := weakETag(key, builtAt)
 			s.mediaMu.Lock()
-			s.mediaResp = resp
+			s.mediaRespJSON, _ = json.Marshal(resp)
 			s.mediaKey = key
 			s.mediaBuiltAt = builtAt
 			s.mediaETag = etag
 			s.mediaMu.Unlock()
 			return resp, etag
 		}
-		_ = s.LoadMediaCacheFromDisk(key)
+		s.mediaMu.Lock()
 	}
 
-	for {
-		s.mediaMu.Lock()
-		has := s.mediaKey == key && !s.mediaBuiltAt.IsZero()
-		if has && !refresh {
-			if time.Since(s.mediaBuiltAt) < s.mediaTTL {
-				resp := s.mediaResp
-				etag := s.mediaETag
-				s.mediaMu.Unlock()
-				return resp, etag
-			}
-			resp := s.mediaResp
-			etag := s.mediaETag
-			if !s.mediaBuilding {
-				s.mediaBuilding = true
-				// TTL 过期：启动后台重建，不阻塞当前请求
-				go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
-			}
-			s.mediaMu.Unlock()
-			return resp, etag
-		}
-		if s.mediaBuilding {
-			// 已有构建在进行：等待信号，避免重复构建
-			s.mediaCond.Wait()
-			s.mediaMu.Unlock()
-			continue
-		}
-		s.mediaBuilding = true
-		s.mediaMu.Unlock()
+	// 4. Need to build
+	s.mediaBuilding = true
+	s.mediaMu.Unlock()
 
-		var resp types.MediaResponse
-		builtAt := time.Now()
-		if db.DB != nil {
-			r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, s.cfg.MaxItems)
-			if err == nil && !bt.IsZero() {
-				resp = r
-				builtAt = bt
-			} else {
-				// DB 可用但索引失败：退化为内存扫描
-				resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
-				builtAt = time.Now()
-			}
+	var resp types.MediaResponse
+	builtAt := time.Now()
+	if db.DB != nil {
+		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, s.cfg.MaxItems)
+		if err == nil && !bt.IsZero() {
+			resp = r
+			builtAt = bt
 		} else {
-			// 无 DB：直接内存扫描生成响应
 			resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
+			builtAt = time.Now()
 		}
-		etag := weakETag(key, builtAt)
-
-		s.mediaMu.Lock()
-		s.mediaResp = resp
-		s.mediaKey = key
-		s.mediaBuiltAt = builtAt
-		s.mediaETag = etag
-		s.mediaBuilding = false
-		s.mediaCond.Broadcast()
-		s.mediaMu.Unlock()
-		if db.DB == nil {
-			// 无 DB 时，异步保存到磁盘以供下次快速加载
-			go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
-		}
-		return resp, etag
+	} else {
+		resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
 	}
+	etag := weakETag(key, builtAt)
+
+	// Serialize to JSON bytes to save memory and serve faster
+	b, _ := json.Marshal(resp)
+
+	s.mediaMu.Lock()
+	s.mediaRespJSON = b
+	s.mediaKey = key
+	s.mediaBuiltAt = builtAt
+	s.mediaETag = etag
+	s.mediaBuilding = false
+	s.mediaCond.Broadcast()
+	s.mediaMu.Unlock()
+
+	if db.DB == nil {
+		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
+	}
+
+	// Trigger GC after heavy indexing
+	go debug.FreeOSMemory()
+
+	return resp, etag
 }
 
 func (s *Server) rebuildMediaCache(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
@@ -291,18 +373,21 @@ func (s *Server) rebuildMediaCache(ctx context.Context, key string, shares []con
 		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 	}
 	etag := weakETag(key, builtAt)
+	b, _ := json.Marshal(resp)
 
 	s.mediaMu.Lock()
-	s.mediaResp = resp
+	s.mediaRespJSON = b
 	s.mediaKey = key
 	s.mediaBuiltAt = builtAt
 	s.mediaETag = etag
 	s.mediaBuilding = false
 	s.mediaCond.Broadcast()
 	s.mediaMu.Unlock()
+
 	if db.DB == nil {
 		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
 	}
+	go debug.FreeOSMemory()
 }
 
 func mediaCacheKey(shares []config.Share, blacklist config.BlacklistConfig) string {
@@ -377,7 +462,7 @@ func (s *Server) LoadMediaCacheFromDisk(key string) bool {
 	s.mediaKey = v.Key
 	s.mediaBuiltAt = time.Unix(0, v.BuiltAt)
 	s.mediaETag = v.ETag
-	s.mediaResp = v.Resp
+	s.mediaRespJSON, _ = json.Marshal(v.Resp)
 	s.mediaMu.Unlock()
 	return true
 }
@@ -419,7 +504,6 @@ func sharesCacheKey(shares []config.Share) string {
 }
 
 func weakETag(key string, builtAt time.Time) string {
-	// 弱 ETag：对 key 与构建时间做哈希，用于客户端缓存协商
 	h := fnv.New64a()
 	h.Write([]byte(key))
 	var t [8]byte
@@ -429,5 +513,5 @@ func weakETag(key string, builtAt time.Time) string {
 		n >>= 8
 	}
 	h.Write(t[:])
-	return `W/"` + util.U64Base36(h.Sum64()) + `"`
+	return `W/` + util.U64Base36(h.Sum64()) + ``
 }

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log" // Added this import
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"msp/internal/config"
+	"msp/internal/db"
 	"msp/internal/media"
 	"msp/internal/server"
 	"msp/internal/types"
@@ -163,6 +164,53 @@ func (h *Handler) HandleIP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		prefs, err := db.GetAllPrefs(r.Context())
+		if err != nil {
+			log.Printf("Error in GetAllPrefs: %v", err)
+			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: "读取偏好失败"}})
+			return
+		}
+		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: prefs})
+	case http.MethodPost:
+		var req types.PrefsUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: "JSON 解析失败"}})
+			return
+		}
+		if len(req.Prefs) == 0 {
+			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: "缺少 prefs"}})
+			return
+		}
+		if err := db.SetPrefs(r.Context(), req.Prefs); err != nil {
+			log.Printf("Error in SetPrefs: %v", err)
+			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: "写入偏好失败"}})
+			return
+		}
+		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: req.Prefs})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req types.LogRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if req.Msg != "" {
+		h.s.Log(req.Level, req.Msg)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -283,9 +331,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
 
 	http.ServeContent(w, r, st.Name(), time.Time{}, f)

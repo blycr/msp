@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -7,11 +8,13 @@
   <link rel="stylesheet" href="/assets/plyr/plyr.css" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 </head>
+
 <body>
   <header class="topbar">
-    <div class="topbar__title" data-i18n="title">MSP Media Share</div>
+    <div class="topbar__title" id="topbarTitle" data-i18n="title">MSP Media Share</div>
     <div class="topbar__meta" id="meta"></div>
-    <button class="theme-btn" id="langBtn" title="Language" style="margin-right: 4px; font-size: 14px; font-weight: bold;">EN</button>
+    <button class="theme-btn" id="langBtn" title="Language"
+      style="margin-right: 4px; font-size: 14px; font-weight: bold;">EN</button>
     <button class="theme-btn" id="themeBtn" title="Switch Theme" aria-label="Switch Theme"></button>
     <button class="btn btn--ghost" id="btnSettings" data-i18n="settings">Settings</button>
     <button class="btn btn--ghost" id="btnRefresh" data-i18n="refresh">Refresh</button>
@@ -34,8 +37,11 @@
             <option value="size" data-i18n="sort_size">Size</option>
             <option value="date" data-i18n="sort_date">Date</option>
           </select>
-          <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order" style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;" aria-label="Toggle sort order">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+          <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order"
+            style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;"
+            aria-label="Toggle sort order">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <polyline points="19 12 12 19 5 12"></polyline>
             </svg>
@@ -64,6 +70,7 @@
               <span data-i18n="loop">Loop</span>
             </label>
           </div>
+          <button class="btn" id="btnResume" disabled hidden data-i18n="resume">Resume</button>
           <button class="btn" id="btnOpenRaw" disabled data-i18n="open_raw">Open Raw</button>
           <button class="btn btn--ghost" id="btnToggleFit" disabled hidden data-i18n="fit_mode">Fit Mode: Adapt</button>
         </div>
@@ -126,7 +133,8 @@
       <div class="row">
         <input class="textfield" id="blMinSize" type="text" placeholder="Block Size" data-i18n-ph="bl_size_ph" />
       </div>
-      <div class="dialog__note" style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;" id="blHint">
+      <div class="dialog__note"
+        style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;" id="blHint">
         Usage:<br>1. Regex...
       </div>
       <div class="row">
@@ -142,8 +150,9 @@
     </div>
   </section>
 
-  <script src="https://unpkg.com/pinyin-pro"></script>
+  <script src="/assets/pinyin-pro/pinyin-pro.js"></script>
   <script src="/assets/plyr/plyr.polyfilled.js"></script>
   <script type="module" src="/src/app.js"></script>
-  </body>
-  </html>
+</body>
+
+</html>

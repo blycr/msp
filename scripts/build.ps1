@@ -10,8 +10,8 @@ $logFile = Join-Path $PSScriptRoot 'build.log'
 
 function Write-Log {
   param(
-    [Parameter(Mandatory=$true)][string]$Message,
-    [ValidateSet('INFO','WARN','ERROR')][string]$Level = 'INFO'
+    [Parameter(Mandatory = $true)][string]$Message,
+    [ValidateSet('INFO', 'WARN', 'ERROR')][string]$Level = 'INFO'
   )
   $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
   $line = "[$ts][$Level] $Message"
@@ -21,14 +21,15 @@ function Write-Log {
 
 function Invoke-Step {
   param(
-    [Parameter(Mandatory=$true)][string]$Name,
-    [Parameter(Mandatory=$true)][scriptblock]$Action
+    [Parameter(Mandatory = $true)][string]$Name,
+    [Parameter(Mandatory = $true)][scriptblock]$Action
   )
   Write-Log $Name 'INFO'
   try {
     & $Action
     Write-Log ($Name + ' done.') 'INFO'
-  } catch {
+  }
+  catch {
     Write-Log ($Name + ' failed: ' + $_.Exception.Message) 'ERROR'
     throw
   }
@@ -48,14 +49,15 @@ Invoke-Step 'Build Frontend' {
   Push-Location (Join-Path $root 'web')
   try {
     if (-not (Test-Path 'node_modules')) {
-        Write-Log 'Installing pnpm dependencies...' 'INFO'
-        pnpm install
-        if ($LASTEXITCODE -ne 0) { throw ("pnpm install failed. exitCode=" + $LASTEXITCODE) }
+      Write-Log 'Installing pnpm dependencies...' 'INFO'
+      pnpm install
+      if ($LASTEXITCODE -ne 0) { throw ("pnpm install failed. exitCode=" + $LASTEXITCODE) }
     }
     Write-Log 'Building frontend...' 'INFO'
     pnpm run build
     if ($LASTEXITCODE -ne 0) { throw ("pnpm run build failed. exitCode=" + $LASTEXITCODE) }
-  } finally {
+  }
+  finally {
     Pop-Location
   }
 }
@@ -67,15 +69,10 @@ Invoke-Step 'go test ./...' {
     Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
     Remove-Item Env:GOARM -ErrorAction SilentlyContinue
     Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
-    & go env -u GOOS
-    & go env -u GOARCH
-    & go env -u GOARM
-    & go env -u CGO_ENABLED
-    & go env -w GOOS=windows
-    & go env -w GOARCH=amd64
     & go test ./...
     if ($LASTEXITCODE -ne 0) { throw ("go test failed. exitCode=" + $LASTEXITCODE) }
-  } finally {
+  }
+  finally {
     Pop-Location
   }
 }
@@ -100,7 +97,8 @@ function Build-Go {
     & go build -trimpath -ldflags="-s -w" -o $OutPath ./cmd/msp
     if ($LASTEXITCODE -ne 0) { throw ("go build failed. exitCode=" + $LASTEXITCODE) }
     Write-Log ("Built: " + $OutPath) 'INFO'
-  } finally {
+  }
+  finally {
     Pop-Location
   }
 }
@@ -123,13 +121,22 @@ function Write-DebugCopy {
 
 function ShouldBuild {
   param([string]$Platform, [string]$ArchOrVariant)
+  
+  # Internal standards for Go
+  $norm = @{ 'x64' = 'amd64'; 'x86' = '386' }
+  $target = $ArchOrVariant.ToLower()
+  if ($norm.ContainsKey($target)) { $target = $norm[$target] }
+
   $pMatch = $false
   foreach ($p in $Platforms) {
     if ($p.ToLower() -eq $Platform.ToLower()) { $pMatch = $true; break }
   }
   if (-not $pMatch) { return $false }
+
   foreach ($a in $Architectures) {
-    if ($a.ToLower() -eq $ArchOrVariant.ToLower()) { return $true }
+    $inputA = $a.ToLower()
+    if ($norm.ContainsKey($inputA)) { $inputA = $norm[$inputA] }
+    if ($inputA -eq $target) { return $true }
   }
   return $false
 }
