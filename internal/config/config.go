@@ -48,6 +48,23 @@ type BlacklistConfig struct {
 	SizeRule   string   `json:"sizeRule"`
 }
 
+// SecurityConfig defines IP filtering and PIN authentication settings
+type SecurityConfig struct {
+	// IPWhitelist is a list of allowed IP addresses or CIDR ranges
+	// If not empty, only IPs in this list can access the server
+	IPWhitelist []string `json:"ipWhitelist"`
+
+	// IPBlacklist is a list of blocked IP addresses or CIDR ranges
+	// IPs in this list will be denied access
+	IPBlacklist []string `json:"ipBlacklist"`
+
+	// PINEnabled enables PIN authentication
+	PINEnabled bool `json:"pinEnabled"`
+
+	// PIN is the authentication code (default: "0000")
+	PIN string `json:"pin"`
+}
+
 type Config struct {
 	Port      int             `json:"port"`
 	Shares    []Share         `json:"shares"`
@@ -55,6 +72,7 @@ type Config struct {
 	UI        UIConfig        `json:"ui"`
 	Playback  PlaybackConfig  `json:"playback"`
 	Blacklist BlacklistConfig `json:"blacklist"`
+	Security  SecurityConfig  `json:"security"`
 	LogLevel  string          `json:"logLevel"`
 	LogFile   string          `json:"logFile"`
 	MaxItems  int             `json:"maxItems"`
@@ -109,6 +127,12 @@ func Default() Config {
 			Filenames:  []string{},
 			Folders:    []string{},
 			SizeRule:   "",
+		},
+		Security: SecurityConfig{
+			IPWhitelist: []string{},
+			IPBlacklist: []string{},
+			PINEnabled:  false,
+			PIN:         "0000",
 		},
 		LogLevel: "info",
 		LogFile:  "",
@@ -218,6 +242,19 @@ func ApplyDefaults(cfg *Config) bool {
 
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+		changed = true
+	}
+
+	if cfg.Security.IPWhitelist == nil {
+		cfg.Security.IPWhitelist = []string{}
+		changed = true
+	}
+	if cfg.Security.IPBlacklist == nil {
+		cfg.Security.IPBlacklist = []string{}
+		changed = true
+	}
+	if cfg.Security.PIN == "" {
+		cfg.Security.PIN = "0000"
 		changed = true
 	}
 

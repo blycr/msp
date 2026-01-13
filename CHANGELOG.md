@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- **安全增强**：新增基于 IP 的黑/白名单机制，支持单个 IP 和 CIDR 范围（/8, /16, /24）
+- **PIN 认证**：新增 PIN 码认证功能，默认 PIN 为 0000，可在配置文件中自定义
+- **配置扩展**：在 `config.json` 中新增 `security` 配置部分
+- **API 端点**：新增 `/api/pin` 端点用于 PIN 验证
+- **文档完善**：新增安全配置指南（`docs/SECURITY.md`）和配置示例文档（`docs/CONFIG_EXAMPLE.md`）
+- **测试覆盖**：为安全功能添加完整的单元测试
+
 ## 0.6.0
 
 - **UI/UX 全面升级**：遵循 UI/UX Pro Max 设计规范，替换 emoji 为 SVG 图标，优化颜色对比度和交互体验

@@ -26,9 +26,10 @@ import (
 )
 
 type Server struct {
-	mu      sync.RWMutex
-	cfg     config.Config
-	cfgPath string
+	mu         sync.RWMutex
+	cfg        config.Config
+	cfgPath    string
+	cfgModTime time.Time // Last modification time of config file
 
 	mediaCachePath string
 
@@ -77,6 +78,14 @@ func (s *Server) LoadOrInitConfig() error {
 		return s.saveConfigLocked()
 	}
 
+	// Get file modification time
+	stat, err := os.Stat(s.cfgPath)
+	if err == nil {
+		s.mu.Lock()
+		s.cfgModTime = stat.ModTime()
+		s.mu.Unlock()
+	}
+
 	var cfg config.Config
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return err
@@ -117,6 +126,56 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 	defer s.mu.Unlock()
 	fn(&s.cfg)
 	return s.saveConfigLocked()
+}
+
+// WatchConfig monitors the config file for changes and reloads it automatically
+func (s *Server) WatchConfig(ctx context.Context) {
+	ticker := time.NewTicker(2 * time.Second) // Check every 2 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			stat, err := os.Stat(s.cfgPath)
+			if err != nil {
+				continue
+			}
+
+			s.mu.RLock()
+			lastModTime := s.cfgModTime
+			s.mu.RUnlock()
+
+			// Check if file has been modified
+			if stat.ModTime().After(lastModTime) {
+				s.Log("info", "Config file changed, reloading...")
+
+				// Read and parse new config
+				b, err := os.ReadFile(s.cfgPath)
+				if err != nil {
+					s.Log("error", fmt.Sprintf("Failed to read config file: %v", err))
+					continue
+				}
+
+				var cfg config.Config
+				if err := json.Unmarshal(b, &cfg); err != nil {
+					s.Log("error", fmt.Sprintf("Failed to parse config file: %v", err))
+					continue
+				}
+
+				config.ApplyDefaults(&cfg)
+
+				// Update config
+				s.mu.Lock()
+				s.cfg = cfg
+				s.cfgModTime = stat.ModTime()
+				s.mu.Unlock()
+
+				s.Log("info", "Config reloaded successfully")
+			}
+		}
+	}
 }
 
 func (s *Server) SetupLogger() {

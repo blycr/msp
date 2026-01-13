@@ -43,6 +43,10 @@ func main() {
 	}
 
 	s.SetupLogger()
+
+	// Start config file watcher for hot reload
+	go s.WatchConfig(context.Background())
+
 	// Trigger first scan in background early
 	go s.GetOrBuildMediaCache(context.Background(), s.Config().Shares, s.Config().Blacklist, false)
 
@@ -65,6 +69,7 @@ func main() {
 	mux.Handle("/api/ip", http.HandlerFunc(h.HandleIP))
 	mux.Handle("/api/prefs", http.HandlerFunc(h.HandlePrefs))
 	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
+	mux.Handle("/api/pin", http.HandlerFunc(h.HandlePIN))
 
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.ServeEmbeddedWeb(w, r, webRoot)
@@ -87,7 +92,7 @@ func main() {
 		fmt.Println("访问:", "\x1b[36m"+u+"\x1b[0m")
 	}
 
-	finalHandler := handler.WithLog(s, handler.WithGzip(mux))
+	finalHandler := handler.WithLog(s, handler.WithSecurity(s, handler.WithGzip(mux)))
 
 	server := &http.Server{
 		Addr:              addr,

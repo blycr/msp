@@ -73,6 +73,14 @@ const I18N = {
     meta_noip: "No LAN IP detected (127.0.0.1 available)",
     hint_stats: "Current: {0}, Total {1}",
     item_count: "{0} · {1} Items",
+
+    // PIN Authentication
+    pin_title: "Authentication Required",
+    pin_note: "Please enter the PIN code to access this service.",
+    pin_placeholder: "Enter PIN",
+    pin_submit: "Submit",
+    pin_error: "Incorrect PIN. Please try again.",
+    pin_checking: "Verifying...",
   },
   zh: {
     title: "MSP 媒体分享预览",
@@ -154,6 +162,14 @@ const I18N = {
     err_video_load: "视频加载/解码失败（{0}，{1}）。同为 mp4/mkv 也可能因编码不同而无法播放。{2}建议用“在新标签打开”，或转码为 H.264/AAC（或仅转音频为 AAC）再播放。",
     err_img_load: "图片加载失败（{0}）。可用“在新标签打开”查看原文件。",
     meta_fail: "服务连接失败或初始化失败",
+
+    // PIN Authentication
+    pin_title: "身份验证",
+    pin_note: "请输入 PIN 码以访问此服务。",
+    pin_placeholder: "输入 PIN 码",
+    pin_submit: "提交",
+    pin_error: "PIN 码错误，请重试。",
+    pin_checking: "验证中...",
   }
 };
 
@@ -2466,6 +2482,107 @@ function bindUI() {
   });
 }
 
+// PIN Authentication
+function showPinDialog() {
+  const backdrop = el("pinBackdrop");
+  const dialog = el("pinDlg");
+  const input = el("pinInput");
+  const errorEl = el("pinError");
+
+  backdrop.hidden = false;
+  dialog.hidden = false;
+
+  // Update i18n
+  el("pinDlgTitle").textContent = t("pin_title");
+  el("pinDlgNote").textContent = t("pin_note");
+  input.placeholder = t("pin_placeholder");
+  el("btnSubmitPin").textContent = t("pin_submit");
+  errorEl.textContent = "";
+
+  // Focus input
+  setTimeout(() => input.focus(), 100);
+}
+
+function hidePinDialog() {
+  el("pinBackdrop").hidden = true;
+  el("pinDlg").hidden = true;
+  el("pinInput").value = "";
+  el("pinError").textContent = "";
+}
+
+async function verifyPin(pin) {
+  try {
+    const response = await fetch("/api/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
+
+    const data = await response.json();
+    return data.valid === true;
+  } catch (e) {
+    console.error("PIN verification failed:", e);
+    return false;
+  }
+}
+
+async function checkPinRequired() {
+  try {
+    // Try to access config endpoint to see if PIN is required
+    const response = await fetch("/api/config", { cache: "no-store" });
+
+    if (response.status === 401) {
+      // PIN is required
+      return true;
+    }
+
+    // PIN not required or already authenticated
+    return false;
+  } catch (e) {
+    // Network error, assume PIN not required
+    return false;
+  }
+}
+
+function bindPinDialog() {
+  const submitBtn = el("btnSubmitPin");
+  const input = el("pinInput");
+  const errorEl = el("pinError");
+
+  const handleSubmit = async () => {
+    const pin = input.value.trim();
+    if (!pin) {
+      errorEl.textContent = t("pin_error");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = t("pin_checking");
+    errorEl.textContent = "";
+
+    const valid = await verifyPin(pin);
+
+    if (valid) {
+      hidePinDialog();
+      // Reload the page to start fresh with authenticated session
+      window.location.reload();
+    } else {
+      errorEl.textContent = t("pin_error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = t("pin_submit");
+      input.value = "";
+      input.focus();
+    }
+  };
+
+  submitBtn.addEventListener("click", handleSubmit);
+  input.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
+  });
+}
+
 async function boot() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => { });
@@ -2475,6 +2592,14 @@ async function boot() {
   initTheme();
   bindUI();
   bindGlobalHotkeys();
+  bindPinDialog();
+
+  // Check if PIN is required
+  const pinRequired = await checkPinRequired();
+  if (pinRequired) {
+    showPinDialog();
+    return; // Stop boot process until PIN is verified
+  }
 
   try {
     // Retry initial config/prefs as the server might still be starting
