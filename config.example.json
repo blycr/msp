@@ -43,5 +43,11 @@
     "filenames": [],
     "folders": [],
     "sizeRule": ""
+  },
+  "security": {
+    "ipWhitelist": [],
+    "ipBlacklist": [],
+    "pinEnabled": false,
+    "pin": "0000"
   }
 }

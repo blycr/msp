@@ -211,6 +211,52 @@ func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// HandlePIN validates PIN authentication
+func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	cfg := h.s.Config()
+	if !cfg.Security.PINEnabled {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":   true,
+			"enabled": false,
+		})
+		return
+	}
+
+	var req struct {
+		PIN string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"valid": false,
+			"error": "Invalid request",
+		})
+		return
+	}
+
+	valid := req.PIN == cfg.Security.PIN
+	if valid {
+		// Set cookie for future requests
+		http.SetCookie(w, &http.Cookie{
+			Name:     "msp_pin",
+			Value:    req.PIN,
+			Path:     "/",
+			MaxAge:   86400 * 7, // 7 days
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":   valid,
+		"enabled": true,
+	})
+}
+
 func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)

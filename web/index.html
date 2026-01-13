@@ -106,6 +106,27 @@
     </p>
   </footer>
 
+  <!-- PIN Authentication Dialog -->
+  <div class="dialog__backdrop" id="pinBackdrop" hidden></div>
+  <section class="dialog" id="pinDlg" hidden aria-modal="true" role="dialog" style="max-width: 400px;">
+    <div class="dialog__title" id="pinDlgTitle">Authentication Required</div>
+    <div class="dialog__body">
+      <div class="dialog__note" style="margin-bottom: 1rem; line-height: 1.5;" id="pinDlgNote">
+        Please enter the PIN code to access this service.
+      </div>
+      <div class="row">
+        <input class="textfield" id="pinInput" type="password" placeholder="Enter PIN" autocomplete="off"
+          style="flex: 1; font-size: 1.1rem; padding: 12px; text-align: center; letter-spacing: 0.2em;" />
+      </div>
+      <div id="pinError"
+        style="color: var(--md-danger); margin-top: 0.5rem; font-size: 0.9rem; text-align: center; min-height: 1.5rem;">
+      </div>
+    </div>
+    <div class="dialog__actions">
+      <button class="btn" id="btnSubmitPin">Submit</button>
+    </div>
+  </section>
+
   <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
   <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog">
     <div class="dialog__title" data-i18n="dlg_title">Share Settings</div>

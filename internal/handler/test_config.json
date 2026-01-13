@@ -1,0 +1,34 @@
+{
+  "port": 0,
+  "shares": null,
+  "features": {
+    "speed": false,
+    "speedOptions": null,
+    "quality": false,
+    "captions": false,
+    "playlist": false
+  },
+  "ui": {},
+  "playback": {
+    "audio": {},
+    "video": {},
+    "image": {}
+  },
+  "blacklist": {
+    "extensions": null,
+    "filenames": null,
+    "folders": null,
+    "sizeRule": ""
+  },
+  "security": {
+    "ipWhitelist": [
+      "192.168.1.0/24"
+    ],
+    "ipBlacklist": null,
+    "pinEnabled": false,
+    "pin": ""
+  },
+  "logLevel": "",
+  "logFile": "",
+  "maxItems": 0
+}
