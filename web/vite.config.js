@@ -19,7 +19,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon.svg'],
+      includeAssets: ['favicon.ico', 'logo.svg'],
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
@@ -36,7 +36,7 @@ export default defineConfig({
         theme_color: '#ffffff',
         icons: [
           {
-            src: 'icon.svg',
+            src: 'logo.svg',
             sizes: 'any',
             type: 'image/svg+xml'
           }
