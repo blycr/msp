@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="web/public/logo.svg" width="120" alt="MSP Logo" />
+
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp?style=flat-square&color=blue)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
 ![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
