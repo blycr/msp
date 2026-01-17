@@ -16,6 +16,9 @@ msp/
 │   ├── db/           # SQLite database layer
 │   ├── handler/      # HTTP handlers and middleware
 │   ├── media/        # Media scanning and storage
+│   │   └── transcoder.go # FFmpeg transcoding logic
+│   ├── server/       # Server lifecycle management
+
 │   ├── server/       # Server lifecycle management
 │   ├── types/        # Shared type definitions
 │   ├── util/         # Utility functions
@@ -180,6 +183,7 @@ All endpoints under `/api/`:
 - `GET /api/subtitle` - Fetch subtitles
 - `GET /api/probe` - Probe media info
 - `GET /api/ip` - Get client IP
+- `GET/POST /api/progress` - Get/Set playback progress (New in v0.8.0)
 - `GET/POST /api/prefs` - User preferences
 - `GET /api/log` - Server logs
 - `POST /api/pin` - PIN authentication

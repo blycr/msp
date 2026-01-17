@@ -27,11 +27,14 @@
       "enabled": true,
       "shuffle": false,
       "remember": true,
-      "scope": "all"
+      "scope": "all",
+      "transcode": false
     },
     "video": {
       "enabled": true,
-      "scope": "folder"
+      "scope": "folder",
+      "transcode": false,
+      "resume": true
     },
     "image": {
       "enabled": true,

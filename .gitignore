@@ -94,3 +94,7 @@ msp.code-workspace
 // Shared files
 .shared/
 .agent/
+
+# Local Docs (User request to ignore)
+prompt.md
+PROJECT_REVIEW.md
