@@ -72,6 +72,7 @@ jobs:
           sed -i 's/\r$//' scripts/build.sh
           # Build specified platforms and architectures
           bash scripts/build.sh -Platforms windows,linux,macos,arm -Architectures x64,x86,amd64,arm64,v7,v8
+
       - name: Prepare release notes
         shell: bash
         env:

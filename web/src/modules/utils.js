@@ -50,9 +50,13 @@ export function dirOfAbsPath(p) {
   return idx >= 0 ? s.slice(0, idx) : "";
 }
 
-export function streamUrl(id) {
+export function streamUrl(id, start) {
   const ts = Date.now();
-  return `/api/stream?id=${encodeURIComponent(id)}&ts=${ts}`;
+  let url = `/api/stream?id=${encodeURIComponent(id)}&ts=${ts}`;
+  if (start && start > 0) {
+    url += `&start=${start}`;
+  }
+  return url;
 }
 
 export function formatName(item) {
@@ -89,6 +93,15 @@ export function mimeFor(kind, ext) {
 
 export function canPlayMedia(kind, ext, name, mediaEl) {
   const e = (ext || "").toLowerCase();
+  
+  // 只要配置中允许转码，前端就放行，让后端去决定是否需要真正的转码
+  if (kind === "video" && getCfg("playback.video.transcode", false)) {
+    return true; 
+  }
+  if (kind === "audio" && getCfg("playback.audio.transcode", false)) {
+    return true;
+  }
+
   if (kind === "audio") {
     const mime = mimeFor("audio", e);
     if (mime && mediaEl && typeof mediaEl.canPlayType === "function") {

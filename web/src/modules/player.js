@@ -1,6 +1,6 @@
 import { state, el, lsGet, LS } from './state.js';
 import { t } from './i18n.js';
-import { gpGet, gpSet, logRemote, apiPost, probeItem, probeText, probeWarnText, mediaErrorText, rememberEnabled } from './api.js';
+import { gpGet, gpSet, logRemote, apiPost, probeItem, probeText, probeWarnText, mediaErrorText, rememberEnabled, reportProgress, getProgress } from './api.js';
 import { mimeFor, canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from './lyrics.js';
 import { setPlaylist, renderPlaylist, buildPlaylist, updateNavLabels, updateNavButtons, playAtIndex } from './playlist.js';
@@ -18,13 +18,13 @@ export function saveProgress(kind, id, t) {
     gpSet(LS.audioLastID, id);
     if (t !== undefined) {
       gpSet(LS.audioLastTime, String(t));
-      gpSet(`msp.audio.time.${id}`, String(t)); // Per-file time
+      reportProgress(id, t);
     }
   } else if (kind === "video") {
     gpSet(LS.videoLastID, id);
     if (t !== undefined) {
       gpSet(LS.videoLastTime, String(t));
-      gpSet(`msp.video.time.${id}`, String(t)); // Per-file time
+      reportProgress(id, t);
     }
   } else if (kind === "image") {
     gpSet(LS.imageLastID, id);
@@ -124,8 +124,20 @@ export async function resumeLast() {
   }
 
   // Per-file time has priority over global last time in the Resume Last flow
-  const perFileTime = gpGet(`msp.${kind}.time.${id}`);
-  const timeVal = Number(perFileTime || (kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
+  // Refactored to use API
+  let timeVal = 0;
+  try {
+    const apiTime = await getProgress(id);
+    if (apiTime > 0) {
+      timeVal = apiTime;
+    } else {
+      // Fallback to local storage global last time
+      timeVal = Number((kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
+    }
+  } catch {
+    timeVal = Number((kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
+  }
+  
   if (timeVal <= 0) return;
   const mediaEl = el(elId);
   if (!mediaEl) return;
@@ -329,6 +341,59 @@ export function applyPlyr(element) {
   try { opts.keyboard = { focused: true, global: true }; } catch { }
   state.plyr = new Plyr(element, opts);
   state.plyr.on("ended", onMediaEnded);
+
+  // Smart Seeking for Transcoded Streams
+  const ext = (state.current?.ext || "").toLowerCase();
+  const isVideo = state.current?.kind === "video";
+  const isAudio = state.current?.kind === "audio";
+  const transVideo = isVideo && ext !== ".mp4" && ext !== ".m4v" && ext !== ".webm" && getCfg("playback.video.transcode", false);
+  const transAudio = isAudio && ext !== ".mp3" && ext !== ".m4a" && ext !== ".aac" && ext !== ".wav" && getCfg("playback.audio.transcode", false);
+
+  if (transVideo || transAudio) {
+    let lastSeekTime = 0;
+    state.plyr.on("seeking", () => {
+      const now = Date.now();
+      if (now - lastSeekTime < 1000) return; // Debounce
+      const targetTime = element.currentTime;
+      if (targetTime < 0.1) return; // Ignore reset to 0
+
+      logRemote("info", `Transcode seek detected: target=${targetTime}`);
+      lastSeekTime = now;
+
+      // Reload source with start parameter
+      const url = streamUrl(state.current.id, targetTime);
+      
+      // We need to pause, change src, and resume.
+      // For Plyr, we can update source.
+      const isPaused = element.paused;
+      
+      if (isVideo) {
+        state.plyr.source = {
+          type: "video",
+          sources: [{ src: url }],
+          poster: state.current.coverId ? streamUrl(state.current.coverId) : undefined,
+          tracks: (state.current.subtitles || []).map(s => ({
+            kind: "subtitles",
+            label: s.label || "字幕",
+            srclang: s.lang || "zh",
+            src: s.src || streamUrl(s.id),
+            default: !!s.default
+          }))
+        };
+      } else {
+        state.plyr.source = {
+          type: "audio",
+          sources: [{ src: url }]
+        };
+      }
+      
+      state.plyr.once("ready", () => {
+        element.currentTime = targetTime;
+        if (!isPaused) state.plyr.play().catch(() => {});
+      });
+    });
+  }
+
   try {
     const wrap = element.closest?.(".plyr");
     if (wrap) wrap.style.display = "block";
@@ -542,15 +607,19 @@ export function playItem(item, opts) {
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => {
-          const perFileTime = Number(gpGet(`msp.audio.time.${item.id}`) || "0");
+        state.plyr.once("ready", async () => {
+          let perFileTime = 0;
+          try { perFileTime = await getProgress(item.id); } catch { }
           if (perFileTime > 0) state.plyr.currentTime = perFileTime;
           state.plyr.play().catch(() => { });
         });
       } else {
-        const perFileTime = Number(gpGet(`msp.audio.time.${item.id}`) || "0");
-        if (perFileTime > 0) audio.currentTime = perFileTime;
-        audio.play().catch(() => { });
+        getProgress(item.id).then(t => {
+          if (t > 0) audio.currentTime = t;
+          audio.play().catch(() => { });
+        }).catch(() => {
+          audio.play().catch(() => { });
+        });
       }
     }
 
@@ -690,15 +759,19 @@ export function playItem(item, opts) {
 
     if (options.autoplay) {
       if (state.plyr) {
-        state.plyr.once("ready", () => {
-          const perFileTime = Number(gpGet(`msp.video.time.${item.id}`) || "0");
+        state.plyr.once("ready", async () => {
+          let perFileTime = 0;
+          try { perFileTime = await getProgress(item.id); } catch { }
           if (perFileTime > 0) state.plyr.currentTime = perFileTime;
           state.plyr.play().catch(() => { });
         });
       } else {
-        const perFileTime = Number(gpGet(`msp.video.time.${item.id}`) || "0");
-        if (perFileTime > 0) video.currentTime = perFileTime;
-        video.play().catch(() => { });
+        getProgress(item.id).then(t => {
+          if (t > 0) video.currentTime = t;
+          video.play().catch(() => { });
+        }).catch(() => {
+          video.play().catch(() => { });
+        });
       }
     }
     return;

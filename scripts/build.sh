@@ -20,6 +20,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 logFile="$(cd "$(dirname "$0")" && pwd)/build.log"
 
@@ -63,6 +64,7 @@ build_go() {
     log "Built: $out" "INFO"
   )
 }
+
 
 write_checksum() {
   file="$1"
@@ -197,6 +199,7 @@ if should_build windows x86; then
   write_checksum "$binRoot/windows/x86/msp-windows-386.exe" "$chkRoot/msp-windows-386.sha256"
   write_debug_copy "$binRoot/windows/x86/msp-windows-386.exe" "$dbgRoot/windows/x86/msp-windows-386.debug"
 fi
+
 log "Cross Build Artifacts done." "INFO"
 
 log "Build completed." "INFO"

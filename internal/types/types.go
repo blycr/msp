@@ -1,26 +1,54 @@
 package types
 
-import "msp/internal/config"
+import (
+	"msp/internal/config"
+	"time"
+)
 
 type Subtitle struct {
-	ID      string `json:"id"`
-	Label   string `json:"label"`
-	Lang    string `json:"lang"`
-	Src     string `json:"src"`
-	Default bool   `json:"default,omitempty"`
+	ID      string `json:"id" gorm:"column:id"`
+	Label   string `json:"label" gorm:"column:label"`
+	Lang    string `json:"lang" gorm:"column:lang"`
+	Src     string `json:"src" gorm:"column:src"`
+	Default bool   `json:"default,omitempty" gorm:"column:default"`
 }
 
 type MediaItem struct {
-	ID         string     `json:"id"`
+	ID         string     `json:"id" gorm:"primaryKey"`
+	Path       string     `json:"-" gorm:"uniqueIndex;not null"`
 	Name       string     `json:"name"`
 	Ext        string     `json:"ext"`
-	Kind       string     `json:"kind"`
-	ShareLabel string     `json:"shareLabel"`
+	Kind       string     `json:"kind" gorm:"index:idx_kind;index:idx_scan_kind"`
+	ShareLabel string     `json:"shareLabel" gorm:"index:idx_share_label;index:idx_scan_share_label"`
 	Size       int64      `json:"size"`
 	ModTime    int64      `json:"modTime"`
-	Subtitles  []Subtitle `json:"subtitles,omitempty"`
-	CoverID    string     `json:"coverId,omitempty"`
-	LyricsID   string     `json:"lyricsId,omitempty"`
+	Subtitles  []Subtitle `json:"subtitles,omitempty" gorm:"serializer:json"`
+	CoverID    string     `json:"coverId,omitempty" gorm:"column:audio_cover"`
+	LyricsID   string     `json:"lyricsId,omitempty" gorm:"column:audio_lyrics"`
+	ScanID     int64      `json:"-" gorm:"index:idx_scan_id;index:idx_scan_kind;index:idx_scan_share_label"`
+	ShareRoot  string     `json:"-"`
+	CreatedAt  time.Time  `json:"-"`
+	UpdatedAt  time.Time  `json:"-"`
+}
+
+type MediaScan struct {
+	CacheKey  string    `gorm:"primaryKey"`
+	ScanID    int64     `gorm:"not null"`
+	BuiltAt   int64     `gorm:"not null"`
+	Complete  bool      `gorm:"not null"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
+
+type UserPref struct {
+	Key       string `gorm:"primaryKey"`
+	Value     string
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
+
+type PlaybackProgress struct {
+	MediaID   string    `json:"mediaId" gorm:"primaryKey"`
+	Time      float64   `json:"time" gorm:"not null"`
+	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }
 
 type MediaResponse struct {

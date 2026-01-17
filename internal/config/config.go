@@ -14,25 +14,28 @@ type Share struct {
 }
 
 type UIConfig struct {
-	DefaultTab *string `json:"defaultTab,omitempty"`
-	ShowOthers *bool   `json:"showOthers,omitempty"`
+	DefaultTab *string `json:"defaultTab"`
+	ShowOthers *bool   `json:"showOthers"`
 }
 
 type PlaybackAudioConfig struct {
-	Enabled  *bool   `json:"enabled,omitempty"`
-	Shuffle  *bool   `json:"shuffle,omitempty"`
-	Remember *bool   `json:"remember,omitempty"`
-	Scope    *string `json:"scope,omitempty"`
+	Enabled   *bool   `json:"enabled"`
+	Shuffle   *bool   `json:"shuffle"`
+	Remember  *bool   `json:"remember"`
+	Scope     *string `json:"scope"`
+	Transcode *bool   `json:"transcode"`
 }
 
 type PlaybackVideoConfig struct {
-	Enabled *bool   `json:"enabled,omitempty"`
-	Scope   *string `json:"scope,omitempty"`
+	Enabled   *bool   `json:"enabled"`
+	Scope     *string `json:"scope"`
+	Transcode *bool   `json:"transcode"`
+	Resume    *bool   `json:"resume"`
 }
 
 type PlaybackImageConfig struct {
-	Enabled *bool   `json:"enabled,omitempty"`
-	Scope   *string `json:"scope,omitempty"`
+	Enabled *bool   `json:"enabled"`
+	Scope   *string `json:"scope"`
 }
 
 type PlaybackConfig struct {
@@ -86,8 +89,11 @@ func Default() Config {
 	audioShuffle := false
 	audioRemember := true
 	audioScope := "all"
+	audioTranscode := false
 	videoEnabled := true
 	videoScope := "folder"
+	videoTranscode := false
+	videoResume := true
 	imageEnabled := true
 	imageScope := "folder"
 
@@ -108,14 +114,17 @@ func Default() Config {
 		},
 		Playback: PlaybackConfig{
 			Audio: PlaybackAudioConfig{
-				Enabled:  &audioEnabled,
-				Shuffle:  &audioShuffle,
-				Remember: &audioRemember,
-				Scope:    &audioScope,
+				Enabled:   &audioEnabled,
+				Shuffle:   &audioShuffle,
+				Remember:  &audioRemember,
+				Scope:     &audioScope,
+				Transcode: &audioTranscode,
 			},
 			Video: PlaybackVideoConfig{
-				Enabled: &videoEnabled,
-				Scope:   &videoScope,
+				Enabled:   &videoEnabled,
+				Scope:     &videoScope,
+				Transcode: &videoTranscode,
+				Resume:    &videoResume,
 			},
 			Image: PlaybackImageConfig{
 				Enabled: &imageEnabled,
@@ -204,6 +213,11 @@ func ApplyDefaults(cfg *Config) bool {
 		cfg.Playback.Audio.Scope = &v
 		changed = true
 	}
+	if cfg.Playback.Audio.Transcode == nil {
+		v := false
+		cfg.Playback.Audio.Transcode = &v
+		changed = true
+	}
 
 	if cfg.Playback.Video.Enabled == nil {
 		v := true
@@ -213,6 +227,16 @@ func ApplyDefaults(cfg *Config) bool {
 	if cfg.Playback.Video.Scope == nil {
 		v := "folder"
 		cfg.Playback.Video.Scope = &v
+		changed = true
+	}
+	if cfg.Playback.Video.Transcode == nil {
+		v := false
+		cfg.Playback.Video.Transcode = &v
+		changed = true
+	}
+	if cfg.Playback.Video.Resume == nil {
+		v := true
+		cfg.Playback.Video.Resume = &v
 		changed = true
 	}
 

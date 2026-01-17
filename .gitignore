@@ -53,6 +53,8 @@ config.*.local.json
 msp.db
 msp.db-shm
 msp.db-wal
+# SQLite temp files
+*.db-journal
 
 # Temp / backup
 *.tmp
