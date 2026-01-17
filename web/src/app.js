@@ -1,9 +1,21 @@
 import './app.css';
 import { registerSW } from 'virtual:pwa-register'
+// import { OpenMemory } from "openmemory-js";
 
 registerSW({ immediate: true })
 
 const el = (id) => document.getElementById(id);
+
+// const mem = new OpenMemory({
+//   path: "./memory.sqlite",
+//   tier: "fast",
+//   embeddings: { provider: "synthetic" } // Use 'openai' for production
+// });
+
+// await mem.add("User prefers dark mode", { tags: ["preferences"] });
+
+// const result = await mem.query("What does the user like?");
+// console.log(result);
 
 const I18N = {
   en: {
