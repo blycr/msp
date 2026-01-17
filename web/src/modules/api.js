@@ -86,6 +86,21 @@ export function mediaErrorText(err) {
   }
 }
 
+export function reportProgress(id, time) {
+  if (!id) return;
+  apiPost("/api/progress", { id, time }).catch(() => { });
+}
+
+export async function getProgress(id) {
+  if (!id) return 0;
+  try {
+    const res = await apiGet(`/api/progress?id=${encodeURIComponent(id)}`);
+    return Number(res.time || 0);
+  } catch {
+    return 0;
+  }
+}
+
 // Prefs Logic
 export async function loadPrefs() {
   try {

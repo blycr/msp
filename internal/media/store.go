@@ -2,7 +2,6 @@ package media
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"msp/internal/config"
@@ -15,15 +14,15 @@ func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []config.Share
 	if db.DB == nil {
 		return types.MediaResponse{}, time.Time{}, false, nil
 	}
-	meta, ok, err := db.GetScanMeta(ctx, cacheKey)
-	if err != nil || !ok || meta.ScanID <= 0 || meta.BuiltAt <= 0 {
+	scan, ok, err := db.GetScanMeta(ctx, cacheKey)
+	if err != nil || !ok || scan.ScanID <= 0 || scan.BuiltAt <= 0 {
 		return types.MediaResponse{}, time.Time{}, false, err
 	}
-	resp, err := LoadMediaResponseFromDBScan(ctx, meta.ScanID, shares)
+	resp, err := LoadMediaResponseFromDBScan(ctx, scan.ScanID, shares)
 	if err != nil {
 		return types.MediaResponse{}, time.Time{}, false, err
 	}
-	return resp, time.Unix(0, meta.BuiltAt), true, nil
+	return resp, time.Unix(0, scan.BuiltAt), true, nil
 }
 
 func ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, time.Time, error) {
@@ -61,21 +60,13 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 		validShares = append(validShares, sh)
 	}
 
-	tx, err := db.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, time.Time{}, false, err
+	tx := db.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return 0, time.Time{}, false, tx.Error
 	}
 	defer func() {
 		_ = tx.Rollback()
 	}()
-
-	stmt, err := db.PrepareUpsertMediaItem(ctx, tx)
-	if err != nil {
-		return 0, time.Time{}, false, err
-	}
-	if stmt != nil {
-		defer func() { _ = stmt.Close() }()
-	}
 
 	seen := 0
 	limit := maxItems
@@ -84,31 +75,11 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 	}
 
 	cb := func(item types.MediaItem, path string, root string) error {
-		subs := ""
-		if len(item.Subtitles) > 0 {
-			if b, mErr := json.Marshal(item.Subtitles); mErr == nil {
-				subs = string(b)
-			}
-		}
-
-		if stmt != nil {
-			if _, execErr := stmt.ExecContext(ctx,
-				item.ID,
-				path,
-				item.Name,
-				item.Ext,
-				item.Kind,
-				item.ShareLabel,
-				item.Size,
-				item.ModTime,
-				subs,
-				item.CoverID,
-				item.LyricsID,
-				scanID,
-				root,
-			); execErr != nil {
-				return execErr
-			}
+		item.ScanID = scanID
+		item.ShareRoot = root
+		item.Path = path
+		if err := db.UpsertMediaItem(ctx, tx, &item); err != nil {
+			return err
 		}
 		seen++
 		return nil
@@ -128,11 +99,11 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 		}
 	}
 
-	if err := db.SetScanMeta(ctx, tx, cacheKey, db.ScanMeta{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
+	if err := db.SetScanMeta(ctx, tx, cacheKey, types.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
 		return 0, time.Time{}, false, err
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return 0, time.Time{}, false, err
 	}
 	return scanID, builtAt, complete, nil

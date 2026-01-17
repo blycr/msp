@@ -3,6 +3,7 @@ param(
   [string[]]$Architectures = @('x64')
 )
 
+
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -103,6 +104,7 @@ function Build-Go {
   }
 }
 
+
 function Write-Checksum {
   param([string]$FilePath, [string]$ChecksumPath)
   $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $FilePath
@@ -151,6 +153,49 @@ Invoke-Step 'Cross Build Artifacts' {
     Write-Checksum (Join-Path $binRoot 'linux/amd64/msp-linux-amd64') (Join-Path $chkRoot 'msp-linux-amd64.sha256')
     Write-DebugCopy (Join-Path $binRoot 'linux/amd64/msp-linux-amd64') (Join-Path $dbgRoot 'linux/amd64/msp-linux-amd64.debug')
   }
+
+  if (ShouldBuild 'linux' 'arm64') {
+    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'linux/arm64/msp-linux-arm64')
+    Write-Checksum (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $chkRoot 'msp-linux-arm64.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $dbgRoot 'linux/arm64/msp-linux-arm64.debug')
+  }
+
+  if (ShouldBuild 'arm' 'v7') {
+    Build-Go 'linux' 'arm' (Join-Path $binRoot 'arm/v7/msp-arm-v7') '7'
+    Write-Checksum (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $chkRoot 'msp-arm-v7.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $dbgRoot 'arm/v7/msp-arm-v7.debug')
+  }
+
+  if (ShouldBuild 'arm' 'v8') {
+    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'arm/v8/msp-arm-v8')
+    Write-Checksum (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $chkRoot 'msp-arm-v8.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $dbgRoot 'arm/v8/msp-arm-v8.debug')
+  }
+
+  if (ShouldBuild 'macos' 'amd64') {
+    Build-Go 'darwin' 'amd64' (Join-Path $binRoot 'macos/msp-macos-amd64')
+    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $chkRoot 'msp-macos-amd64.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $dbgRoot 'macos/msp-macos-amd64.debug')
+  }
+
+  if (ShouldBuild 'macos' 'arm64') {
+    Build-Go 'darwin' 'arm64' (Join-Path $binRoot 'macos/msp-macos-arm64')
+    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $chkRoot 'msp-macos-arm64.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $dbgRoot 'macos/msp-macos-arm64.debug')
+  }
+
+  if (ShouldBuild 'windows' 'x64') {
+    Build-Go 'windows' 'amd64' (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe')
+    Write-Checksum (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $chkRoot 'msp-windows-amd64.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $dbgRoot 'windows/x64/msp-windows-amd64.debug')
+  }
+
+  if (ShouldBuild 'windows' 'x86') {
+    Build-Go 'windows' '386' (Join-Path $binRoot 'windows/x86/msp-windows-386.exe')
+    Write-Checksum (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $chkRoot 'msp-windows-386.sha256')
+    Write-DebugCopy (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $dbgRoot 'windows/x86/msp-windows-386.debug')
+  }
+
 
   if (ShouldBuild 'linux' 'arm64') {
     Build-Go 'linux' 'arm64' (Join-Path $binRoot 'linux/arm64/msp-linux-arm64')

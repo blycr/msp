@@ -97,6 +97,7 @@ func (s *Server) LoadOrInitConfig() error {
 	s.cfg = cfg
 	s.mu.Unlock()
 	if changed {
+		s.Log(LogLevelInfo, "Config updated with default values and saved to disk")
 		return s.saveConfigLocked()
 	}
 	return nil

@@ -8,11 +8,28 @@
     "captions": false,
     "playlist": false
   },
-  "ui": {},
+  "ui": {
+    "defaultTab": null,
+    "showOthers": null
+  },
   "playback": {
-    "audio": {},
-    "video": {},
-    "image": {}
+    "audio": {
+      "enabled": null,
+      "shuffle": null,
+      "remember": null,
+      "scope": null,
+      "transcode": null
+    },
+    "video": {
+      "enabled": null,
+      "scope": null,
+      "transcode": null,
+      "resume": null
+    },
+    "image": {
+      "enabled": null,
+      "scope": null
+    }
   },
   "blacklist": {
     "extensions": null,

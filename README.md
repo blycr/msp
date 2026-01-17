@@ -34,6 +34,11 @@ For configuration, build steps, troubleshooting, and advanced usage, please visi
 
 👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
 
+### Wiki Highlights
+- **[Installation](https://github.com/blycr/msp/wiki/Installation)**: Setup guide for Windows, macOS, and Linux.
+- **[Configuration](https://github.com/blycr/msp/wiki/Configuration)**: Detailed config options (Shares, Security, Transcoding).
+- **[Encoding Support](https://github.com/blycr/msp/wiki/Encoding)**: Supported formats and FFmpeg transcoding guide.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

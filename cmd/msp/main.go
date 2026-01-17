@@ -68,6 +68,7 @@ func main() {
 	mux.Handle("/api/probe", http.HandlerFunc(h.HandleProbe))
 	mux.Handle("/api/ip", http.HandlerFunc(h.HandleIP))
 	mux.Handle("/api/prefs", http.HandlerFunc(h.HandlePrefs))
+	mux.Handle("/api/progress", http.HandlerFunc(h.HandleProgress))
 	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
 	mux.Handle("/api/pin", http.HandlerFunc(h.HandlePIN))
 

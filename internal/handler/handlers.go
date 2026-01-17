@@ -43,11 +43,13 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 
 		cfg := h.s.Config()
 
-		writeJSON(w, http.StatusOK, types.ConfigResponse{
-			Config:  cfg,
-			LanIPs:  ips,
-			Urls:    urls,
-			NowUnix: time.Now().Unix(),
+		writeJSON(w, http.StatusOK, map[string]any{
+			"config":           cfg,
+			"lanIPs":           ips,
+			"urls":             urls,
+			"nowUnix":          time.Now().Unix(),
+			"ffmpegAvailable":  media.CheckFFmpeg(),
+			"ffprobeAvailable": media.CheckFFprobe(),
 		})
 	case http.MethodPost:
 		var cfg config.Config
@@ -190,6 +192,45 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: req.Prefs})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			http.Error(w, "missing id", http.StatusBadRequest)
+			return
+		}
+		t, err := db.GetProgress(r.Context(), id)
+		if err != nil {
+			log.Printf("Error in GetProgress: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "读取进度失败"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"time": t})
+	case http.MethodPost:
+		var req struct {
+			ID   string  `json:"id"`
+			Time float64 `json:"time"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "JSON 解析失败"})
+			return
+		}
+		if req.ID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "缺少 id"})
+			return
+		}
+		if err := db.SetProgress(r.Context(), req.ID, req.Time); err != nil {
+			log.Printf("Error in SetProgress: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "保存进度失败"})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -375,6 +416,66 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	if ct == "" {
 		ct = "application/octet-stream"
 	}
+
+	// --- 智能转码决策逻辑 ---
+	isAudio := media.ClassifyExt(ext) == "audio"
+	isVideo := media.ClassifyExt(ext) == "video"
+
+	// 判断是否应该触发转码逻辑 (FFmpeg)
+	shouldTranscode := false
+
+	// 1. 如果用户显式要求转码
+	if r.URL.Query().Get("transcode") == "1" {
+		shouldTranscode = true
+	} else {
+		// 2. 如果配置开启了转码，且文件是“已知不兼容”或“可能有风险”的格式
+		if isVideo && cfg.Playback.Video.Transcode != nil && *cfg.Playback.Video.Transcode {
+			// 对于视频，只有 .mp4, .m4v, .webm 尝试直接播放，其他（.mkv, .avi, .ts等）自动走 FFmpeg
+			if ext != ".mp4" && ext != ".m4v" && ext != ".webm" {
+				shouldTranscode = true
+			}
+		} else if isAudio && cfg.Playback.Audio.Transcode != nil && *cfg.Playback.Audio.Transcode {
+			// 对于音频，只有 .mp3, .m4a, .aac, .wav 尝试直接播放，其他（.flac, .ape, .ogg等）自动走 FFmpeg
+			if ext != ".mp3" && ext != ".m4a" && ext != ".aac" && ext != ".wav" {
+				shouldTranscode = true
+			}
+		}
+	}
+
+	canTranscode := media.CheckFFmpeg()
+
+	if shouldTranscode && canTranscode {
+		start, _ := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
+		opts := media.TranscodeOptions{
+			Format:  r.URL.Query().Get("format"),
+			Bitrate: r.URL.Query().Get("bitrate"),
+			Offset:  start,
+		}
+
+		// 自动决定输出格式
+		if isAudio && opts.Format == "" {
+			opts.Format = "mp3"
+		}
+
+		stream, err := media.TranscodeStream(r.Context(), target, opts)
+		if err == nil {
+			defer func() { _ = stream.Close() }()
+			if isAudio {
+				w.Header().Set("Content-Type", "audio/mpeg")
+			} else {
+				w.Header().Set("Content-Type", "video/mp4")
+			}
+			w.Header().Set("X-MSP-Transcode", "1")
+			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Del("Content-Length")
+			_, _ = io.Copy(w, stream)
+			return
+		}
+		// 如果启动转码失败，则回退到下面的原生播放
+		log.Printf("[WARN] Transcode failed for %s, falling back to direct play: %v", target, err)
+	}
+
+	// --- 原生直接播放逻辑 (Direct Play) ---
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Cache-Control", "no-store")

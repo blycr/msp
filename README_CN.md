@@ -30,7 +30,12 @@
 
 关于配置、构建、常见问题排查与高级用法，请查阅项目 Wiki：
 
-👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
+👉 **[MSP Project Wiki (中文文档)](https://github.com/blycr/msp/wiki/Home_CN)**
+
+### Wiki 导航
+- **[安装与运行](https://github.com/blycr/msp/wiki/Installation_CN)**: Windows/macOS/Linux 详细部署指南
+- **[配置指南](https://github.com/blycr/msp/wiki/Configuration_CN)**: 共享目录、安全设置、转码配置详解
+- **[编码兼容性](https://github.com/blycr/msp/wiki/Encoding_CN)**: 格式支持列表与 FFmpeg 转码说明
 
 ## 开源许可
 
