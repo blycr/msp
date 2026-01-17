@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log"
 	"msp/internal/types"
 	"os"
 	"path/filepath"
@@ -39,9 +40,16 @@ func Init(dbPath string) error {
 	if err == nil {
 		sqlDB.SetMaxOpenConns(1) // SQLite 建议单连接以避免过多的锁竞争（除非开启 WAL）
 		sqlDB.SetMaxIdleConns(1)
-		sqlDB.Exec("PRAGMA journal_mode=WAL;")
-		sqlDB.Exec("PRAGMA synchronous=NORMAL;")
-		sqlDB.Exec("PRAGMA cache_size=-2000;")
+
+		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+			log.Printf("DB Warn: failed to set WAL mode: %v", err)
+		}
+		if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
+			log.Printf("DB Warn: failed to set synchronous mode: %v", err)
+		}
+		if _, err := sqlDB.Exec("PRAGMA cache_size=-2000;"); err != nil {
+			log.Printf("DB Warn: failed to set cache size: %v", err)
+		}
 	}
 
 	return DB.AutoMigrate(&types.MediaItem{}, &types.MediaScan{}, &types.UserPref{}, &types.PlaybackProgress{})
