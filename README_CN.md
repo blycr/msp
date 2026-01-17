@@ -1,53 +1,80 @@
-# MSP
+# MSP: 极简局域网媒体服务器
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp)
-![GitHub license](https://img.shields.io/github/license/blycr/msp)
-![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp)
+<div align="center">
 
-一个快速、重视隐私的局域网媒体分享与播放工具：单个可执行文件即可运行，网页端管理共享目录，打开即看即听。
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp?style=flat-square&color=blue)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
+![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
+![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
 
-## 为什么用 MSP
+<h3>打造你的家庭局域网影院。</h3>
+<p>轻量、高速、隐私安全的媒体流服务，专为家庭网络设计。</p>
 
-- 不用上传网盘：文件留在本机，通过局域网直接在浏览器里看/听
-- 不用折腾重型媒体库：不需要复杂部署，启动即可分享目录
-- 不用装客户端：同网段手机/电脑打开链接就能用
-- 大库也好逛：分类 + 搜索 + 播放列表，适合海量文件浏览
-- 播放体验优先：内置播放器与图片预览，提供容器/编码提示，支持字幕/歌词
-- 隐私友好：运行时配置只在本地保存，对外分享用示例配置模板
+[English](README.md) | [Wiki 文档](https://github.com/blycr/msp/wiki) | [提交 Bug](https://github.com/blycr/msp/issues)
 
-## 快速开始
+</div>
 
-运行可执行文件（默认端口 `8099`）：
+---
+
+**MSP** 是一个单文件部署的媒体服务器。只需在电脑上运行它，即可立刻通过现代化的 Web 界面，在局域网内的任何设备（手机、平板、电视）上播放你的视频和音频收藏。
+
+## ✨ 核心特性
+
+| 功能 | 说明 |
+| :--- | :--- |
+| 🚀 **零配置启动** | 无需安装数据库，无需复杂的环境配置。下载即用，一键运行。 |
+| 🍿 **智能转码** | 自动检测并实时转码浏览器不支持的格式（如 MKV, FLAC, AVI），实现无缝播放。 |
+| ⏸️ **断点续播** | 自动记录播放进度，在不同设备间无缝切换，随时继续观看。 |
+| 📱 **全平台支持** | 服务端支持 Windows/Linux/macOS。客户端支持所有现代浏览器（移动端适配完美）。 |
+| 🔒 **隐私优先** | 数据完全保存在本地，不上传云端，无追踪，安全可靠。 |
+| ⚡ **极速体验** | 基于 Go 和 Vite 构建。秒级启动，瞬间扫描海量媒体库。 |
+
+## 🚀 快速开始
+
+1.  **下载** 对应系统的最新版本：[Releases 页面](https://github.com/blycr/msp/releases)。
+2.  **运行** 可执行文件：
+    ```bash
+    # Windows
+    ./msp.exe
+
+    # Linux/macOS
+    ./msp
+    ```
+3.  **打开浏览器**：
+    控制台会打印访问地址（例如 `http://127.0.0.1:8099`）。
+    *首次运行时，你可以在网页界面中直接添加需要共享的文件夹。*
+
+## 📚 文档支持
+
+更多高级用法，请查阅 **[项目 Wiki](https://github.com/blycr/msp/wiki)**：
+
+*   **[安装指南](https://github.com/blycr/msp/wiki/Installation)** (包含 Docker、服务化运行教程)
+*   **[配置详解](https://github.com/blycr/msp/wiki/Configuration)**
+*   **[编码与转码](https://github.com/blycr/msp/wiki/Encoding)** (支持的格式说明)
+
+## 🛠️ 源码编译
+
+编译环境要求：**Go 1.24+**, **Node.js 18+** (用于编译前端)
 
 ```bash
-./bin/windows/x64/msp-windows-amd64.exe
+# 克隆仓库
+git clone https://github.com/blycr/msp.git
+cd msp
+
+# 编译所有组件 (前端 + 后端)
+# Windows 用户
+./scripts/build.ps1 -Platforms windows -Architectures x64
+
+# Linux/macOS 用户
+./scripts/build.sh --platforms linux --architectures amd64
 ```
 
-启动后访问日志里打印的地址（如 `http://127.0.0.1:8099/`）。
+## 📄 许可证
 
-## 文档与帮助
+本项目采用 [MIT License](LICENSE) 授权。
 
-关于配置、构建、常见问题排查与高级用法，请查阅项目 Wiki：
+## ❤️ 致谢
 
-👉 **[MSP Project Wiki (中文文档)](https://github.com/blycr/msp/wiki/Home_CN)**
-
-### Wiki 导航
-- **[安装与运行](https://github.com/blycr/msp/wiki/Installation_CN)**: Windows/macOS/Linux 详细部署指南
-- **[配置指南](https://github.com/blycr/msp/wiki/Configuration_CN)**: 共享目录、安全设置、转码配置详解
-- **[编码兼容性](https://github.com/blycr/msp/wiki/Encoding_CN)**: 格式支持列表与 FFmpeg 转码说明
-
-## 开源许可
-
-本项目采用 [MIT License](LICENSE) 开源。
-
-## 致谢
-
-- [Plyr](https://github.com/sampotts/plyr) - A simple, accessible and customizable media player
-
-## 更新日志 (Release Notes)
-
-- [v0.5.8](docs/release/v0.5.8.md) - Context 重构与安全修复
-- [v0.5.7](docs/release/v0.5.7.md) - 代码重构与 CI 集成
-- [v0.5.6](docs/release/v0.5.6.md)
-- [v0.5.5](docs/release/v0.5.5.md)
+*   [Plyr](https://github.com/sampotts/plyr) - 简单、灵活的 HTML5 媒体播放器。
+*   [Gin](https://github.com/gin-gonic/gin) - 高性能 Go Web 框架。
+*   [GORM](https://gorm.io/) - 优秀的 Golang ORM 库。

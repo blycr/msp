@@ -1,55 +1,80 @@
-# MSP
+# MSP: Media Share & Preview
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp)
-![GitHub license](https://img.shields.io/github/license/blycr/msp)
-![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp)
+<div align="center">
 
-[中文文档](README_CN.md)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp?style=flat-square&color=blue)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
+![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
+![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
 
-A fast, privacy-friendly LAN media share with a modern browser player — run one binary, share folders, and start watching/listening instantly.
+<h3>Your Personal LAN Cinema.</h3>
+<p>Lightweight, fast, and privacy-friendly media streaming for your home network.</p>
 
-## Why MSP
+[中文文档](README_CN.md) | [Wiki](https://github.com/blycr/msp/wiki) | [Report Bug](https://github.com/blycr/msp/issues)
 
-- **No cloud upload**: Keep files on your machine; share over LAN with the browser.
-- **No heavy media-server setup**: No database tuning; just start and share folders.
-- **No client apps to install**: Works on phones/PCs in the same network.
-- **Fast to browse**: Categorized lists + search + playlists, designed for large libraries.
-- **Playback-first**: Built-in player, image preview, codec/container hints, subtitles/lyrics.
-- **Privacy-friendly**: Runtime config stays local; use a template file for sharing configs.
+</div>
 
-## Quick Start
+---
 
-Run the executable (default port `8099`):
+**MSP** is a single-binary media server designed for simplicity. Run it on your PC, and instantly stream your video and audio collections to any device on your Wi-Fi/LAN via a modern web interface.
+
+## ✨ Why MSP?
+
+| Feature | Description |
+| :--- | :--- |
+| 🚀 **Zero Config** | No database setup, no complex installation. Just run the binary. |
+| 🍿 **Smart Transcoding** | Automatically transcodes unsupported formats (MKV, FLAC, AVI) to play in your browser. |
+| ⏸️ **Resume Playback** | Remember exactly where you left off, across all devices. |
+| 📱 **Cross Platform** | Server runs on Windows/Linux/macOS. Client works on any modern browser (Mobile/Desktop). |
+| 🔒 **Privacy First** | No cloud accounts, no tracking. Your media stays on your local network. |
+| ⚡ **Blazing Fast** | Built with Go and Vite. Instant scanning and navigation. |
+
+## 🚀 Quick Start
+
+1.  **Download** the latest release for your OS from [Releases](https://github.com/blycr/msp/releases).
+2.  **Run** the executable:
+    ```bash
+    # Windows
+    ./msp.exe
+
+    # Linux/macOS
+    ./msp
+    ```
+3.  **Open** the browser:
+    The console will print the address (e.g., `http://127.0.0.1:8099`).
+    *On first run, you can configure your shared folders directly in the UI.*
+
+## 📚 Documentation
+
+Visit the **[Project Wiki](https://github.com/blycr/msp/wiki)** for detailed guides:
+
+*   **[Installation Guide](https://github.com/blycr/msp/wiki/Installation)** (Run as Service, Docker, etc.)
+*   **[Configuration Reference](https://github.com/blycr/msp/wiki/Configuration)**
+*   **[Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)**
+
+## 🛠️ Build from Source
+
+Requirements: **Go 1.24+**, **Node.js 18+** (for frontend)
 
 ```bash
-./bin/windows/x64/msp-windows-amd64.exe
+# Clone the repo
+git clone https://github.com/blycr/msp.git
+cd msp
+
+# Build everything (frontend + backend)
+# Windows
+./scripts/build.ps1 -Platforms windows -Architectures x64
+
+# Linux/macOS
+./scripts/build.sh --platforms linux --architectures amd64
 ```
 
-After startup, visit the address printed in the console (e.g., `http://127.0.0.1:8099/`).
+## 📄 License
 
-## Documentation & Help
+MIT License © 2024-Present [blycr](https://github.com/blycr)
 
-For configuration, build steps, troubleshooting, and advanced usage, please visit the Project Wiki:
+## ❤️ Acknowledgements
 
-👉 **[MSP Project Wiki](https://github.com/blycr/msp/wiki)**
-
-### Wiki Highlights
-- **[Installation](https://github.com/blycr/msp/wiki/Installation)**: Setup guide for Windows, macOS, and Linux.
-- **[Configuration](https://github.com/blycr/msp/wiki/Configuration)**: Detailed config options (Shares, Security, Transcoding).
-- **[Encoding Support](https://github.com/blycr/msp/wiki/Encoding)**: Supported formats and FFmpeg transcoding guide.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-- [Plyr](https://github.com/sampotts/plyr) - A simple, accessible and customizable media player
-
-## Release Notes
-
-- [v0.5.8](docs/release/v0.5.8.md) - Context Refactoring & Security Fixes
-- [v0.5.7](docs/release/v0.5.7.md) - Code Refactoring & CI Integration
-- [v0.5.6](docs/release/v0.5.6.md)
-- [v0.5.5](docs/release/v0.5.5.md)
+*   [Plyr](https://github.com/sampotts/plyr) - A simple, accessible HTML5 media player.
+*   [Gin](https://github.com/gin-gonic/gin) - HTTP web framework written in Go.
+*   [GORM](https://gorm.io/) - The fantastic ORM library for Golang.
