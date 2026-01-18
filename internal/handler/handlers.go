@@ -390,21 +390,26 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	// 判断是否应该触发转码逻辑 (FFmpeg)
 	shouldTranscode := false
 
-	// 1. 如果用户显式要求转码
+	// 策略修改：只有前端明确请求转码（?transcode=1）且配置允许时，才进行转码。
+	// 默认情况下，所有文件（包括 MKV, AVI, FLAC 等）都尝试原生直接播放。
+	// 前端如果播放失败（解码错误），会自动重试并带上 transcode=1 参数。
+
 	if r.URL.Query().Get("transcode") == "1" {
-		shouldTranscode = true
-	} else {
-		// 2. 如果配置开启了转码，且文件是“已知不兼容”或“可能有风险”的格式
+		// 检查配置是否允许转码（作为安全开关）
+		allowed := false
 		if isVideo && cfg.Playback.Video.Transcode != nil && *cfg.Playback.Video.Transcode {
-			// 对于视频，只有 .mp4, .m4v, .webm 尝试直接播放，其他（.mkv, .avi, .ts等）自动走 FFmpeg
-			if ext != ".mp4" && ext != ".m4v" && ext != ".webm" {
-				shouldTranscode = true
-			}
+			allowed = true
 		} else if isAudio && cfg.Playback.Audio.Transcode != nil && *cfg.Playback.Audio.Transcode {
-			// 对于音频，只有 .mp3, .m4a, .aac, .wav 尝试直接播放，其他（.flac, .ape, .ogg等）自动走 FFmpeg
-			if ext != ".mp3" && ext != ".m4a" && ext != ".aac" && ext != ".wav" {
-				shouldTranscode = true
-			}
+			allowed = true
+		}
+
+		if allowed {
+			shouldTranscode = true
+		} else {
+			// 如果请求了转码但配置不允许，直接返回 403，
+			// 这样前端能明确知道“尝试转码失败”，而不是得到一个原生流再次报错。
+			http.Error(w, "Transcoding is disabled in configuration", http.StatusForbidden)
+			return
 		}
 	}
 

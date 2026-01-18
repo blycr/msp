@@ -33,7 +33,7 @@
     "video": {
       "enabled": true,
       "scope": "folder",
-      "transcode": false,
+      "transcode": true,
       "resume": true
     },
     "image": {

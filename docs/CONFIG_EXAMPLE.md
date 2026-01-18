@@ -75,7 +75,13 @@
     },
     "video": {
       "enabled": true,
-      "scope": "folder"
+      "scope": "folder",
+      
+      // 是否启用转码（推荐开启）
+      // 开启后，如果浏览器无法直接播放（如 MKV, AVI, FLAC），
+      // 前端会自动回退请求后端进行实时转码。
+      // 如果关闭，不支持的格式将无法播放。
+      "transcode": true
     },
     "image": {
       "enabled": true,

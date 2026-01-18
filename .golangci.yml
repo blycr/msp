@@ -10,6 +10,9 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - gosec
+    - gocyclo
+    - misspell
 
 issues:
   exclude-use-default: false

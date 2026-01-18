@@ -8,13 +8,31 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+	"sync"
 )
+
+// Global semaphore for limiting concurrent transcode sessions
+// Limit to 2 concurrent sessions to prevent CPU starvation
+var transcodeLimit = make(chan struct{}, 2)
 
 // TranscodeOptions 定义转码参数
 type TranscodeOptions struct {
 	Bitrate string  // 目标码率，如 "2M"
 	Format  string  // 目标格式，如 "mp4"
 	Offset  float64 // 起始偏移量 (秒)
+}
+
+// limitReleaser wraps io.ReadCloser to release semaphore on Close
+type limitReleaser struct {
+	io.ReadCloser
+	once sync.Once
+}
+
+func (l *limitReleaser) Close() error {
+	l.once.Do(func() {
+		<-transcodeLimit
+	})
+	return l.ReadCloser.Close()
 }
 
 // CodecInfo 存储媒体编码信息
@@ -70,9 +88,25 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 
 // TranscodeStream 执行智能转码输出
 func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOptions) (io.ReadCloser, error) {
+	// Acquire semaphore
+	select {
+	case transcodeLimit <- struct{}{}:
+		// Acquired
+	default:
+		return nil, fmt.Errorf("server busy: max transcode limit reached")
+	}
+
 	if opts.Format == "" {
 		opts.Format = "mp4"
 	}
+
+	// Helper to release if we fail before returning
+	success := false
+	defer func() {
+		if !success {
+			<-transcodeLimit
+		}
+	}()
 
 	// 1. 尝试获取编码信息
 	codec, _ := GetCodecInfo(ctx, inputPath)
@@ -142,5 +176,6 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 		_ = cmd.Wait()
 	}()
 
-	return stdout, nil
+	success = true
+	return &limitReleaser{ReadCloser: stdout}, nil
 }

@@ -31,7 +31,7 @@ func TestHandleConfig(t *testing.T) {
 	h := New(s)
 
 	t.Run("GET Config", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/config", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
 		w := httptest.NewRecorder()
 
 		h.HandleConfig(w, req)
@@ -54,7 +54,7 @@ func TestHandleConfig(t *testing.T) {
 		newCfg := config.Default()
 		newCfg.Port = 9090
 		body, _ := json.Marshal(newCfg)
-		req := httptest.NewRequest("POST", "/api/config", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
 		w := httptest.NewRecorder()
 
 		h.HandleConfig(w, req)
