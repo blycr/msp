@@ -1089,7 +1089,96 @@ body {
   overflow: auto;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 980px) {
+  .layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Fill available space */
+    overflow-y: auto; /* Scroll inside layout */
+    overflow-x: hidden;
+    padding: 16px;
+    padding-bottom: 80px; /* Extra space at bottom */
+    gap: 24px; /* More breathing room */
+  }
+
+  .sidebar,
+  .stage,
+  .playlist {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    flex: 0 0 auto; /* Prevent shrinking */
+  }
+
+  /* Order: Stage (Player) -> Playlist -> Sidebar (Files) */
+  .stage {
+    order: 1;
+  }
+
+  .playlist {
+    order: 2;
+  }
+
+  .sidebar {
+    order: 3;
+  }
+
+  /* Adjust heights for mobile */
+  .playerbox {
+    min-height: auto;
+    /* Remove fixed aspect-ratio to allow audio content to expand naturally */
+    /* aspect-ratio: 16/9; */ 
+    height: auto;
+  }
+
+  /* Audio specific adjustments for mobile */
+  .audioMeta {
+    flex-direction: column;
+    align-items: center; /* Center content */
+    gap: 16px;
+  }
+
+  .audioCover {
+    width: 160px; /* Fix cover size to avoid taking full width */
+    height: 160px;
+    flex: 0 0 auto;
+    margin: 0 auto;
+  }
+
+  .lyrics {
+    height: auto;
+    max-height: 240px; /* Reasonable height for lyrics */
+    min-height: 100px;
+    width: 100%;
+  }
+
+  /* Video player can keep aspect ratio if needed, but safer to let it flow */
+  #videoEl {
+    max-height: 50vh;
+  }
+
+  .playlist__body {
+    height: auto;
+    max-height: 50vh;
+    min-height: 150px;
+  }
+
+  .list__body {
+    height: auto;
+    max-height: 60vh;
+    min-height: 300px;
+  }
+
+  /* Hide sidebar tabs text if needed, or keep as is */
+  
+  .dialog {
+    width: 95%;
+    max-height: 90vh;
+  }
+
   .dialog__grid {
     grid-template-columns: 1fr;
   }
