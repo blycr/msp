@@ -31,7 +31,7 @@
 | 🔒 **Privacy First** | No cloud accounts, no tracking. Your media stays on your local network. |
 | ⚡ **Blazing Fast** | Built with Go and Vite. Instant scanning and navigation. |
 
-## �️ Preview
+## 🖼️ Preview
 
 <div align="center">
 
@@ -49,7 +49,7 @@
 
 </div>
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 1.  **Download** the latest release for your OS from [Releases](https://github.com/blycr/msp/releases).
 2.  **Run** the executable:
