@@ -200,6 +200,7 @@ func (s *Server) SetupLogger() {
 		_ = s.logFile.Close()
 	}
 
+	//nolint:gosec // Log file path is controlled by config/CLI
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
@@ -267,6 +268,7 @@ func (s *Server) RotateLogIfNeeded() {
 	_ = os.Remove(oldPath)
 	_ = os.Rename(path, oldPath)
 
+	//nolint:gosec // Path already verified
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err == nil {
 		s.logFile = f
@@ -565,13 +567,14 @@ func sharesCacheKey(shares []config.Share) string {
 
 func weakETag(key string, builtAt time.Time) string {
 	h := fnv.New64a()
-	h.Write([]byte(key))
+	_, _ = h.Write([]byte(key))
 	var t [8]byte
+	//nolint:gosec // int64 timestamp to uint64 hash input is safe for build time
 	n := uint64(builtAt.UnixNano())
 	for i := 0; i < 8; i++ {
 		t[i] = byte(n)
 		n >>= 8
 	}
-	h.Write(t[:])
+	_, _ = h.Write(t[:])
 	return `W/` + util.U64Base36(h.Sum64()) + ``
 }
