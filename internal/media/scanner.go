@@ -347,12 +347,16 @@ done:
 	return coverAbs, lyricsAbs
 }
 
+// SniffContainerCodecs reads the file header (and tail for MOV/MP4 atoms) to guess codecs.
+// Returns (videoCodec, audioCodec).
 func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
+	//nolint:gosec // Safe file open for sniffing
 	f, err := os.Open(fileAbs)
 	if err != nil {
 		return "", ""
 	}
 	defer func() { _ = f.Close() }()
+
 	const max = 2 << 20
 	head, err := io.ReadAll(io.LimitReader(f, max))
 	if err != nil || len(head) == 0 {
@@ -368,60 +372,78 @@ func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
 		_, _ = f.ReadAt(tail, st.Size()-tailSize)
 		b = append(head, tail...)
 	}
+
+	if ext == ".mkv" {
+		return sniffMKV(b)
+	}
+	if ext == ".mp4" || ext == ".m4v" || ext == ".mov" {
+		return sniffMP4(b)
+	}
+	return "", ""
+}
+
+func sniffMKV(b []byte) (string, string) {
 	video := ""
 	var audioParts []string
 	has := func(s string) bool { return bytes.Contains(b, []byte(s)) }
-	if ext == ".mkv" {
-		if has("V_MPEGH/ISO/HEVC") {
-			video = "H.265/HEVC"
-		} else if has("V_MPEG4/ISO/AVC") {
-			video = "H.264/AVC"
-		} else if has("V_AV1") {
-			video = "AV1"
-		} else if has("V_VP9") {
-			video = "VP9"
-		}
-		if has("A_EAC3") {
-			audioParts = append(audioParts, "E-AC-3")
-		} else if has("A_AC3") {
-			audioParts = append(audioParts, "AC-3")
-		} else if has("A_OPUS") {
-			audioParts = append(audioParts, "Opus")
-		} else if has("A_AAC") {
-			audioParts = append(audioParts, "AAC")
-		} else if has("A_VORBIS") {
-			audioParts = append(audioParts, "Vorbis")
-		} else if has("A_FLAC") {
-			audioParts = append(audioParts, "FLAC")
-		} else if has("A_DTS") {
-			audioParts = append(audioParts, "DTS")
-		} else if has("A_TRUEHD") {
-			audioParts = append(audioParts, "TrueHD")
-		}
-		return video, strings.Join(audioParts, " + ")
+
+	if has("V_MPEGH/ISO/HEVC") {
+		video = "H.265/HEVC"
+	} else if has("V_MPEG4/ISO/AVC") {
+		video = "H.264/AVC"
+	} else if has("V_AV1") {
+		video = "AV1"
+	} else if has("V_VP9") {
+		video = "VP9"
 	}
-	if ext == ".mp4" || ext == ".m4v" || ext == ".mov" {
-		if has("hvc1") || has("hev1") {
-			video = "H.265/HEVC"
-		} else if has("avc1") {
-			video = "H.264/AVC"
-		} else if has("av01") {
-			video = "AV1"
-		} else if has("vp09") {
-			video = "VP9"
-		}
-		if has("ec-3") {
-			audioParts = append(audioParts, "E-AC-3")
-		} else if has("ac-3") {
-			audioParts = append(audioParts, "AC-3")
-		} else if has("mp4a") {
-			audioParts = append(audioParts, "AAC/MP4A")
-		} else if has("opus") {
-			audioParts = append(audioParts, "Opus")
-		}
-		return video, strings.Join(audioParts, " + ")
+
+	if has("A_EAC3") {
+		audioParts = append(audioParts, "E-AC-3")
+	} else if has("A_AC3") {
+		audioParts = append(audioParts, "AC-3")
+	} else if has("A_OPUS") {
+		audioParts = append(audioParts, "Opus")
+	} else if has("A_AAC") {
+		audioParts = append(audioParts, "AAC")
+	} else if has("A_VORBIS") {
+		audioParts = append(audioParts, "Vorbis")
+	} else if has("A_FLAC") {
+		audioParts = append(audioParts, "FLAC")
+	} else if has("A_DTS") {
+		audioParts = append(audioParts, "DTS")
+	} else if has("A_TRUEHD") {
+		audioParts = append(audioParts, "TrueHD")
 	}
-	return "", ""
+
+	return video, strings.Join(audioParts, " + ")
+}
+
+func sniffMP4(b []byte) (string, string) {
+	video := ""
+	var audioParts []string
+	has := func(s string) bool { return bytes.Contains(b, []byte(s)) }
+
+	if has("hvc1") || has("hev1") {
+		video = "H.265/HEVC"
+	} else if has("avc1") {
+		video = "H.264/AVC"
+	} else if has("av01") {
+		video = "AV1"
+	} else if has("vp09") {
+		video = "VP9"
+	}
+
+	if has("ec-3") {
+		audioParts = append(audioParts, "E-AC-3")
+	} else if has("ac-3") {
+		audioParts = append(audioParts, "AC-3")
+	} else if has("mp4a") {
+		audioParts = append(audioParts, "AAC/MP4A")
+	} else if has("opus") {
+		audioParts = append(audioParts, "Opus")
+	}
+
+	return video, strings.Join(audioParts, " + ")
 }
 
 func SrtToVtt(in []byte) []byte {

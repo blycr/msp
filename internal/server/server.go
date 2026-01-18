@@ -110,7 +110,7 @@ func (s *Server) saveConfigLocked() error {
 	}
 
 	tmp := s.cfgPath + ".tmp"
-	if err := os.WriteFile(tmp, b, 0644); err != nil {
+	if err := os.WriteFile(tmp, b, 0600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.cfgPath)
@@ -539,7 +539,7 @@ func (s *Server) saveMediaCacheToDisk(key string, builtAt time.Time, etag string
 		return
 	}
 	tmp := s.mediaCachePath + ".tmp"
-	if err := os.WriteFile(tmp, b, 0644); err != nil {
+	if err := os.WriteFile(tmp, b, 0600); err != nil {
 		return
 	}
 	_ = os.Rename(tmp, s.mediaCachePath)

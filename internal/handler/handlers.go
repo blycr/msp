@@ -332,6 +332,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad id", http.StatusBadRequest)
 		return
 	}
+	//nolint:gosec // Validated via util.DecodeID and IsAllowedFile below
 	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
@@ -342,6 +343,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gosec // Path is validated above
 	f, err := os.Open(target)
 	if err != nil {
 		http.Error(w, "open failed", http.StatusNotFound)
@@ -356,6 +358,27 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(st.Name()))
+	ct := determineContentType(ext)
+
+	// Check Transcoding Policy
+	shouldTranscode, err := h.checkTranscodePolicy(r, cfg, ext)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	if shouldTranscode && media.CheckFFmpeg() {
+		if h.tryServeTranscode(w, r, target, ext) {
+			return
+		}
+		log.Printf("[WARN] Transcode failed for %s, falling back to direct play", target)
+	}
+
+	// Direct Play
+	h.serveDirect(w, r, f, st, ct)
+}
+
+func determineContentType(ext string) string {
 	var ct string
 	switch ext {
 	case ".mp4", ".m4v":
@@ -382,76 +405,67 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	if ct == "" {
 		ct = "application/octet-stream"
 	}
+	return ct
+}
 
-	// --- 智能转码决策逻辑 ---
+func (h *Handler) checkTranscodePolicy(r *http.Request, cfg config.Config, ext string) (bool, error) {
+	if r.URL.Query().Get("transcode") != "1" {
+		return false, nil
+	}
+
 	isAudio := media.ClassifyExt(ext) == "audio"
 	isVideo := media.ClassifyExt(ext) == "video"
 
-	// 判断是否应该触发转码逻辑 (FFmpeg)
-	shouldTranscode := false
-
-	// 策略修改：只有前端明确请求转码（?transcode=1）且配置允许时，才进行转码。
-	// 默认情况下，所有文件（包括 MKV, AVI, FLAC 等）都尝试原生直接播放。
-	// 前端如果播放失败（解码错误），会自动重试并带上 transcode=1 参数。
-
-	if r.URL.Query().Get("transcode") == "1" {
-		// 检查配置是否允许转码（作为安全开关）
-		allowed := false
-		if isVideo && cfg.Playback.Video.Transcode != nil && *cfg.Playback.Video.Transcode {
-			allowed = true
-		} else if isAudio && cfg.Playback.Audio.Transcode != nil && *cfg.Playback.Audio.Transcode {
-			allowed = true
-		}
-
-		if allowed {
-			shouldTranscode = true
-		} else {
-			// 如果请求了转码但配置不允许，直接返回 403，
-			// 这样前端能明确知道“尝试转码失败”，而不是得到一个原生流再次报错。
-			http.Error(w, "Transcoding is disabled in configuration", http.StatusForbidden)
-			return
-		}
+	allowed := false
+	if isVideo && cfg.Playback.Video.Transcode != nil && *cfg.Playback.Video.Transcode {
+		allowed = true
+	} else if isAudio && cfg.Playback.Audio.Transcode != nil && *cfg.Playback.Audio.Transcode {
+		allowed = true
 	}
 
-	canTranscode := media.CheckFFmpeg()
+	if !allowed {
+		return false, fmt.Errorf("transcoding is disabled in configuration")
+	}
+	return true, nil
+}
 
-	if shouldTranscode && canTranscode {
-		start, _ := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
-		opts := media.TranscodeOptions{
-			Format:  r.URL.Query().Get("format"),
-			Bitrate: r.URL.Query().Get("bitrate"),
-			Offset:  start,
-		}
-
-		// 自动决定输出格式
-		if isAudio && opts.Format == "" {
-			opts.Format = "mp3"
-		}
-
-		stream, err := media.TranscodeStream(r.Context(), target, opts)
-		if err == nil {
-			defer func() { _ = stream.Close() }()
-			if isAudio {
-				w.Header().Set("Content-Type", "audio/mpeg")
-			} else {
-				w.Header().Set("Content-Type", "video/mp4")
-			}
-			w.Header().Set("X-MSP-Transcode", "1")
-			w.Header().Set("Cache-Control", "no-store")
-			w.Header().Del("Content-Length")
-			_, _ = io.Copy(w, stream)
-			return
-		}
-		// 如果启动转码失败，则回退到下面的原生播放
-		log.Printf("[WARN] Transcode failed for %s, falling back to direct play: %v", target, err)
+func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, target string, ext string) bool {
+	isAudio := media.ClassifyExt(ext) == "audio"
+	start, _ := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
+	opts := media.TranscodeOptions{
+		Format:  r.URL.Query().Get("format"),
+		Bitrate: r.URL.Query().Get("bitrate"),
+		Offset:  start,
 	}
 
-	// --- 原生直接播放逻辑 (Direct Play) ---
+	if isAudio && opts.Format == "" {
+		opts.Format = "mp3"
+	}
+
+	stream, err := media.TranscodeStream(r.Context(), target, opts)
+	if err != nil {
+		log.Printf("[WARN] Transcode stream error: %v", err)
+		return false
+	}
+	defer func() { _ = stream.Close() }()
+
+	if isAudio {
+		w.Header().Set("Content-Type", "audio/mpeg")
+	} else {
+		w.Header().Set("Content-Type", "video/mp4")
+	}
+	w.Header().Set("X-MSP-Transcode", "1")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Del("Content-Length")
+	_, _ = io.Copy(w, stream)
+	return true
+}
+
+func (h *Handler) serveDirect(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo, ct string) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
-
 	http.ServeContent(w, r, st.Name(), time.Time{}, f)
 }
 
@@ -472,6 +486,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: "bad id"}})
 		return
 	}
+	//nolint:gosec // Validated via util.DecodeID
 	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
@@ -513,6 +528,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad id", http.StatusBadRequest)
 		return
 	}
+	//nolint:gosec // Validated via util.DecodeID
 	target = util.NormalizePath(target)
 
 	cfg := h.s.Config()
@@ -523,6 +539,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gosec // Validated path
 	f, err := os.Open(target)
 	if err != nil {
 		http.Error(w, "open failed", http.StatusNotFound)

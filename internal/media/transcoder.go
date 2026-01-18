@@ -69,6 +69,7 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	var info CodecInfo
 
 	// 获取视频编码
+	//nolint:gosec // Safe subprocess args
 	cmdV := exec.CommandContext(ctx, "ffprobe", args...)
 	outV, err := cmdV.Output()
 	if err == nil {
@@ -77,6 +78,7 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 
 	// 获取音频编码
 	args[2] = "a:0"
+	//nolint:gosec // Safe subprocess args
 	cmdA := exec.CommandContext(ctx, "ffprobe", args...)
 	outA, err := cmdA.Output()
 	if err == nil {
@@ -157,6 +159,7 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 
 	args = append(args, "-f", opts.Format, "-map_metadata", "-1", "pipe:1")
 
+	//nolint:gosec // Safe subprocess args
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	// 捕获 stderr 用于调试
