@@ -31,6 +31,24 @@
 | 🔒 **隐私优先** | 数据完全保存在本地，不上传云端，无追踪，安全可靠。 |
 | ⚡ **极速体验** | 基于 Go 和 Vite 构建。秒级启动，瞬间扫描海量媒体库。 |
 
+## 🖼️ 界面预览
+
+<div align="center">
+
+### 视频模式
+
+<kbd>
+  <img src="docs/images/preview-video-cn.png" alt="视频模式预览" width="100%" />
+</kbd>
+
+### 音频模式
+
+<kbd>
+  <img src="docs/images/preview-audio-cn.png" alt="音频模式预览" width="100%" />
+</kbd>
+
+</div>
+
 ## 🚀 快速开始
 
 1.  **下载** 对应系统的最新版本：[Releases 页面](https://github.com/blycr/msp/releases)。
