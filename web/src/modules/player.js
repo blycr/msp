@@ -625,8 +625,17 @@ export function playItem(item, opts) {
 
     const onTimeUpdate = (ev) => {
       if (!state.current || state.current.kind !== "audio") return;
+
+      // Fix for audio stopping early: if within 0.5s of end and playing, force end
+      // This helps when browser/decoder misses the 'ended' event or duration is slightly off
+      const t = audio.currentTime || 0;
+      const d = audio.duration || 0;
+      if (d > 0 && d - t < 0.5 && !audio.paused) {
+        onMediaEnded();
+      }
+
       if (!state.lyrics) return;
-      updateLyricsByTime(audio.currentTime || 0, ev.type === "seeked");
+      updateLyricsByTime(t, ev.type === "seeked");
     };
     audio.ontimeupdate = onTimeUpdate;
     audio.onseeked = onTimeUpdate;
