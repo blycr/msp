@@ -197,7 +197,7 @@ func (s *Server) SetupLogger() {
 	defer s.logMu.Unlock()
 
 	if s.logFile != nil {
-		s.logFile.Close()
+		_ = s.logFile.Close()
 	}
 
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
@@ -256,7 +256,7 @@ func (s *Server) RotateLogIfNeeded() {
 		return
 	}
 
-	s.logFile.Close()
+	_ = s.logFile.Close()
 	s.logFile = nil
 
 	s.mu.RLock()
