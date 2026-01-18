@@ -18,6 +18,8 @@ export const LS = {
   lang: 'msp.lang',
   volume: 'msp.volume',
   playlist: 'msp.playlist',
+  sortField: 'msp.sort.field',
+  sortOrder: 'msp.sort.order',
 };
 
 export const state = {
@@ -51,6 +53,14 @@ export const state = {
   },
   scanning: false,
 };
+
+// Initialize sort from LS
+try {
+  const sf = lsGet(LS.sortField);
+  if (sf) state.sort.field = sf;
+  const so = lsGet(LS.sortOrder);
+  if (so) state.sort.order = Number(so) || 1;
+} catch {}
 
 export function canStorage() {
   try {

@@ -810,6 +810,42 @@ export function bindGlobalHotkeys() {
       return;
     }
 
+    // Seek -/+ 10s
+    if (k === "ArrowLeft" || k === "ArrowRight") {
+      if (media && (act.kind === "video" || act.kind === "audio")) {
+        handled();
+        try {
+          const step = 10;
+          media.currentTime = k === "ArrowLeft" ? Math.max(0, media.currentTime - step) : Math.min(media.duration || 999999, media.currentTime + step);
+        } catch { }
+      }
+      return;
+    }
+
+    // Volume Up/Down
+    if (k === "ArrowUp" || k === "ArrowDown") {
+      if (media && (act.kind === "video" || act.kind === "audio")) {
+        handled();
+        try {
+          const step = 0.1;
+          let v = media.volume + (k === "ArrowUp" ? step : -step);
+          if (v < 0) v = 0;
+          if (v > 1) v = 1;
+          media.volume = v;
+        } catch { }
+      }
+      return;
+    }
+
+    // Mute toggle
+    if (k.toLowerCase() === "m") {
+      if (media && (act.kind === "video" || act.kind === "audio")) {
+        handled();
+        try { media.muted = !media.muted; } catch { }
+      }
+      return;
+    }
+
     if (k === "[" || k === "]") {
       const pl = state.playlist;
       if (pl && pl.items && pl.items.length > 0) {
