@@ -5,7 +5,13 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$backendExe = Join-Path $root 'bin/dev/msp-dev.exe'
+
+# Detect V2
+$isV2 = Test-Path (Join-Path $root 'web/vite.config.ts')
+$suffix = if ($isV2) { "-v2" } else { "" }
+if ($isV2) { Write-Host "[dev] Detected V2 Frontend. Using suffix: $suffix" }
+
+$backendExe = Join-Path $root "bin/dev/msp$suffix-dev.exe"
 $devDir = Split-Path $backendExe -Parent
 $devConfig = Join-Path $devDir 'config.json'
 $devConfigExample = Join-Path $root 'config.example.json'

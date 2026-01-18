@@ -11,7 +11,7 @@ COPY web/ ./
 RUN pnpm run build
 
 # Stage 2: Build Backend
-FROM golang:1.22-alpine AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 WORKDIR /app
 # Install build tools (gcc needed for cgo/sqlite)
 RUN apk add --no-cache gcc musl-dev
@@ -24,7 +24,7 @@ COPY . .
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # Build with CGO disabled (using modernc.org/sqlite)
-RUN CGO_ENABLED=0 GOOS=linux go build -o msp-server ./cmd/msp
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o msp-server ./cmd/msp
 
 # Stage 3: Runtime
 FROM alpine:latest

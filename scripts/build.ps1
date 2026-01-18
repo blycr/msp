@@ -38,6 +38,15 @@ function Invoke-Step {
 
 
 Invoke-Step 'Build Frontend' {
+  # Detect if this is V2 (Vue) or Legacy
+  $isV2 = Test-Path (Join-Path $root 'web/vite.config.ts')
+  $global:suffix = if ($isV2) { "-v2" } else { "" }
+  if ($isV2) {
+    Write-Log "Detected V2 Frontend (Vue). Binaries will have '-v2' suffix." 'INFO'
+  } else {
+    Write-Log "Detected Legacy Frontend. Using standard naming." 'INFO'
+  }
+
   # Check if pnpm is installed
   if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
     Write-Log 'pnpm not found. Installing pnpm via corepack...' 'INFO'
@@ -90,6 +99,14 @@ function Build-Go {
   param([string]$GOOS, [string]$GOARCH, [string]$OutPath, [string]$GOARM = $null)
   Push-Location $root
   try {
+    # Apply v2 suffix if needed
+    if ($global:suffix -and $OutPath -notmatch "$($global:suffix)(\.exe)?$") {
+      $ext = [System.IO.Path]::GetExtension($OutPath)
+      $base = [System.IO.Path]::GetFileNameWithoutExtension($OutPath)
+      $dir = [System.IO.Path]::GetDirectoryName($OutPath)
+      $OutPath = Join-Path $dir "$base$($global:suffix)$ext"
+    }
+
     $env:GOOS = $GOOS
     $env:GOARCH = $GOARCH
     $env:CGO_ENABLED = "0"

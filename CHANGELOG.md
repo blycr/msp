@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 (Vue Refactor)
+
+- **前端重构**：从原生 JS 迁移至 **Vue 3 + TypeScript + Vite**，实现组件化开发与类型安全
+- **状态管理**：引入 **Pinia** 进行全局状态管理，替代原本脆弱的全局对象
+- **UI/UX**：全新设计的三栏布局（自适应），优化字体栈（PingFang/Segoe UI），提升视觉体验
+- **工程化**：
+  - 后端升级至 **Go 1.24**
+  - Docker 构建升级为多阶段构建（Node -> Go -> Alpine）
+  - 统一使用 **pnpm** 管理前端依赖
+- **构建系统**：更新 `build.ps1`/`build.sh`，支持自动识别新旧前端架构并生成对应版本号
+
 ## 0.8.0
 
 - **数据库优化**：新增 `playback_progresses` 表，将高频播放进度更新从 `user_prefs` 表中分离，显著提升性能并减少数据库膨胀

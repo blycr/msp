@@ -39,6 +39,15 @@ invoke_step() {
   log "$name done." "INFO"
 }
 
+# Detect V2
+SUFFIX=""
+if [[ -f "$root/web/vite.config.ts" ]]; then
+  SUFFIX="-v2"
+  log "Detected V2 Frontend (Vue). Binaries will have '-v2' suffix." "INFO"
+else
+  log "Detected Legacy Frontend. Using standard naming." "INFO"
+fi
+
 new_dir() {
   p="$1"
   mkdir -p "$p"
@@ -60,8 +69,20 @@ build_go() {
       unset GOARM || true
     fi
     new_dir "$(dirname "$out")"
-    go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/msp
-    log "Built: $out" "INFO"
+    
+    # Apply suffix
+    ext="${out##*.}"
+    filename="${out%.*}"
+    if [[ "$out" == *.* ]]; then
+       # has extension (exe)
+       final_out="${filename}${SUFFIX}.${ext}"
+    else
+       # no extension
+       final_out="${out}${SUFFIX}"
+    fi
+
+    go build -trimpath -ldflags="-s -w" -o "$final_out" ./cmd/msp
+    log "Built: $final_out" "INFO"
   )
 }
 
@@ -69,23 +90,56 @@ build_go() {
 write_checksum() {
   file="$1"
   out="$2"
-  if command -v sha256sum >/dev/null 2>&1; then
-    hash="$(sha256sum "$file" | awk '{print $1}')"
+
+  # Adjust input paths for checksum if suffix exists
+  ext="${file##*.}"
+  filename="${file%.*}"
+  if [[ "$file" == *.* ]]; then
+     real_file="${filename}${SUFFIX}.${ext}"
   else
-    hash="$(shasum -a 256 "$file" | awk '{print $1}')"
+     real_file="${file}${SUFFIX}"
   fi
-  line="$hash  $(basename "$file")"
-  new_dir "$(dirname "$out")"
-  printf "%s\n" "$line" > "$out"
-  log "Checksum: $out" "INFO"
+  
+  # Adjust output path for checksum file
+  chk_ext="${out##*.}" # sha256
+  chk_base="${out%.*}" # .../msp-linux-amd64
+  
+  # We want msp-linux-amd64-v2.sha256
+  real_out="${chk_base}${SUFFIX}.${chk_ext}"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash="$(sha256sum "$real_file" | awk '{print $1}')"
+  else
+    hash="$(shasum -a 256 "$real_file" | awk '{print $1}')"
+  fi
+  line="$hash  $(basename "$real_file")"
+  new_dir "$(dirname "$real_out")"
+  printf "%s\n" "$line" > "$real_out"
+  log "Checksum: $real_out" "INFO"
 }
 
 write_debug_copy() {
   file="$1"
   out="$2"
-  new_dir "$(dirname "$out")"
-  cp -f "$file" "$out"
-  log "Debug copy: $out" "INFO"
+  
+  # Adjust input path
+  ext="${file##*.}"
+  filename="${file%.*}"
+  if [[ "$file" == *.* ]]; then
+     real_file="${filename}${SUFFIX}.${ext}"
+  else
+     real_file="${file}${SUFFIX}"
+  fi
+
+  # Adjust output path
+  # out is .../msp-linux-amd64.debug
+  dbg_ext="${out##*.}"
+  dbg_base="${out%.*}"
+  real_out="${dbg_base}${SUFFIX}.${dbg_ext}"
+
+  new_dir "$(dirname "$real_out")"
+  cp -f "$real_file" "$real_out"
+  log "Debug copy: $real_out" "INFO"
 }
 
 should_build() {
