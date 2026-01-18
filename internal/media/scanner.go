@@ -352,7 +352,7 @@ func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	const max = 2 << 20
 	head, err := io.ReadAll(io.LimitReader(f, max))
 	if err != nil || len(head) == 0 {
