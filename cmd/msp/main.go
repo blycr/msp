@@ -99,6 +99,9 @@ func main() {
 		Addr:              addr,
 		Handler:           finalHandler,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		// WriteTimeout is intentionally omitted to support long-running media streams
 	}
 
 	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {

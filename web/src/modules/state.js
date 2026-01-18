@@ -2,6 +2,39 @@
  * Global state and localStorage helpers
  */
 
+/**
+ * @typedef {Object} PlaylistState
+ * @property {?string} kind - Current playlist type (video, audio, etc)
+ * @property {Array<Object>} items - List of media items
+ * @property {number} index - Current index in items
+ * @property {boolean} shuffle - Shuffle mode enabled
+ * @property {boolean} loop - Loop mode enabled
+ */
+
+/**
+ * @typedef {Object} AppState
+ * @property {string} lang - Current language code (e.g. 'en')
+ * @property {?Object} config - Server configuration object
+ * @property {?Object} media - Media library response
+ * @property {string} tab - Current active sidebar tab
+ * @property {string} q - Search query
+ * @property {?Object} current - Currently playing media item
+ * @property {string} currentMetaBase - Base metadata string
+ * @property {?Object} plyr - Plyr instance
+ * @property {?Object} lyrics - Lyrics object
+ * @property {Object} prefs - User preferences
+ * @property {number} plyrPersistTimer - Timer ID for persistence
+ * @property {number} selectionToken - Selection consistency token
+ * @property {PlaylistState} playlist - Playlist state management
+ * @property {number} listPageSize - Items per page in file list
+ * @property {number} listPage - Current file list page
+ * @property {number} plPageSize - Items per page in playlist
+ * @property {number} plPage - Current playlist page
+ * @property {boolean} isSwitchingMedia - Lock flag during transitions
+ * @property {{field: string, order: number}} sort - Sort settings
+ * @property {boolean} scanning - Whether a scan is in progress
+ */
+
 export const el = (id) => document.getElementById(id);
 
 export const LS = {
@@ -22,6 +55,7 @@ export const LS = {
   sortOrder: 'msp.sort.order',
 };
 
+/** @type {AppState} */
 export const state = {
   lang: 'en',
   config: null,
