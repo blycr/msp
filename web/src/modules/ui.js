@@ -328,8 +328,14 @@ export function bindUI() {
 
   el("sortField").addEventListener("change", (ev) => {
     state.sort.field = ev.target.value;
+    lsSet(LS.sortField, state.sort.field);
     renderList();
   });
+
+  // Restore sort field UI
+  if (state.sort.field) {
+    try { el("sortField").value = state.sort.field; } catch {}
+  }
 
   const sortBtn = el("sortOrder");
   if (sortBtn) {
@@ -338,6 +344,7 @@ export function bindUI() {
 
   el("sortOrder").addEventListener("click", () => {
     state.sort.order *= -1;
+    lsSet(LS.sortOrder, String(state.sort.order));
     const sortBtn = el("sortOrder");
     if (sortBtn) {
       sortBtn.innerHTML = state.sort.order === 1 ? createArrowDownIcon() : createArrowUpIcon();

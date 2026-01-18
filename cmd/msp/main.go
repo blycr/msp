@@ -29,13 +29,6 @@ func main() {
 
 	cfgPath := filepath.Join(util.MustExeDir(), "config.json")
 
-	// Init DB
-	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
-	if err := db.Init(dbPath); err != nil {
-		log.Printf("Warning: Failed to initialize database: %v", err)
-	}
-	defer db.Close()
-
 	s := server.New(cfgPath)
 
 	if err := s.LoadOrInitConfig(); err != nil {
@@ -43,6 +36,13 @@ func main() {
 	}
 
 	s.SetupLogger()
+
+	// Init DB (after logger setup to avoid noisy terminal logs from GORM)
+	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
+	if err := db.Init(dbPath); err != nil {
+		log.Printf("Warning: Failed to initialize database: %v", err)
+	}
+	defer db.Close()
 
 	// Start config file watcher for hot reload
 	go s.WatchConfig(context.Background())

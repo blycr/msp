@@ -6,6 +6,7 @@ import (
 	"msp/internal/types"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -14,6 +15,18 @@ import (
 )
 
 var DB *gorm.DB
+
+func newGormLogger() logger.Interface {
+	return logger.New(
+		log.New(log.Writer(), "", log.LstdFlags|log.Lmicroseconds),
+		logger.Config{
+			SlowThreshold:             2 * time.Second,
+			LogLevel:                  logger.Error,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+		},
+	)
+}
 
 func Init(dbPath string) error {
 	if dbPath == "" {
@@ -28,6 +41,7 @@ func Init(dbPath string) error {
 
 	var err error
 	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+		Logger:                 newGormLogger(),
 		PrepareStmt:            true, // 缓存预编译语句
 		SkipDefaultTransaction: true, // 禁用默认事务以提高写入性能（我们在业务中手动控制事务）
 	})

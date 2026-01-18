@@ -129,45 +129,48 @@
 
   <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
   <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog">
-    <div class="dialog__title" data-i18n="dlg_title">Share Settings</div>
+    <div class="dialog__title" data-i18n="dlg_title">Settings</div>
     <div class="dialog__body">
-      <div class="row">
-        <input class="textfield" id="sharePath" placeholder="e.g. D:\Media" data-i18n-ph="path_ph" />
-      </div>
-      <div class="row">
-        <input class="textfield" id="shareLabel" placeholder="Alias (Optional)" data-i18n-ph="label_ph" />
-        <button class="btn" id="btnAddShare" data-i18n="add">Add</button>
-      </div>
-
-      <div class="sharelist" id="shareList"></div>
-
-      <div class="dialog__subtitle" data-i18n="bl_title">Blacklist Settings</div>
-      <div class="row">
-        <input class="textfield" id="blExts" placeholder="Block Exts" data-i18n-ph="bl_exts_ph" />
-      </div>
-      <div class="row">
-        <input class="textfield" id="blFiles" placeholder="Block Files" data-i18n-ph="bl_files_ph" />
-      </div>
-      <div class="row">
-        <input class="textfield" id="blFolders" placeholder="Block Folders" data-i18n-ph="bl_folders_ph" />
-      </div>
-      <div class="row">
-        <input class="textfield" id="blMinSize" type="text" placeholder="Block Size" data-i18n-ph="bl_size_ph" />
-      </div>
-      <div class="dialog__note"
-        style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; line-height: 1.4;" id="blHint">
-        Usage:<br>1. Regex...
-      </div>
-      <div class="row">
-        <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Blacklist</button>
+      <!-- Share Settings Section -->
+      <div class="dialog__subtitle" data-i18n="share_settings">Share Folders</div>
+      <div class="dialog__section">
+        <div class="dialog__row">
+          <input class="textfield dialog__path" id="sharePath" placeholder="Folder Path (e.g. D:\Media)" data-i18n-ph="path_ph" />
+          <input class="textfield dialog__label" id="shareLabel" placeholder="Alias (Optional)" data-i18n-ph="label_ph" />
+          <button class="btn" id="btnAddShare" data-i18n="add">Add</button>
+        </div>
+        <div class="dialog__note" data-i18n="dlg_note">
+          Note: Web cannot open folder picker due to security limits. Please input path manually.
+        </div>
+        <div class="sharelist" id="shareList"></div>
       </div>
 
-      <div class="small" data-i18n="dlg_note">
-        Note: Web cannot open folder picker due to security limits. Please input path manually.
+      <!-- Blacklist Settings Section -->
+      <div class="dialog__subtitle" data-i18n="bl_title">Filter / Blacklist</div>
+      <div class="dialog__section">
+        <div class="dialog__grid">
+          <input class="textfield" id="blExts" placeholder="Block Exts (e.g. exe,dll)" data-i18n-ph="bl_exts_ph" />
+          <input class="textfield" id="blMinSize" type="text" placeholder="Min Size (e.g. 10MB)" data-i18n-ph="bl_size_ph" />
+        </div>
+        <div class="dialog__row">
+          <input class="textfield" id="blFiles" placeholder="Block Filenames (Regex supported)" data-i18n-ph="bl_files_ph" style="flex: 1;" />
+        </div>
+        <div class="dialog__row">
+          <input class="textfield" id="blFolders" placeholder="Block Folder Names" data-i18n-ph="bl_folders_ph" style="flex: 1;" />
+        </div>
+        
+        <div class="dialog__note" id="blHint">
+          Usage: Separate with commas. Supports simple matching.
+        </div>
+        
+        <div class="dialog__row dialog__row--end">
+          <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Filters</button>
+        </div>
       </div>
+
     </div>
     <div class="dialog__actions">
-      <button class="btn btn--ghost" id="btnCloseDlg" data-i18n="close">Close</button>
+      <button class="btn btn--ghost" id="btnCloseDlg" data-i18n="close">Done</button>
     </div>
   </section>
 

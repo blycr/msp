@@ -18,75 +18,41 @@ import (
 	"msp/internal/db"
 	"msp/internal/media"
 	"msp/internal/server"
+	"msp/internal/service"
 	"msp/internal/types"
 	"msp/internal/util"
 )
 
 type Handler struct {
-	s *server.Server
+	s             *server.Server
+	configService *service.ConfigService
 }
 
 func New(s *server.Server) *Handler {
-	return &Handler{s: s}
+	return &Handler{
+		s:             s,
+		configService: service.NewConfigService(s),
+	}
 }
 
 func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		ips := util.GetLanIPv4s()
-		port := h.s.GetPort()
-		urls := make([]string, 0, 2+len(ips))
-		urls = append(urls, "http://127.0.0.1:"+util.Itoa(port)+"/")
-		for _, ip := range ips {
-			urls = append(urls, "http://"+ip+":"+util.Itoa(port)+"/")
-		}
-
-		cfg := h.s.Config()
-
-		writeJSON(w, http.StatusOK, map[string]any{
-			"config":           cfg,
-			"lanIPs":           ips,
-			"urls":             urls,
-			"nowUnix":          time.Now().Unix(),
-			"ffmpegAvailable":  media.CheckFFmpeg(),
-			"ffprobeAvailable": media.CheckFFprobe(),
-		})
+		view := h.configService.GetConfigView()
+		writeJSON(w, http.StatusOK, view)
 	case http.MethodPost:
 		var cfg config.Config
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			writeJSON(w, http.StatusBadRequest, types.ConfigResponse{Error: &types.ApiError{Message: "JSON 解析失败"}})
 			return
 		}
-		config.ApplyDefaults(&cfg)
-		cfg.Shares = util.NormalizeShares(cfg.Shares)
 
-		validShares := make([]config.Share, 0, len(cfg.Shares))
-		for _, sh := range cfg.Shares {
-			if sh.Path == "" {
-				continue
-			}
-			p := util.NormalizePath(sh.Path)
-			if ok := util.IsExistingDir(p); !ok {
-				continue
-			}
-			sh.Path = p
-			if sh.Label == "" {
-				sh.Label = filepath.Base(p)
-			}
-			validShares = append(validShares, sh)
-		}
-		cfg.Shares = util.DedupeShares(validShares)
-
-		err := h.s.UpdateConfig(func(c *config.Config) {
-			*c = cfg
-		})
-
+		newCfg, err := h.configService.UpdateConfig(cfg)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, types.ConfigResponse{Error: &types.ApiError{Message: "写入配置失败"}})
 			return
 		}
-		h.s.InvalidateMediaCache()
-		writeJSON(w, http.StatusOK, types.ConfigResponse{Config: cfg})
+		writeJSON(w, http.StatusOK, types.ConfigResponse{Config: newCfg})
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

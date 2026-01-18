@@ -217,7 +217,7 @@ export function autoFitPlaylistPageSize() {
 
   let target = Math.floor(usable / itemH);
   if (!Number.isFinite(target)) target = currentPageSize;
-  target = Math.max(1, Math.min(200, target));
+  target = Math.max(5, Math.min(200, target));
 
   if (target === currentPageSize) return;
 
