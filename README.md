@@ -31,7 +31,25 @@
 | 🔒 **Privacy First** | No cloud accounts, no tracking. Your media stays on your local network. |
 | ⚡ **Blazing Fast** | Built with Go and Vite. Instant scanning and navigation. |
 
-## 🚀 Quick Start
+## �️ Preview
+
+<div align="center">
+
+### Video Mode
+
+<kbd>
+  <img src="docs/images/preview-video-en.png" alt="Video Mode Preview" width="100%" />
+</kbd>
+
+### Audio Mode
+
+<kbd>
+  <img src="docs/images/preview-audio-en.png" alt="Audio Mode Preview" width="100%" />
+</kbd>
+
+</div>
+
+## �🚀 Quick Start
 
 1.  **Download** the latest release for your OS from [Releases](https://github.com/blycr/msp/releases).
 2.  **Run** the executable:
