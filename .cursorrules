@@ -1,0 +1,15 @@
+# Global Rules for MSP Repository
+
+## Language Requirement (MANDATORY)
+**ALL OUTPUT MUST BE IN CHINESE (简体中文).**
+Always respond in Chinese regardless of the input language.
+Technical terms (e.g., variable names, command lines) should remain in English.
+
+## Project Context
+This is the MSP (Media Share & Preview) project.
+- Backend: Go (Golang)
+- Frontend: Vite + Vanilla JS (No Frameworks)
+
+## Behavioral Instructions
+- Follow `AGENTS.md` for detailed architectural guidelines.
+- Always check `CHANGELOG.md` for the latest version context.
