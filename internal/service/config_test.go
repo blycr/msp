@@ -57,7 +57,7 @@ func TestConfigService_UpdateConfig(t *testing.T) {
 
 	// Create a dummy directory for share test
 	shareDir := filepath.Join(tmpDir, "My Videos")
-	if err := os.MkdirAll(shareDir, 0755); err != nil {
+	if err := os.MkdirAll(shareDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
