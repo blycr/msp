@@ -128,7 +128,7 @@ func UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *types.MediaItem) er
 		return nil
 	}
 	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "path"}},
+		Columns:   []clause.Column{{Name: "id"}},
 		UpdateAll: true,
 	}).Create(item).Error
 }
