@@ -32,32 +32,39 @@
 
 :root {
   /* Design Language: Neo-Industrial / Bold */
-  
+
   /* Fonts */
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-body: "Instrument Sans", system-ui, sans-serif;
 
   /* Colors - Light Theme */
-  --md-primary: #4f46e5; /* Indigo 600 */
-  --md-primary-2: #4338ca; /* Indigo 700 */
+  --md-primary: #4f46e5;
+  /* Indigo 600 */
+  --md-primary-2: #4338ca;
+  /* Indigo 700 */
   --md-surface: #ffffff;
-  --md-bg: #f4f4f5; /* Zinc 100 */
-  --md-text: #18181b; /* Zinc 900 */
-  --md-sub: #71717a; /* Zinc 500 */
-  --md-border: #e4e4e7; /* Zinc 200 */
-  --md-danger: #ef4444; /* Red 500 */
+  --md-bg: #f4f4f5;
+  /* Zinc 100 */
+  --md-text: #18181b;
+  /* Zinc 900 */
+  --md-sub: #71717a;
+  /* Zinc 500 */
+  --md-border: #e4e4e7;
+  /* Zinc 200 */
+  --md-danger: #ef4444;
+  /* Red 500 */
 
   --md-hover: rgba(0, 0, 0, 0.05);
   --md-active: rgba(0, 0, 0, 0.1);
-  
+
   --glass-bg: rgba(255, 255, 255, 0.9);
   --glass-border: rgba(0, 0, 0, 0.1);
   --blur-md: 12px;
-  
+
   /* Elevation - Hard Shadows for "Pop" */
-  --elev-1: 4px 4px 0px 0px rgba(0,0,0,0.05);
-  --shadow-soft: 8px 8px 0px 0px rgba(0,0,0,0.03);
-  
+  --elev-1: 4px 4px 0px 0px rgba(0, 0, 0, 0.05);
+  --shadow-soft: 8px 8px 0px 0px rgba(0, 0, 0, 0.03);
+
   /* Radius - Slightly tighter */
   --radius: 12px;
   --radius-md: 8px;
@@ -65,7 +72,7 @@
 
   --transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   --plyr-color-main: var(--md-primary);
-  
+
   /* Plyr Audio Adaptation */
   --plyr-audio-controls-background: transparent;
   --plyr-audio-control-color: var(--md-text);
@@ -78,26 +85,34 @@
 
 [data-theme="dark"] {
   /* Colors - Dark Theme */
-  --md-primary: #818cf8; /* Indigo 400 */
-  --md-primary-2: #6366f1; /* Indigo 500 */
-  
-  --md-bg: #09090b; /* Zinc 950 */
-  --md-surface: #18181b; /* Zinc 900 */
-  
-  --md-text: #fafafa; /* Zinc 50 */
-  --md-sub: #a1a1aa; /* Zinc 400 */
-  --md-border: #27272a; /* Zinc 800 */
-  --md-danger: #f87171; /* Red 400 */
-  
+  --md-primary: #818cf8;
+  /* Indigo 400 */
+  --md-primary-2: #6366f1;
+  /* Indigo 500 */
+
+  --md-bg: #09090b;
+  /* Zinc 950 */
+  --md-surface: #18181b;
+  /* Zinc 900 */
+
+  --md-text: #fafafa;
+  /* Zinc 50 */
+  --md-sub: #a1a1aa;
+  /* Zinc 400 */
+  --md-border: #27272a;
+  /* Zinc 800 */
+  --md-danger: #f87171;
+  /* Red 400 */
+
   --md-hover: rgba(255, 255, 255, 0.05);
   --md-active: rgba(255, 255, 255, 0.1);
-  
+
   --glass-bg: rgba(24, 24, 27, 0.8);
   --glass-border: rgba(255, 255, 255, 0.05);
-  
-  --elev-1: 4px 4px 0px 0px rgba(0,0,0,0.5);
-  --shadow-soft: 8px 8px 0px 0px rgba(0,0,0,0.3);
-  
+
+  --elev-1: 4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 8px 8px 0px 0px rgba(0, 0, 0, 0.3);
+
   --plyr-color-main: var(--md-primary);
 }
 
@@ -106,13 +121,21 @@
 }
 
 button,
-input,
-select,
-textarea {
+select {
   color: inherit;
   background-color: transparent;
   font-family: inherit;
   cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input,
+textarea {
+  color: inherit;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: text;
   border: none;
   outline: none;
 }
@@ -176,7 +199,7 @@ body {
   color: var(--md-text);
   font-family: var(--font-body);
   transition: background-color 0.25s ease, color 0.25s ease;
-  
+
   /* Grain Texture */
   background-image: radial-gradient(var(--md-sub) 1px, transparent 1px);
   background-size: 32px 32px;
@@ -185,10 +208,11 @@ body {
 }
 
 [data-theme="light"] body {
-    background-image: radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
 }
+
 [data-theme="dark"] body {
-    background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
 /* Common transitions for theme changes - improved timing */
@@ -374,25 +398,45 @@ body {
   height: 36px;
   padding: 0 12px;
   border: 1px solid var(--md-border);
-  background: var(--md-bg);
+  background: var(--md-surface);
   color: var(--md-text);
   border-radius: var(--radius-sm);
   outline: none;
   font-size: 14px;
   font-family: var(--font-body);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   display: flex;
   align-items: center;
+  cursor: text;
 }
 
 .textfield:focus {
   border-color: var(--md-primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); /* Indigo tint */
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  /* Indigo tint */
+  background: var(--md-surface);
 }
 
 .textfield:focus-visible {
   outline: 2px solid var(--md-primary);
   outline-offset: 2px;
+}
+
+/* Dark mode input field optimization */
+[data-theme="dark"] .textfield {
+  background: rgba(39, 39, 42, 0.8);
+  border-color: rgba(63, 63, 70, 0.8);
+}
+
+[data-theme="dark"] .textfield:focus {
+  background: rgba(39, 39, 42, 1);
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] .textfield::placeholder {
+  color: var(--md-sub);
+  opacity: 0.7;
 }
 
 .list__body {
@@ -450,6 +494,8 @@ body {
   white-space: nowrap;
   margin-bottom: 2px;
   transition: color 0.2s ease;
+  min-height: 1.2em;
+  line-height: 1.2;
 }
 
 .item:hover .item__name {
@@ -505,7 +551,8 @@ body {
 .badge {
   font-size: 11px;
   padding: 4px 8px;
-  border-radius: 4px; /* Square-ish */
+  border-radius: 4px;
+  /* Square-ish */
   border: 1px solid var(--md-border);
   background: var(--md-surface);
   color: var(--md-text);
@@ -564,14 +611,14 @@ body {
   border: none;
   border-radius: var(--radius);
   padding: 0;
-  background: black; /* Cinematic black for video */
+  background: black;
+  /* Cinematic black for video */
   min-height: 240px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
   box-shadow: var(--shadow-soft);
   flex: 1 1 auto;
 }
@@ -600,12 +647,23 @@ body {
   max-height: 100%;
   object-fit: contain;
   background: #000;
+  border-radius: var(--radius);
 }
 
 .plyr {
   width: 100%;
   height: 100%;
-  border-radius: 0; /* Let container handle radius */
+  border-radius: var(--radius);
+
+}
+
+/* Ensure tooltip appears above other elements */
+.plyr__tooltip {
+  z-index: 9999;
+}
+
+.plyr video {
+  border-radius: var(--radius);
 }
 
 /* --- Plyr Theming --- */
@@ -627,6 +685,8 @@ body {
   justify-content: flex-start;
   padding: 24px;
   gap: 24px;
+  gap: 24px;
+
 }
 
 .audioMeta {
@@ -786,21 +846,33 @@ body {
   gap: 8px;
   align-items: center;
   font-size: 13px;
+  font-weight: 500;
   color: var(--md-sub);
   user-select: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   height: 36px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--md-border);
-  background: var(--md-bg);
+  background: transparent;
 }
 
 .toggle:hover {
   color: var(--md-text);
-  border-color: var(--md-primary);
+  border-color: var(--md-sub);
   background: var(--md-hover);
+  transform: translateY(-1px);
+}
+
+.toggle:has(input:checked) {
+  color: var(--md-primary);
+  border-color: var(--md-primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+[data-theme="dark"] .toggle:has(input:checked) {
+  background: rgba(129, 140, 248, 0.15);
 }
 
 .toggle input {
@@ -839,7 +911,7 @@ body {
 }
 
 .btn {
-  border: 1px solid rgba(0,0,0,0.05);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   background: var(--md-primary);
   color: #fff;
   font-weight: 600;
@@ -851,7 +923,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.1);
+  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 0.1);
   font-size: 14px;
   letter-spacing: 0.01em;
   font-family: var(--font-body);
@@ -917,7 +989,7 @@ body {
   -webkit-backdrop-filter: blur(var(--blur-md));
   border: 2px solid var(--md-text);
   border-radius: var(--radius);
-  box-shadow: 8px 8px 0px 0px rgba(0,0,0,0.2);
+  box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.2);
 }
 
 .share {
@@ -1093,12 +1165,16 @@ body {
   .layout {
     display: flex;
     flex-direction: column;
-    height: 100%; /* Fill available space */
-    overflow-y: auto; /* Scroll inside layout */
+    height: 100%;
+    /* Fill available space */
+    overflow-y: auto;
+    /* Scroll inside layout */
     overflow-x: hidden;
     padding: 16px;
-    padding-bottom: 80px; /* Extra space at bottom */
-    gap: 24px; /* More breathing room */
+    padding-bottom: 80px;
+    /* Extra space at bottom */
+    gap: 24px;
+    /* More breathing room */
   }
 
   .sidebar,
@@ -1110,7 +1186,8 @@ body {
     height: auto;
     min-height: 0;
     overflow: visible;
-    flex: 0 0 auto; /* Prevent shrinking */
+    flex: 0 0 auto;
+    /* Prevent shrinking */
   }
 
   /* Order: Stage (Player) -> Playlist -> Sidebar (Files) */
@@ -1130,19 +1207,21 @@ body {
   .playerbox {
     min-height: auto;
     /* Remove fixed aspect-ratio to allow audio content to expand naturally */
-    /* aspect-ratio: 16/9; */ 
+    /* aspect-ratio: 16/9; */
     height: auto;
   }
 
   /* Audio specific adjustments for mobile */
   .audioMeta {
     flex-direction: column;
-    align-items: center; /* Center content */
+    align-items: center;
+    /* Center content */
     gap: 16px;
   }
 
   .audioCover {
-    width: 160px; /* Fix cover size to avoid taking full width */
+    width: 160px;
+    /* Fix cover size to avoid taking full width */
     height: 160px;
     flex: 0 0 auto;
     margin: 0 auto;
@@ -1150,7 +1229,8 @@ body {
 
   .lyrics {
     height: auto;
-    max-height: 240px; /* Reasonable height for lyrics */
+    max-height: 240px;
+    /* Reasonable height for lyrics */
     min-height: 100px;
     width: 100%;
   }
@@ -1173,7 +1253,7 @@ body {
   }
 
   /* Hide sidebar tabs text if needed, or keep as is */
-  
+
   .dialog {
     width: 95%;
     max-height: 90vh;
@@ -1204,12 +1284,24 @@ body {
   height: 0;
 }
 
+/* Fix select cursor being overridden by textfield class */
+select.textfield {
+  cursor: pointer;
+}
+
 /* Plyr Audio Adaptation */
 .plyr--audio .plyr__controls {
   background: transparent !important;
   color: var(--md-text) !important;
   border: none !important;
   padding: 10px;
+}
+
+/* Force pointer cursor for slider interactions to match theme */
+.plyr__progress__container,
+.plyr__volume,
+.plyr input[type=range] {
+  cursor: pointer !important;
 }
 
 .plyr--audio .plyr__control {
