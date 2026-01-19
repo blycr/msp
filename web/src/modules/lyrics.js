@@ -27,7 +27,14 @@ export function parseLrc(text) {
 export function renderLyrics(lines) {
   const box = el("lyrics");
   box.innerHTML = "";
-  if (!Array.isArray(lines) || lines.length === 0) return;
+  if (!Array.isArray(lines) || lines.length === 0) {
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "lyrics-empty";
+    // Check for "pure music" explicitly if needed, or just generic message
+    emptyDiv.textContent = "· Pure Music / 请欣赏 ·";
+    box.appendChild(emptyDiv);
+    return;
+  }
   const frag = document.createDocumentFragment();
   for (const ln of lines) {
     const div = document.createElement("div");

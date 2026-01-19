@@ -698,14 +698,39 @@ body {
   margin: 0 auto;
 }
 
-.audioCover {
+.audioCover,
+.audioCoverPlaceholder {
   width: 200px;
   height: 200px;
-  object-fit: cover;
   border-radius: var(--radius-md);
   box-shadow: var(--elev-1);
   background: var(--md-bg);
   flex: 0 0 auto;
+}
+
+.audioCover {
+  object-fit: cover;
+}
+
+.audioCoverPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--md-surface), var(--md-bg));
+  color: var(--md-sub);
+  border: 1px solid var(--md-border);
+}
+
+.lyrics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--md-sub);
+  font-size: 14px;
+  font-style: italic;
+  opacity: 0.7;
+  letter-spacing: 0.05em;
 }
 
 .lyrics {
