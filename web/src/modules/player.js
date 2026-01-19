@@ -137,7 +137,7 @@ export async function resumeLast() {
   } catch {
     timeVal = Number((kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
   }
-  
+
   if (timeVal <= 0) return;
   const mediaEl = el(elId);
   if (!mediaEl) return;
@@ -283,7 +283,7 @@ function onMediaEnded() {
 
 export function applyPlyr(element) {
   destroyPlyr();
-  
+
   // Smart Error Interceptor:
   // If a decoding error occurs near the end of the file, we treat it as "ended" 
   // to skip over corrupt tail data (common in some FLACs or incomplete downloads).
@@ -293,16 +293,16 @@ export function applyPlyr(element) {
       const err = element.error;
       const d = element.duration;
       const t = element.currentTime;
-      
+
       // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
       if (err && (err.code === 3 || err.code === 4)) {
         // Condition: We are playing and either:
         // 1. > 90% progress
         // 2. < 10s remaining
         // 3. We have played something (t > 5) but duration is NaN (stream)
-        const isNearEnd = (d > 0 && t / d > 0.9) || 
-                          (d > 0 && d - t < 10) || 
-                          (Number.isNaN(d) && t > 5);
+        const isNearEnd = (d > 0 && t / d > 0.9) ||
+          (d > 0 && d - t < 10) ||
+          (Number.isNaN(d) && t > 5);
 
         if (isNearEnd) {
           console.warn("Media decoding error near end - suppressing error and skipping to next", err);
@@ -316,7 +316,7 @@ export function applyPlyr(element) {
         // If decoding failed midway, and we haven't tried transcoding yet, try it now.
         const currentSrc = element.currentSrc || element.src || "";
         const isAlreadyTranscoding = currentSrc.includes("transcode=1");
-        
+
         // Check config permissions
         const isVideo = state.current?.kind === "video";
         const isAudio = state.current?.kind === "audio";
@@ -324,39 +324,39 @@ export function applyPlyr(element) {
         const allowAudio = isAudio && getCfg("playback.audio.transcode", false);
 
         if (!isAlreadyTranscoding && (allowVideo || allowAudio)) {
-            console.warn("Playback failed, attempting fallback to transcode...", err);
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const url = streamUrl(state.current.id, t) + "&transcode=1"; // Use 't' as start offset
-            logRemote("info", `Fallback to transcode: ${state.current.name} @ ${t}s`);
+          console.warn("Playback failed, attempting fallback to transcode...", err);
+          e.preventDefault();
+          e.stopPropagation();
 
-            // Reload Player Source
-            // Plyr handles source updates gracefully
-            const newSource = {
-              type: isVideo ? "video" : "audio",
-              title: state.current.name || "",
-              sources: [{ src: url }],
-            };
+          const url = streamUrl(state.current.id, t) + "&transcode=1"; // Use 't' as start offset
+          logRemote("info", `Fallback to transcode: ${state.current.name} @ ${t}s`);
 
-            if (isVideo) {
-              newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
-              newSource.tracks = (state.current.subtitles || []).map(s => ({
-                kind: "subtitles",
-                label: s.label || "字幕",
-                srclang: s.lang || "zh",
-                src: s.src || streamUrl(s.id),
-                default: !!s.default
-              }));
-            }
+          // Reload Player Source
+          // Plyr handles source updates gracefully
+          const newSource = {
+            type: isVideo ? "video" : "audio",
+            title: state.current.name || "",
+            sources: [{ src: url }],
+          };
 
-            state.plyr.source = newSource;
-            state.plyr.once("ready", () => {
-              // Note: Backend uses -copyts, so setting currentTime is correct.
-              element.currentTime = t;
-              state.plyr.play().catch(() => {});
-            });
-            return;
+          if (isVideo) {
+            newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
+            newSource.tracks = (state.current.subtitles || []).map(s => ({
+              kind: "subtitles",
+              label: s.label || "字幕",
+              srclang: s.lang || "zh",
+              src: s.src || streamUrl(s.id),
+              default: !!s.default
+            }));
+          }
+
+          state.plyr.source = newSource;
+          state.plyr.once("ready", () => {
+            // Note: Backend uses -copyts, so setting currentTime is correct.
+            element.currentTime = t;
+            state.plyr.play().catch(() => { });
+          });
+          return;
         }
 
         // If we reached here, it means either:
@@ -427,7 +427,7 @@ export function applyPlyr(element) {
   try { opts.keyboard = { focused: true, global: true }; } catch { }
   state.plyr = new Plyr(element, opts);
   state.plyr.on("ended", onMediaEnded);
-  
+
   // Watchdog: Detect if playback stalls near the end (browser failed to fire 'ended')
   let lastProgressTime = Date.now();
   state.plyr.on("timeupdate", (event) => {
@@ -446,7 +446,7 @@ export function applyPlyr(element) {
       clearInterval(stallCheckTimer);
       return;
     }
-    
+
     // Only run check if we claim to be playing AND have enough data to play
     // readyState >= 3 (HAVE_FUTURE_DATA) means we should be moving.
     // Increased timeout to 15s to allow for slow FFmpeg startup time.
@@ -469,11 +469,11 @@ export function applyPlyr(element) {
   const ext = (state.current?.ext || "").toLowerCase();
   const isVideo = state.current?.kind === "video";
   const isAudio = state.current?.kind === "audio";
-  
+
   // Logic updated: Check if we are CURRENTLY transcoding
   // We determine this by checking the current source URL for "transcode=1"
   // OR if we are about to switch to a known hostile format (fallback for initial load)
-  
+
   // Actually, since we now try Direct Play first for EVERYTHING, 
   // we only need Smart Seeking if the CURRENT active stream is a transcode stream.
   // We can attach the listener dynamically, or check inside the listener.
@@ -494,16 +494,16 @@ export function applyPlyr(element) {
       // Only trigger smart seeking if the player supports it (avoid infinite loops)
       // Check if we are already near the target (standard seeking works?)
       // Actually, for transcoding streams, standard seeking usually fails or resets.
-      
+
       logRemote("info", `Transcode seek detected: target=${targetTime}`);
       lastSeekTime = now;
 
       // Reload source with start parameter AND transcode flag
       const url = streamUrl(state.current.id, targetTime) + "&transcode=1";
-      
+
       // We need to pause, change src, and resume.
       const isPaused = element.paused;
-      
+
       // Update source based on kind
       const newSource = {
         type: isVideo ? "video" : "audio",
@@ -512,25 +512,25 @@ export function applyPlyr(element) {
       };
 
       if (isVideo) {
-          newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
-          newSource.tracks = (state.current.subtitles || []).map(s => ({
-            kind: "subtitles",
-            label: s.label || "字幕",
-            srclang: s.lang || "zh",
-            src: s.src || streamUrl(s.id),
-            default: !!s.default
-          }));
+        newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
+        newSource.tracks = (state.current.subtitles || []).map(s => ({
+          kind: "subtitles",
+          label: s.label || "字幕",
+          srclang: s.lang || "zh",
+          src: s.src || streamUrl(s.id),
+          default: !!s.default
+        }));
       }
 
       state.plyr.source = newSource;
-      
+
       state.plyr.once("ready", () => {
         // Important: set currentTime to target to keep UI consistent, 
         // though the stream itself starts from 'start' param (0 in stream time, but effective offset)
         // Note: FFmpeg -ss output usually resets timestamps unless -copyts is used.
         // Backend currently uses -copyts (checked in transcoder.go), so setting currentTime is correct.
         element.currentTime = targetTime;
-        if (!isPaused) state.plyr.play().catch(() => {});
+        if (!isPaused) state.plyr.play().catch(() => { });
       });
     });
   }
@@ -817,7 +817,20 @@ export function playItem(item, opts) {
   }
 
   if (item.kind === "video") {
-    const video = el("videoEl");
+    // In video switch scenario with Plyr active, use Plyr's media element
+    // Otherwise, get the original DOM element
+    let video = el("videoEl");
+
+    if (isVideoSwitch && state.plyr && state.plyr.media) {
+      // Plyr wraps/replaces the original video element, so use its managed media
+      video = state.plyr.media;
+    }
+
+    if (!video) {
+      showPreviewError(t("err_video_format", item.ext || ""));
+      console.error("Video element not found in DOM or Plyr");
+      return;
+    }
     if (!canPlayMedia("video", item.ext, item.name, video)) {
       showPreviewError(t("err_video_format", item.ext || ""));
       return;
@@ -829,16 +842,16 @@ export function playItem(item, opts) {
         state.plyr.off("ended", onMediaEnded);
 
         try {
-          // Detect if we need to force transcode upfront based on browser capabilities
-          // This avoids "silent failures" or downloads for formats like AVI that browsers reject immediately.
-          const mime = mimeFor("video", item.ext);
-          const canPlay = video.canPlayType(mime);
-          const forceTranscode = canPlay === "" && getCfg("playback.video.transcode", false);
-          
+          // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
+          // Only AVI needs pre-emptive transcode because browsers will show download dialog.
+          // Other formats should try direct play first, let error handler fallback to transcode.
+          const ext = (item.ext || "").toLowerCase();
+          const needsPreemptiveTranscode = ext === ".avi" && getCfg("playback.video.transcode", false);
+
           let src = streamUrl(item.id);
-          if (forceTranscode) {
-             src += "&transcode=1";
-             logRemote("info", `Pre-emptive transcode for ${item.ext} (canPlayType='${canPlay}')`);
+          if (needsPreemptiveTranscode) {
+            src += "&transcode=1";
+            logRemote("info", `Pre-emptive transcode for AVI format`);
           }
 
           state.plyr.source = {
@@ -912,18 +925,19 @@ export function playItem(item, opts) {
     }
 
     resetMediaEl(video);
-    
-    // Detect if we need to force transcode upfront based on browser capabilities
-    const mime = mimeFor("video", item.ext);
-    const canPlay = video.canPlayType(mime);
-    const forceTranscode = canPlay === "" && getCfg("playback.video.transcode", false);
-    
+
+    // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
+    // Only AVI needs pre-emptive transcode because browsers will show download dialog.
+    // Other formats should try direct play first, let error handler fallback to transcode.
+    const ext = (item.ext || "").toLowerCase();
+    const needsPreemptiveTranscode = ext === ".avi" && getCfg("playback.video.transcode", false);
+
     let src = streamUrl(item.id);
-    if (forceTranscode) {
-       src += "&transcode=1";
-       logRemote("info", `Pre-emptive transcode for ${item.ext} (canPlayType='${canPlay}')`);
+    if (needsPreemptiveTranscode) {
+      src += "&transcode=1";
+      logRemote("info", `Pre-emptive transcode for AVI format`);
     }
-    
+
     video.src = src;
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
