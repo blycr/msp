@@ -783,10 +783,18 @@ export function playItem(item, opts) {
 
     const meta = el("audioMeta");
     const cover = el("audioCover");
-    cover.removeAttribute("src");
+    const placeholder = el("audioCoverPlaceholder");
+
     if (item.coverId) {
       cover.src = streamUrl(item.coverId);
+      cover.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+    } else {
+      cover.removeAttribute("src");
+      cover.hidden = true;
+      if (placeholder) placeholder.hidden = false;
     }
+
     meta.style.opacity = "0";
     meta.style.display = "flex";
     requestAnimationFrame(() => {
