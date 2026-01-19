@@ -69,20 +69,17 @@ chmod +x ./scripts/build.sh
 
 ---
 
-## 2. `dev.ps1` - 开发环境脚本 (Windows)
+## 2. 开发环境脚本 (`dev.ps1` / `dev.sh`)
 
-`dev.ps1` 专为 Windows 环境下的本地开发设计，提供了前后端热重载体验。
+这两个脚本专为本地开发设计，提供了前后端热重载体验。
 
-### 参数初始化
-```powershell
-param(
-  [int]$BackendPort = 8099  # 默认后端端口
-)
-```
+### 参数说明
+
+- `BackendPort`: 指定后端服务监听的端口 (默认: 8099)。在 `dev.sh` 中使用 `-BackendPort` 或 `--backend-port` 参数。
 
 ### 启动流程
 
-1.  **Build Backend**: 编译后端 Go 代码到 `bin/dev/msp-dev.exe`。
+1.  **Build Backend**: 编译后端 Go 代码到 `bin/dev/msp-dev` (或 `.exe`)。
 2.  **Start Backend**:
     - 初始化开发配置 `bin/dev/config.json` (如果不存在，从 `config.example.json` 复制或创建空配置)。
     - 运行后端服务，监听指定端口 (默认 8099)。
@@ -92,11 +89,13 @@ param(
     - 启动 Vite 开发服务器 (`pnpm run dev`)。
     - 设置 `MSP_DEV_BACKEND` 环境变量指向本地后端，实现前后端代理联调。
 4.  **Watch Mode**:
-    - 启动文件系统监听器 (FileSystemWatcher)。
-    - 监听项目根目录下的 `.go` 文件变化。
+    - **Windows (`dev.ps1`)**: 使用 .NET `FileSystemWatcher` 监听文件变化。
+    - **Linux/macOS (`dev.sh`)**: 轮询检查 `.go` 文件的修改时间戳。
     - 一旦检测到 Go 代码修改，自动重新编译并重启后端进程。
 
 ### 使用示例
+
+#### Windows (PowerShell)
 
 ```powershell
 # 启动开发环境（默认端口 8099）
@@ -104,6 +103,19 @@ param(
 
 # 指定后端端口启动
 .\scripts\dev.ps1 -BackendPort 3000
+```
+
+#### Linux / macOS (Bash)
+
+```bash
+# 给脚本添加执行权限（首次运行）
+chmod +x ./scripts/dev.sh
+
+# 启动开发环境（默认端口 8099）
+./scripts/dev.sh
+
+# 指定后端端口启动
+./scripts/dev.sh --backend-port 3000
 ```
 
 ### 开发环境特点
@@ -116,10 +128,10 @@ param(
 
 ## 总结
 
-| 特性 | `build.ps1` / `build.sh` | `dev.ps1` |
-|------|--------------------------|-----------|
+| 特性 | `build.ps1` / `build.sh` | `dev.ps1` / `dev.sh` |
+|------|--------------------------|----------------------|
 | **用途** | 生产环境发布构建 | 本地开发调试 |
-| **平台** | 跨平台 (Windows/Linux/Mac) | Windows Only |
+| **平台** | 跨平台 (Windows/Linux/Mac) | 跨平台 (Windows/Linux/Mac) |
 | **前端** | `pnpm run build` (静态构建) | `pnpm run dev` (Dev Server) |
 | **后端** | 交叉编译，去除符号表优化体积 | 本地编译，支持 Debug |
 | **产物** | `bin/`, `checksums/`, `debug/` | `bin/dev/` |
