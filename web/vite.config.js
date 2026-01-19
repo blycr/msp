@@ -1,19 +1,6 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-// import { OpenMemory } from "openmemory-js";
-
 const backend = process.env.MSP_DEV_BACKEND || 'http://127.0.0.1:8099'
-
-// const mem = new OpenMemory({
-//   path: "./memory.sqlite",
-//   tier: "fast",
-//   embeddings: { provider: "synthetic" } // Use 'openai' for production
-// });
-
-// await mem.add("User prefers dark mode", { tags: ["preferences"] });
-
-// const result = await mem.query("What does the user like?");
-// console.log(result);
 
 export default defineConfig({
   plugins: [
