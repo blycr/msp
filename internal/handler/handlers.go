@@ -70,56 +70,75 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	op := strings.ToLower(strings.TrimSpace(req.Op))
-	p := util.NormalizePath(req.Path)
-	label := strings.TrimSpace(req.Label)
-	if label == "" && p != "" {
-		label = filepath.Base(p)
-	}
-
-	var newCfg config.Config
-
-	switch op {
-	case "add":
-		if p == "" || !util.IsExistingDir(p) {
-			writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: "目录不存在或不可访问"}})
-			return
-		}
-	case "remove":
-		if p == "" {
-			writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: "缺少 Path"}})
-			return
-		}
-	default:
-		writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: "不支持的 op（add/remove）"}})
-		return
-	}
-
-	err := h.s.UpdateConfig(func(cfg *config.Config) {
-		switch op {
-		case "add":
-			cfg.Shares = append(cfg.Shares, config.Share{Label: label, Path: p})
-			cfg.Shares = util.NormalizeShares(cfg.Shares)
-			cfg.Shares = util.DedupeShares(cfg.Shares)
-		case "remove":
-			out := make([]config.Share, 0, len(cfg.Shares))
-			for _, sh := range cfg.Shares {
-				if !util.SamePath(sh.Path, p) {
-					out = append(out, sh)
-				}
-			}
-			cfg.Shares = out
-		}
-		newCfg = *cfg
-	})
+	op, p, label := normalizeSharesOp(req)
+	newCfg, err := h.applySharesOp(op, p, label)
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, types.SharesOpResponse{Error: &types.ApiError{Message: "写入配置失败"}})
+		if strings.Contains(err.Error(), "exists") || strings.Contains(err.Error(), "missing") {
+			writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: err.Error()}})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, types.SharesOpResponse{Error: &types.ApiError{Message: "写入配置失败"}})
+		}
 		return
 	}
 
 	h.s.InvalidateMediaCache()
 	writeJSON(w, http.StatusOK, types.SharesOpResponse{Config: newCfg})
+}
+
+func normalizeSharesOp(req types.SharesOpRequest) (op string, path string, label string) {
+	op = strings.ToLower(strings.TrimSpace(req.Op))
+	path = util.NormalizePath(req.Path)
+	label = strings.TrimSpace(req.Label)
+	if label == "" && path != "" {
+		label = filepath.Base(path)
+	}
+	return op, path, label
+}
+
+func (h *Handler) applySharesOp(op string, path string, label string) (config.Config, error) {
+	switch op {
+	case "add":
+		return h.handleShareAdd(path, label)
+	case "remove":
+		return h.handleShareRemove(path)
+	default:
+		return config.Config{}, fmt.Errorf("不支持的 op（add/remove）")
+	}
+}
+
+func (h *Handler) handleShareAdd(p, label string) (config.Config, error) {
+	if p == "" || !util.IsExistingDir(p) {
+		return config.Config{}, fmt.Errorf("目录不存在或不可访问")
+	}
+
+	var newCfg config.Config
+	err := h.s.UpdateConfig(func(cfg *config.Config) {
+		cfg.Shares = append(cfg.Shares, config.Share{Label: label, Path: p})
+		cfg.Shares = util.NormalizeShares(cfg.Shares)
+		cfg.Shares = util.DedupeShares(cfg.Shares)
+		newCfg = *cfg
+	})
+	return newCfg, err
+}
+
+func (h *Handler) handleShareRemove(p string) (config.Config, error) {
+	if p == "" {
+		return config.Config{}, fmt.Errorf("缺少 Path")
+	}
+
+	var newCfg config.Config
+	err := h.s.UpdateConfig(func(cfg *config.Config) {
+		out := make([]config.Share, 0, len(cfg.Shares))
+		for _, sh := range cfg.Shares {
+			if !util.SamePath(sh.Path, p) {
+				out = append(out, sh)
+			}
+		}
+		cfg.Shares = out
+		newCfg = *cfg
+	})
+	return newCfg, err
 }
 
 func (h *Handler) HandleIP(w http.ResponseWriter, r *http.Request) {
@@ -282,37 +301,61 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	resp.ImagesTotal = len(resp.Images)
 	resp.OthersTotal = len(resp.Others)
 
-	limit := 0
-	if v := strings.TrimSpace(r.URL.Query().Get("limit")); v != "" {
-		limit, _ = strconv.Atoi(v)
-	}
-	if limit > 0 {
-		if len(resp.Videos) > limit {
-			resp.Videos = resp.Videos[:limit]
-		}
-		if len(resp.Audios) > limit {
-			resp.Audios = resp.Audios[:limit]
-		}
-		if len(resp.Images) > limit {
-			resp.Images = resp.Images[:limit]
-		}
-		if len(resp.Others) > limit {
-			resp.Others = resp.Others[:limit]
-		}
-		resp.Limited = true
+	limit := parseLimitParam(r)
+	if applyLimit(&resp, limit) {
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
-	if etag != "" {
-		w.Header().Set("ETag", etag)
-		if !refresh && strings.TrimSpace(r.Header.Get("If-None-Match")) == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
+	if writeNotModifiedIfMatch(w, r, etag, refresh) {
+		return
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func parseLimitParam(r *http.Request) int {
+	v := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if v == "" {
+		return 0
+	}
+	limit, _ := strconv.Atoi(v)
+	return limit
+}
+
+func applyLimit(resp *types.MediaResponse, limit int) bool {
+	if limit <= 0 {
+		return false
+	}
+	if len(resp.Videos) > limit {
+		resp.Videos = resp.Videos[:limit]
+	}
+	if len(resp.Audios) > limit {
+		resp.Audios = resp.Audios[:limit]
+	}
+	if len(resp.Images) > limit {
+		resp.Images = resp.Images[:limit]
+	}
+	if len(resp.Others) > limit {
+		resp.Others = resp.Others[:limit]
+	}
+	resp.Limited = true
+	return true
+}
+
+func writeNotModifiedIfMatch(w http.ResponseWriter, r *http.Request, etag string, refresh bool) bool {
+	if etag == "" {
+		return false
+	}
+	w.Header().Set("ETag", etag)
+	if refresh {
+		return false
+	}
+	if strings.TrimSpace(r.Header.Get("If-None-Match")) == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+	return false
 }
 
 func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
@@ -321,44 +364,16 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "missing id", http.StatusBadRequest)
-		return
-	}
-
-	target, err := util.DecodeID(id)
+	target, f, st, err := h.resolveMediaTarget(w, r)
 	if err != nil {
-		http.Error(w, "bad id", http.StatusBadRequest)
-		return
-	}
-	//nolint:gosec // Validated via util.DecodeID and IsAllowedFile below
-	target = util.NormalizePath(target)
-
-	cfg := h.s.Config()
-	shares := append([]config.Share(nil), cfg.Shares...)
-
-	if !util.IsAllowedFile(target, shares) {
-		http.Error(w, "not allowed", http.StatusForbidden)
-		return
-	}
-
-	//nolint:gosec // Path is validated above
-	f, err := os.Open(target)
-	if err != nil {
-		http.Error(w, "open failed", http.StatusNotFound)
+		// resolveMediaTarget handles the error response
 		return
 	}
 	defer func() { _ = f.Close() }()
 
-	st, err := f.Stat()
-	if err != nil || st.IsDir() {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
 	ext := strings.ToLower(filepath.Ext(st.Name()))
 	ct := determineContentType(ext)
+	cfg := h.s.Config()
 
 	// Check Transcoding Policy
 	shouldTranscode, err := h.checkTranscodePolicy(r, cfg, ext)
@@ -378,34 +393,68 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.serveDirect(w, r, f, st, ct)
 }
 
-func determineContentType(ext string) string {
-	var ct string
-	switch ext {
-	case ".mp4", ".m4v":
-		ct = "video/mp4"
-	case ".mkv":
-		ct = "video/x-matroska"
-	case ".webm":
-		ct = "video/webm"
-	case ".avi":
-		ct = "video/x-msvideo"
-	case ".mov":
-		ct = "video/quicktime"
-	case ".ts":
-		ct = "video/mp2t"
-	case ".vtt":
-		ct = "text/vtt; charset=utf-8"
-	case ".srt", ".lrc":
-		ct = "text/plain; charset=utf-8"
+func (h *Handler) resolveMediaTarget(w http.ResponseWriter, r *http.Request) (string, *os.File, os.FileInfo, error) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return "", nil, nil, fmt.Errorf("missing id")
 	}
 
-	if ct == "" {
-		ct = mime.TypeByExtension(ext)
+	target, err := util.DecodeID(id)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return "", nil, nil, err
 	}
+	//nolint:gosec // Validated via util.DecodeID and IsAllowedFile below
+	target = util.NormalizePath(target)
+
+	cfg := h.s.Config()
+	shares := append([]config.Share(nil), cfg.Shares...)
+
+	if !util.IsAllowedFile(target, shares) {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		return "", nil, nil, fmt.Errorf("not allowed")
+	}
+
+	//nolint:gosec // Path is validated above
+	f, err := os.Open(target)
+	if err != nil {
+		http.Error(w, "open failed", http.StatusNotFound)
+		return "", nil, nil, err
+	}
+
+	st, err := f.Stat()
+	if err != nil || st.IsDir() {
+		_ = f.Close()
+		http.Error(w, "not found", http.StatusNotFound)
+		return "", nil, nil, fmt.Errorf("not found")
+	}
+
+	return target, f, st, nil
+}
+
+func determineContentType(ext string) string {
+	if ct, ok := contentTypeByExt[ext]; ok {
+		return ct
+	}
+	ct := mime.TypeByExtension(ext)
 	if ct == "" {
-		ct = "application/octet-stream"
+		return "application/octet-stream"
 	}
 	return ct
+}
+
+var contentTypeByExt = map[string]string{
+	".mp4":  "video/mp4",
+	".m4v":  "video/mp4",
+	".mkv":  "video/x-matroska",
+	".webm": "video/webm",
+	".avi":  "video/x-msvideo",
+	".mov":  "video/quicktime",
+	".ts":   "video/mp2t",
+	".vtt":  "text/vtt; charset=utf-8",
+	".srt":  "text/plain; charset=utf-8",
+	".lrc":  "text/plain; charset=utf-8",
 }
 
 func (h *Handler) checkTranscodePolicy(r *http.Request, cfg config.Config, ext string) (bool, error) {
@@ -517,64 +566,39 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "missing id", http.StatusBadRequest)
-		return
-	}
-
-	target, err := util.DecodeID(id)
+	_, f, st, err := h.resolveMediaTarget(w, r)
 	if err != nil {
-		http.Error(w, "bad id", http.StatusBadRequest)
-		return
-	}
-	//nolint:gosec // Validated via util.DecodeID
-	target = util.NormalizePath(target)
-
-	cfg := h.s.Config()
-	shares := append([]config.Share(nil), cfg.Shares...)
-
-	if !util.IsAllowedFile(target, shares) {
-		http.Error(w, "not allowed", http.StatusForbidden)
-		return
-	}
-
-	//nolint:gosec // Validated path
-	f, err := os.Open(target)
-	if err != nil {
-		http.Error(w, "open failed", http.StatusNotFound)
 		return
 	}
 	defer func() { _ = f.Close() }()
 
-	st, err := f.Stat()
-	if err != nil || st.IsDir() {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
 	ext := strings.ToLower(filepath.Ext(st.Name()))
 	switch ext {
 	case ".vtt":
-		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Cache-Control", "private, max-age=0")
-		http.ServeContent(w, r, st.Name(), st.ModTime(), f)
-		return
+		h.serveVTT(w, r, f, st)
 	case ".srt":
-		b, err := io.ReadAll(f)
-		if err != nil {
-			http.Error(w, "read failed", http.StatusInternalServerError)
-			return
-		}
-		out := media.SrtToVtt(b)
-		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Cache-Control", "private, max-age=0")
-		http.ServeContent(w, r, strings.TrimSuffix(st.Name(), ext)+".vtt", st.ModTime(), bytes.NewReader(out))
-		return
+		h.serveSRT(w, r, f, st)
 	default:
 		http.Error(w, "unsupported subtitle format", http.StatusBadRequest)
+	}
+}
+
+func (h *Handler) serveVTT(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	w.Header().Set("Cache-Control", "private, max-age=0")
+	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
+}
+
+func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
+	b, err := io.ReadAll(f)
+	if err != nil {
+		http.Error(w, "read failed", http.StatusInternalServerError)
 		return
 	}
+	out := media.SrtToVtt(b)
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	w.Header().Set("Cache-Control", "private, max-age=0")
+	http.ServeContent(w, r, strings.TrimSuffix(st.Name(), filepath.Ext(st.Name()))+".vtt", st.ModTime(), bytes.NewReader(out))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

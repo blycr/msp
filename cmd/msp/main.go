@@ -55,6 +55,34 @@ func main() {
 		log.Fatal(err)
 	}
 
+	mux := registerRoutes(s, webRoot)
+
+	port := s.GetPort()
+	addr := ":" + util.Itoa(port)
+
+	printStartupBanner(cfgPath, port)
+
+	finalHandler := handler.WithLog(s, handler.WithSecurity(s, handler.WithGzip(mux)))
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           finalHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		// WriteTimeout is intentionally omitted to support long-running media streams
+	}
+
+	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {
+		go tryAutoOpenBrowser(port)
+	}
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
+}
+
+func registerRoutes(s *server.Server, webRoot fs.FS) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/favicon.ico", http.NotFoundHandler())
 
@@ -75,10 +103,10 @@ func main() {
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.ServeEmbeddedWeb(w, r, webRoot)
 	}))
+	return mux
+}
 
-	port := s.GetPort()
-	addr := ":" + util.Itoa(port)
-
+func printStartupBanner(cfgPath string, port int) {
 	ips := util.GetLanIPv4s()
 	urls := make([]string, 0, 2+len(ips))
 	urls = append(urls, "http://127.0.0.1:"+util.Itoa(port)+"/")
@@ -92,39 +120,22 @@ func main() {
 		log.Println("访问:", u)
 		fmt.Println("访问:", "\x1b[36m"+u+"\x1b[0m")
 	}
+}
 
-	finalHandler := handler.WithLog(s, handler.WithSecurity(s, handler.WithGzip(mux)))
+func tryAutoOpenBrowser(port int) {
+	localURL := "http://localhost:" + util.Itoa(port) + "/"
+	addr := "127.0.0.1:" + util.Itoa(port)
 
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           finalHandler,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		// WriteTimeout is intentionally omitted to support long-running media streams
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err == nil {
+			_ = c.Close()
+			break
+		}
+		time.Sleep(120 * time.Millisecond)
 	}
-
-	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {
-		go func() {
-			localURL := "http://localhost:" + util.Itoa(port) + "/"
-			addr := "127.0.0.1:" + util.Itoa(port)
-
-			deadline := time.Now().Add(3 * time.Second)
-			for time.Now().Before(deadline) {
-				c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
-				if err == nil {
-					_ = c.Close()
-					break
-				}
-				time.Sleep(120 * time.Millisecond)
-			}
-			_ = openBrowser(localURL)
-		}()
-	}
-
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
-	}
+	_ = openBrowser(localURL)
 }
 
 func openBrowser(url string) error {
