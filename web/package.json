@@ -20,5 +20,6 @@
       "sourcemap-codec": "npm:@jridgewell/sourcemap-codec@^1.5.0",
       "source-map@>0.7.6": "0.7.6"
     }
-  }
+  },
+  "packageManager": "pnpm@10.28.1"
 }
