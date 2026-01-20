@@ -1,11 +1,10 @@
-version: 2
+version: "2"
 
 run:
   timeout: 5m
   tests: true
 
 linters:
-  disable-all: true
   enable:
     - errcheck
     - govet
@@ -17,6 +16,5 @@ linters:
     - misspell
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
