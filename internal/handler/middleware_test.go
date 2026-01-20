@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"msp/internal/config"
@@ -244,8 +245,12 @@ func TestRequiresPIN(t *testing.T) {
 }
 
 func TestWithSecurityMiddleware(t *testing.T) {
+	// Create a temporary directory for the test config
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "test_config.json")
+
 	// Create a test server
-	s := server.New("test_config.json")
+	s := server.New(configPath)
 
 	// Update config with security settings
 	_ = s.UpdateConfig(func(cfg *config.Config) {
