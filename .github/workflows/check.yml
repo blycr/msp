@@ -41,6 +41,6 @@ jobs:
           echo "DUMMY" > web/dist/index.html
           echo "DUMMY" > web/dist/manifest.webmanifest
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.7.2
