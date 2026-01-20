@@ -8,6 +8,8 @@ import (
 	"msp/internal/db"
 	"msp/internal/types"
 	"msp/internal/util"
+
+	"gorm.io/gorm"
 )
 
 func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []config.Share) (types.MediaResponse, time.Time, bool, error) {
@@ -40,6 +42,8 @@ func ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []config.S
 	return resp, builtAt, nil
 }
 
+// IndexMediaToDB scans all shares and indexes media files into the database.
+// It returns the scan ID, build time, completion status, and any error encountered.
 func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
 	if db.DB == nil {
 		return 0, time.Time{}, false, nil
@@ -48,17 +52,7 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 	builtAt = time.Now()
 	scanID = builtAt.UnixNano()
 
-	shareRoots := make([]string, 0, len(shares))
-	validShares := make([]config.Share, 0, len(shares))
-	for _, sh := range shares {
-		root := util.NormalizePath(sh.Path)
-		if root == "" || !util.IsExistingDir(root) {
-			continue
-		}
-		shareRoots = append(shareRoots, root)
-		sh.Path = root
-		validShares = append(validShares, sh)
-	}
+	validShares, shareRoots := prepareShares(shares)
 
 	tx := db.DB.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -68,6 +62,49 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 		_ = tx.Rollback()
 	}()
 
+	seen, err := performScan(ctx, tx, scanID, validShares, blacklist, maxItems)
+	if err != nil {
+		return 0, time.Time{}, false, err
+	}
+
+	limit := maxItems
+	if limit <= 0 {
+		limit = 1000000000
+	}
+	complete = seen < limit
+
+	if complete {
+		if err := cleanupStaleData(ctx, tx, scanID, shareRoots); err != nil {
+			return 0, time.Time{}, false, err
+		}
+	}
+
+	if err := db.SetScanMeta(ctx, tx, cacheKey, types.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
+		return 0, time.Time{}, false, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, time.Time{}, false, err
+	}
+	return scanID, builtAt, complete, nil
+}
+
+func prepareShares(shares []config.Share) (validShares []config.Share, shareRoots []string) {
+	shareRoots = make([]string, 0, len(shares))
+	validShares = make([]config.Share, 0, len(shares))
+	for _, sh := range shares {
+		root := util.NormalizePath(sh.Path)
+		if root == "" || !util.IsExistingDir(root) {
+			continue
+		}
+		shareRoots = append(shareRoots, root)
+		sh.Path = root
+		validShares = append(validShares, sh)
+	}
+	return validShares, shareRoots
+}
+
+func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (int, error) {
 	seen := 0
 	limit := maxItems
 	if limit <= 0 {
@@ -85,28 +122,20 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 		return nil
 	}
 
-	if err := WalkShares(ctx, validShares, blacklist, limit, cb); err != nil {
-		return 0, time.Time{}, false, err
+	if err := WalkShares(ctx, shares, blacklist, limit, cb); err != nil {
+		return 0, err
 	}
+	return seen, nil
+}
 
-	complete = seen < limit
-	if complete {
-		if err := db.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
-			return 0, time.Time{}, false, err
-		}
-		if err := db.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
-			return 0, time.Time{}, false, err
-		}
+func cleanupStaleData(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
+	if err := db.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
+		return err
 	}
-
-	if err := db.SetScanMeta(ctx, tx, cacheKey, types.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
-		return 0, time.Time{}, false, err
+	if err := db.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
+		return err
 	}
-
-	if err := tx.Commit().Error; err != nil {
-		return 0, time.Time{}, false, err
-	}
-	return scanID, builtAt, complete, nil
+	return nil
 }
 
 func LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []config.Share) (types.MediaResponse, error) {

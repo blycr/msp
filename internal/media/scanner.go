@@ -27,8 +27,14 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 	if limit <= 0 {
 		limit = 100000
 	}
-	seen := 0
-	dirCache := make(map[string][]fs.DirEntry)
+	w := shareWalker{
+		ctx:       ctx,
+		blacklist: blacklist,
+		limit:     limit,
+		seen:      0,
+		dirCache:  make(map[string][]fs.DirEntry),
+		cb:        cb,
+	}
 
 	for _, sh := range shares {
 		root := util.NormalizePath(sh.Path)
@@ -36,84 +42,7 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 			continue
 		}
 
-		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			if err != nil {
-				return nil
-			}
-			if seen >= limit {
-				return fs.SkipAll
-			}
-
-			if d.IsDir() {
-				name := d.Name()
-				if name == "" {
-					return nil
-				}
-				if strings.HasPrefix(name, ".") {
-					return fs.SkipDir
-				}
-				if IsBlockedString(blacklist.Folders, name) {
-					return fs.SkipDir
-				}
-				return nil
-			}
-
-			ext := strings.ToLower(filepath.Ext(d.Name()))
-			if ext == "" {
-				return nil
-			}
-			if IsBlockedString(blacklist.Extensions, ext) {
-				return nil
-			}
-			if IsBlockedString(blacklist.Filenames, d.Name()) {
-				return nil
-			}
-			if IsSubtitleExt(ext) || IsLyricsExt(ext) {
-				return nil
-			}
-
-			fi, statErr := d.Info()
-			if statErr != nil {
-				return nil
-			}
-
-			if IsBlockedSize(fi.Size(), blacklist.SizeRule) {
-				return nil
-			}
-
-			kind := ClassifyExt(ext)
-			item := types.MediaItem{
-				ID:         util.EncodeID(p),
-				Name:       d.Name(),
-				Ext:        ext,
-				Kind:       kind,
-				ShareLabel: sh.Label,
-				Size:       fi.Size(),
-				ModTime:    fi.ModTime().Unix(),
-			}
-
-			if kind == "video" {
-				item.Subtitles = FindSidecarSubtitlesCached(p, dirCache)
-			}
-			if kind == "audio" {
-				cover, lyrics := FindAudioSidecarsCached(p, dirCache)
-				if cover != "" {
-					item.CoverID = util.EncodeID(cover)
-				}
-				if lyrics != "" {
-					item.LyricsID = util.EncodeID(lyrics)
-				}
-			}
-
-			seen++
-			return cb(item, p, root)
-		})
+		err := w.walkShare(root, sh.Label)
 
 		if err == fs.SkipAll {
 			return nil
@@ -123,6 +52,128 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 		}
 	}
 	return nil
+}
+
+type shareWalker struct {
+	ctx       context.Context
+	blacklist config.BlacklistConfig
+	limit     int
+	seen      int
+	dirCache  map[string][]fs.DirEntry
+	cb        WalkCallback
+}
+
+func (w *shareWalker) walkShare(root string, shareLabel string) error {
+	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		return w.handleEntry(p, d, err, shareLabel, root)
+	})
+}
+
+func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel string, root string) error {
+	select {
+	case <-w.ctx.Done():
+		return w.ctx.Err()
+	default:
+	}
+
+	if err != nil {
+		return nil
+	}
+	if w.seen >= w.limit {
+		return fs.SkipAll
+	}
+
+	if d.IsDir() {
+		if shouldSkipDir(d.Name(), w.blacklist) {
+			return fs.SkipDir
+		}
+		return nil
+	}
+
+	if shouldSkipFile(d, w.blacklist) {
+		return nil
+	}
+
+	item, err := buildMediaItem(p, d, shareLabel, w.dirCache)
+	if err != nil {
+		return nil
+	}
+
+	w.seen++
+	return w.cb(item, p, root)
+}
+
+func shouldSkipDir(name string, blacklist config.BlacklistConfig) bool {
+	if name == "" {
+		return false
+	}
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	if IsBlockedString(blacklist.Folders, name) {
+		return true
+	}
+	return false
+}
+
+func shouldSkipFile(d fs.DirEntry, blacklist config.BlacklistConfig) bool {
+	name := d.Name()
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == "" {
+		return true
+	}
+	if IsBlockedString(blacklist.Extensions, ext) {
+		return true
+	}
+	if IsBlockedString(blacklist.Filenames, name) {
+		return true
+	}
+	if IsSubtitleExt(ext) || IsLyricsExt(ext) {
+		return true
+	}
+
+	fi, err := d.Info()
+	if err != nil {
+		return true
+	}
+
+	if IsBlockedSize(fi.Size(), blacklist.SizeRule) {
+		return true
+	}
+	return false
+}
+
+func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[string][]fs.DirEntry) (types.MediaItem, error) {
+	fi, err := d.Info()
+	if err != nil {
+		return types.MediaItem{}, err
+	}
+
+	ext := strings.ToLower(filepath.Ext(d.Name()))
+	kind := ClassifyExt(ext)
+	item := types.MediaItem{
+		ID:         util.EncodeID(path),
+		Name:       d.Name(),
+		Ext:        ext,
+		Kind:       kind,
+		ShareLabel: shareLabel,
+		Size:       fi.Size(),
+		ModTime:    fi.ModTime().Unix(),
+	}
+
+	if kind == "video" {
+		item.Subtitles = FindSidecarSubtitlesCached(path, dirCache)
+	}
+	if kind == "audio" {
+		cover, lyrics := FindAudioSidecarsCached(path, dirCache)
+		if cover != "" {
+			item.CoverID = util.EncodeID(cover)
+		}
+		if lyrics != "" {
+			item.LyricsID = util.EncodeID(lyrics)
+		}
+	}
+	return item, nil
 }
 
 func IsBlockedString(list []string, target string) bool {
@@ -212,6 +263,17 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry)
 		}
 		cache[dir] = ents
 	}
+
+	out := collectSubtitles(dir, base, ents)
+	if len(out) == 0 {
+		return nil
+	}
+	sortSubtitles(out)
+	out[0].Default = true
+	return out
+}
+
+func collectSubtitles(dir, base string, ents []fs.DirEntry) []types.Subtitle {
 	baseLower := strings.ToLower(base)
 	var out []types.Subtitle
 
@@ -248,9 +310,10 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry)
 		}
 		out = append(out, types.Subtitle{ID: id, Label: label, Lang: lang, Src: src})
 	}
-	if len(out) == 0 {
-		return nil
-	}
+	return out
+}
+
+func sortSubtitles(out []types.Subtitle) {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Lang == "zh" && out[j].Lang != "zh" {
 			return true
@@ -260,34 +323,32 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry)
 		}
 		return strings.ToLower(out[i].Label) < strings.ToLower(out[j].Label)
 	})
-	out[0].Default = true
-	return out
 }
 
 func SubtitleLabel(token string) string {
 	t := strings.ToLower(strings.TrimSpace(token))
-	switch t {
-	case "zh", "zh-cn", "zh-hans":
-		return "中文"
-	case "zh-tw", "zh-hant":
-		return "繁體"
-	case "en", "en-us", "en-gb":
-		return "English"
-	case "ja", "jp":
-		return "日本語"
-	case "ko":
-		return "한국어"
-	case "fr":
-		return "Français"
-	case "de":
-		return "Deutsch"
-	case "es":
-		return "Español"
-	case "ru":
-		return "Русский"
-	default:
-		return token
+	if v, ok := subtitleLabelMap[t]; ok {
+		return v
 	}
+	return token
+}
+
+var subtitleLabelMap = map[string]string{
+	"zh":      "中文",
+	"zh-cn":   "中文",
+	"zh-hans": "中文",
+	"zh-tw":   "繁體",
+	"zh-hant": "繁體",
+	"en":      "English",
+	"en-us":   "English",
+	"en-gb":   "English",
+	"ja":      "日本語",
+	"jp":      "日本語",
+	"ko":      "한국어",
+	"fr":      "Français",
+	"de":      "Deutsch",
+	"es":      "Español",
+	"ru":      "Русский",
 }
 
 func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (coverAbs string, lyricsAbs string) {
@@ -303,34 +364,66 @@ func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (c
 		cache[dir] = ents
 	}
 	baseLower := strings.ToLower(base)
-	bestLrc := ""
-	langLrc := ""
+
+	lyricsAbs = findLyrics(dir, baseLower, ents)
+	coverAbs = findCover(dir, baseLower, ents)
+
+	return coverAbs, lyricsAbs
+}
+
+func findLyrics(dir, baseLower string, ents []fs.DirEntry) string {
+	var pick lrcPicker
 	for _, e := range ents {
 		if e.IsDir() {
 			continue
 		}
 		name := e.Name()
 		low := strings.ToLower(name)
-		ext := strings.ToLower(filepath.Ext(low))
-		if ext == ".lrc" {
-			stem := strings.TrimSuffix(low, ext)
-			if stem == baseLower {
-				bestLrc = name
-			} else if strings.HasPrefix(stem, baseLower+".") && langLrc == "" {
-				langLrc = name
-			} else if bestLrc == "" && langLrc == "" {
-				bestLrc = name
-			}
+		if strings.ToLower(filepath.Ext(low)) != ".lrc" {
+			continue
 		}
+		pick.consider(name, strings.TrimSuffix(low, ".lrc"), baseLower)
 	}
-	candidate := bestLrc
+	candidate := pick.choose()
 	if candidate == "" {
-		candidate = langLrc
+		return ""
 	}
-	if candidate != "" {
-		lyricsAbs = filepath.Join(dir, candidate)
-	}
+	return filepath.Join(dir, candidate)
+}
 
+type lrcPicker struct {
+	exact string
+	lang  string
+	any   string
+}
+
+func (p *lrcPicker) consider(name string, stem string, baseLower string) {
+	if stem == baseLower {
+		p.exact = name
+		return
+	}
+	if strings.HasPrefix(stem, baseLower+".") {
+		if p.lang == "" {
+			p.lang = name
+		}
+		return
+	}
+	if p.any == "" {
+		p.any = name
+	}
+}
+
+func (p *lrcPicker) choose() string {
+	if p.exact != "" {
+		return p.exact
+	}
+	if p.lang != "" {
+		return p.lang
+	}
+	return p.any
+}
+
+func findCover(dir, baseLower string, ents []fs.DirEntry) string {
 	candidates := []string{
 		baseLower + ".jpg", baseLower + ".jpeg", baseLower + ".png", baseLower + ".webp",
 		"cover.jpg", "folder.jpg", "front.jpg", "album.jpg", "albumart.jpg",
@@ -338,30 +431,40 @@ func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (c
 	for _, c := range candidates {
 		for _, e := range ents {
 			if !e.IsDir() && strings.EqualFold(e.Name(), c) {
-				coverAbs = filepath.Join(dir, e.Name())
-				goto done
+				return filepath.Join(dir, e.Name())
 			}
 		}
 	}
-done:
-	return coverAbs, lyricsAbs
+	return ""
 }
 
 // SniffContainerCodecs reads the file header (and tail for MOV/MP4 atoms) to guess codecs.
 // Returns (videoCodec, audioCodec).
 func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
+	b, err := readSniffBytes(fileAbs)
+	if err != nil {
+		return "", ""
+	}
+	return sniffByExt(b, ext)
+}
+
+func readSniffBytes(fileAbs string) ([]byte, error) {
 	//nolint:gosec // Safe file open for sniffing
 	f, err := os.Open(fileAbs)
 	if err != nil {
-		return "", ""
+		return nil, err
 	}
 	defer func() { _ = f.Close() }()
 
 	const max = 2 << 20
 	head, err := io.ReadAll(io.LimitReader(f, max))
 	if err != nil || len(head) == 0 {
-		return "", ""
+		if err == nil {
+			err = io.EOF
+		}
+		return nil, err
 	}
+
 	b := head
 	if st, err := f.Stat(); err == nil && st.Size() > max {
 		tailSize := int64(max)
@@ -372,7 +475,10 @@ func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
 		_, _ = f.ReadAt(tail, st.Size()-tailSize)
 		b = append(head, tail...)
 	}
+	return b, nil
+}
 
+func sniffByExt(b []byte, ext string) (string, string) {
 	if ext == ".mkv" {
 		return sniffMKV(b)
 	}
@@ -383,67 +489,64 @@ func SniffContainerCodecs(fileAbs string, ext string) (string, string) {
 }
 
 func sniffMKV(b []byte) (string, string) {
-	video := ""
-	var audioParts []string
 	has := func(s string) bool { return bytes.Contains(b, []byte(s)) }
-
-	if has("V_MPEGH/ISO/HEVC") {
-		video = "H.265/HEVC"
-	} else if has("V_MPEG4/ISO/AVC") {
-		video = "H.264/AVC"
-	} else if has("V_AV1") {
-		video = "AV1"
-	} else if has("V_VP9") {
-		video = "VP9"
-	}
-
-	if has("A_EAC3") {
-		audioParts = append(audioParts, "E-AC-3")
-	} else if has("A_AC3") {
-		audioParts = append(audioParts, "AC-3")
-	} else if has("A_OPUS") {
-		audioParts = append(audioParts, "Opus")
-	} else if has("A_AAC") {
-		audioParts = append(audioParts, "AAC")
-	} else if has("A_VORBIS") {
-		audioParts = append(audioParts, "Vorbis")
-	} else if has("A_FLAC") {
-		audioParts = append(audioParts, "FLAC")
-	} else if has("A_DTS") {
-		audioParts = append(audioParts, "DTS")
-	} else if has("A_TRUEHD") {
-		audioParts = append(audioParts, "TrueHD")
-	}
-
-	return video, strings.Join(audioParts, " + ")
+	video := firstSniffMatch(has, mkvVideoSniffs)
+	audio := firstSniffMatch(has, mkvAudioSniffs)
+	return video, audio
 }
 
 func sniffMP4(b []byte) (string, string) {
-	video := ""
-	var audioParts []string
 	has := func(s string) bool { return bytes.Contains(b, []byte(s)) }
+	video := firstSniffMatch(has, mp4VideoSniffs)
+	audio := firstSniffMatch(has, mp4AudioSniffs)
+	return video, audio
+}
 
-	if has("hvc1") || has("hev1") {
-		video = "H.265/HEVC"
-	} else if has("avc1") {
-		video = "H.264/AVC"
-	} else if has("av01") {
-		video = "AV1"
-	} else if has("vp09") {
-		video = "VP9"
+type sniffPattern struct {
+	pattern string
+	label   string
+}
+
+var mkvVideoSniffs = []sniffPattern{
+	{pattern: "V_MPEGH/ISO/HEVC", label: "H.265/HEVC"},
+	{pattern: "V_MPEG4/ISO/AVC", label: "H.264/AVC"},
+	{pattern: "V_AV1", label: "AV1"},
+	{pattern: "V_VP9", label: "VP9"},
+}
+
+var mkvAudioSniffs = []sniffPattern{
+	{pattern: "A_EAC3", label: "E-AC-3"},
+	{pattern: "A_AC3", label: "AC-3"},
+	{pattern: "A_OPUS", label: "Opus"},
+	{pattern: "A_AAC", label: "AAC"},
+	{pattern: "A_VORBIS", label: "Vorbis"},
+	{pattern: "A_FLAC", label: "FLAC"},
+	{pattern: "A_DTS", label: "DTS"},
+	{pattern: "A_TRUEHD", label: "TrueHD"},
+}
+
+var mp4VideoSniffs = []sniffPattern{
+	{pattern: "hvc1", label: "H.265/HEVC"},
+	{pattern: "hev1", label: "H.265/HEVC"},
+	{pattern: "avc1", label: "H.264/AVC"},
+	{pattern: "av01", label: "AV1"},
+	{pattern: "vp09", label: "VP9"},
+}
+
+var mp4AudioSniffs = []sniffPattern{
+	{pattern: "ec-3", label: "E-AC-3"},
+	{pattern: "ac-3", label: "AC-3"},
+	{pattern: "mp4a", label: "AAC/MP4A"},
+	{pattern: "opus", label: "Opus"},
+}
+
+func firstSniffMatch(has func(string) bool, patterns []sniffPattern) string {
+	for _, p := range patterns {
+		if has(p.pattern) {
+			return p.label
+		}
 	}
-
-	if has("ec-3") {
-		audioParts = append(audioParts, "E-AC-3")
-	} else if has("ac-3") {
-		audioParts = append(audioParts, "AC-3")
-	} else if has("mp4a") {
-		audioParts = append(audioParts, "AAC/MP4A")
-	} else if has("opus") {
-		audioParts = append(audioParts, "Opus")
-	}
-
-	return video, strings.Join(audioParts, " + ")
+	return ""
 }
 
 func SrtToVtt(in []byte) []byte {

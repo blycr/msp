@@ -81,22 +81,12 @@ type Config struct {
 	MaxItems  int             `json:"maxItems"`
 }
 
+func boolPtr(v bool) *bool { return &v }
+
+func stringPtr(v string) *string { return &v }
+
 // Default configuration values
 func Default() Config {
-	defTab := "video"
-	showOthers := false
-	audioEnabled := true
-	audioShuffle := false
-	audioRemember := true
-	audioScope := "all"
-	audioTranscode := false
-	videoEnabled := true
-	videoScope := "folder"
-	videoTranscode := false
-	videoResume := true
-	imageEnabled := true
-	imageScope := "folder"
-
 	return Config{
 		Port:     8099,
 		MaxItems: 0, // 0 means unlimited (full scan), ideal for SQLite-backed incremental scanning
@@ -109,26 +99,26 @@ func Default() Config {
 			Playlist:     true,
 		},
 		UI: UIConfig{
-			DefaultTab: &defTab,
-			ShowOthers: &showOthers,
+			DefaultTab: stringPtr("video"),
+			ShowOthers: boolPtr(false),
 		},
 		Playback: PlaybackConfig{
 			Audio: PlaybackAudioConfig{
-				Enabled:   &audioEnabled,
-				Shuffle:   &audioShuffle,
-				Remember:  &audioRemember,
-				Scope:     &audioScope,
-				Transcode: &audioTranscode,
+				Enabled:   boolPtr(true),
+				Shuffle:   boolPtr(false),
+				Remember:  boolPtr(true),
+				Scope:     stringPtr("all"),
+				Transcode: boolPtr(false),
 			},
 			Video: PlaybackVideoConfig{
-				Enabled:   &videoEnabled,
-				Scope:     &videoScope,
-				Transcode: &videoTranscode,
-				Resume:    &videoResume,
+				Enabled:   boolPtr(true),
+				Scope:     stringPtr("folder"),
+				Transcode: boolPtr(false),
+				Resume:    boolPtr(true),
 			},
 			Image: PlaybackImageConfig{
-				Enabled: &imageEnabled,
-				Scope:   &imageScope,
+				Enabled: boolPtr(true),
+				Scope:   stringPtr("folder"),
 			},
 		},
 		Blacklist: BlacklistConfig{
@@ -148,22 +138,41 @@ func Default() Config {
 	}
 }
 
+// ApplyDefaults applies default values to the configuration.
+// It returns true if any changes were made.
 func ApplyDefaults(cfg *Config) bool {
 	if cfg == nil {
 		return false
 	}
-	changed := false
+	changed := applyBaseDefaults(cfg)
+	changed = applyFeatureDefaults(cfg) || changed
+	changed = applyUIDefaults(cfg) || changed
+	changed = applyPlaybackDefaults(cfg) || changed
+	changed = applyBlacklistDefaults(cfg) || changed
+	changed = applySecurityDefaults(cfg) || changed
 
+	return changed
+}
+
+func applyBaseDefaults(cfg *Config) bool {
+	changed := false
 	if cfg.Port <= 0 {
 		cfg.Port = 8099
 		changed = true
 	}
-
 	if cfg.Shares == nil {
 		cfg.Shares = []Share{}
 		changed = true
 	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
+		changed = true
+	}
+	return changed
+}
 
+func applyFeatureDefaults(cfg *Config) bool {
+	changed := false
 	if len(cfg.Features.SpeedOptions) == 0 &&
 		!cfg.Features.Speed &&
 		!cfg.Features.Quality &&
@@ -181,7 +190,11 @@ func ApplyDefaults(cfg *Config) bool {
 		cfg.Features.SpeedOptions = []float64{0.5, 0.75, 1, 1.25, 1.5, 2}
 		changed = true
 	}
+	return changed
+}
 
+func applyUIDefaults(cfg *Config) bool {
+	changed := false
 	if cfg.UI.DefaultTab == nil {
 		v := "video"
 		cfg.UI.DefaultTab = &v
@@ -192,65 +205,45 @@ func ApplyDefaults(cfg *Config) bool {
 		cfg.UI.ShowOthers = &v
 		changed = true
 	}
+	return changed
+}
 
-	if cfg.Playback.Audio.Enabled == nil {
-		v := true
-		cfg.Playback.Audio.Enabled = &v
-		changed = true
-	}
-	if cfg.Playback.Audio.Shuffle == nil {
-		v := false
-		cfg.Playback.Audio.Shuffle = &v
-		changed = true
-	}
-	if cfg.Playback.Audio.Remember == nil {
-		v := true
-		cfg.Playback.Audio.Remember = &v
-		changed = true
-	}
-	if cfg.Playback.Audio.Scope == nil {
-		v := "all"
-		cfg.Playback.Audio.Scope = &v
-		changed = true
-	}
-	if cfg.Playback.Audio.Transcode == nil {
-		v := false
-		cfg.Playback.Audio.Transcode = &v
-		changed = true
-	}
+func applyPlaybackDefaults(cfg *Config) bool {
+	changed := false
+	changed = setDefaultBool(&cfg.Playback.Audio.Enabled, true) || changed
+	changed = setDefaultBool(&cfg.Playback.Audio.Shuffle, false) || changed
+	changed = setDefaultBool(&cfg.Playback.Audio.Remember, true) || changed
+	changed = setDefaultString(&cfg.Playback.Audio.Scope, "all") || changed
+	changed = setDefaultBool(&cfg.Playback.Audio.Transcode, false) || changed
 
-	if cfg.Playback.Video.Enabled == nil {
-		v := true
-		cfg.Playback.Video.Enabled = &v
-		changed = true
-	}
-	if cfg.Playback.Video.Scope == nil {
-		v := "folder"
-		cfg.Playback.Video.Scope = &v
-		changed = true
-	}
-	if cfg.Playback.Video.Transcode == nil {
-		v := false
-		cfg.Playback.Video.Transcode = &v
-		changed = true
-	}
-	if cfg.Playback.Video.Resume == nil {
-		v := true
-		cfg.Playback.Video.Resume = &v
-		changed = true
-	}
+	changed = setDefaultBool(&cfg.Playback.Video.Enabled, true) || changed
+	changed = setDefaultString(&cfg.Playback.Video.Scope, "folder") || changed
+	changed = setDefaultBool(&cfg.Playback.Video.Transcode, false) || changed
+	changed = setDefaultBool(&cfg.Playback.Video.Resume, true) || changed
 
-	if cfg.Playback.Image.Enabled == nil {
-		v := true
-		cfg.Playback.Image.Enabled = &v
-		changed = true
-	}
-	if cfg.Playback.Image.Scope == nil {
-		v := "folder"
-		cfg.Playback.Image.Scope = &v
-		changed = true
-	}
+	changed = setDefaultBool(&cfg.Playback.Image.Enabled, true) || changed
+	changed = setDefaultString(&cfg.Playback.Image.Scope, "folder") || changed
+	return changed
+}
 
+func setDefaultBool(dst **bool, v bool) bool {
+	if *dst != nil {
+		return false
+	}
+	*dst = boolPtr(v)
+	return true
+}
+
+func setDefaultString(dst **string, v string) bool {
+	if *dst != nil {
+		return false
+	}
+	*dst = stringPtr(v)
+	return true
+}
+
+func applyBlacklistDefaults(cfg *Config) bool {
+	changed := false
 	if cfg.Blacklist.Extensions == nil {
 		cfg.Blacklist.Extensions = []string{}
 		changed = true
@@ -263,12 +256,11 @@ func ApplyDefaults(cfg *Config) bool {
 		cfg.Blacklist.Folders = []string{}
 		changed = true
 	}
+	return changed
+}
 
-	if cfg.LogLevel == "" {
-		cfg.LogLevel = "info"
-		changed = true
-	}
-
+func applySecurityDefaults(cfg *Config) bool {
+	changed := false
 	if cfg.Security.IPWhitelist == nil {
 		cfg.Security.IPWhitelist = []string{}
 		changed = true
@@ -281,6 +273,5 @@ func ApplyDefaults(cfg *Config) bool {
 		cfg.Security.PIN = "0000"
 		changed = true
 	}
-
 	return changed
 }
