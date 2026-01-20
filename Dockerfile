@@ -1,7 +1,7 @@
 # Multi-stage build
 
 # Stage 1: Build Frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app/web
@@ -11,7 +11,7 @@ COPY web/ ./
 RUN pnpm run build
 
 # Stage 2: Build Backend
-FROM golang:1.22-alpine AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 WORKDIR /app
 # Install build tools (gcc needed for cgo/sqlite)
 RUN apk add --no-cache gcc musl-dev
