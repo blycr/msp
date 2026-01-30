@@ -198,9 +198,6 @@ body {
   background: var(--md-bg);
   color: var(--md-text);
   font-family: var(--font-body);
-  line-height: 1.6;
-  letter-spacing: 0.015em;
-  text-rendering: optimizeLegibility;
   transition: background-color 0.25s ease, color 0.25s ease;
 
   /* Grain Texture */
@@ -208,24 +205,6 @@ body {
   background-size: 32px 32px;
   background-attachment: fixed;
   opacity: 1;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  margin-top: 0;
-  color: var(--md-text);
-  font-family: var(--font-display);
-}
-
-p {
-  margin-top: 0;
-  margin-bottom: 1em;
 }
 
 [data-theme="light"] body {
@@ -1033,8 +1012,7 @@ p {
   transform: translate(-50%, -50%);
   z-index: 100;
   width: 90%;
-  max-width: 600px;
-  /* Increased for better reading width */
+  max-width: 520px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -1142,15 +1120,11 @@ p {
 }
 
 .dialog__body {
-  padding: 32px;
-  /* More breathing room */
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* Slightly more gap */
+  gap: 16px;
   overflow-y: auto;
-  font-size: 15px;
-  /* Slightly larger base for dialog content */
 }
 
 .dialog__subtitle {
