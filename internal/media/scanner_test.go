@@ -10,7 +10,8 @@ func TestClassifyExt(t *testing.T) {
 		expected string
 	}{
 		{".mp4", "video"},
-		{".MP4", "other"}, // Function assumes lowercase input
+		{".MP4", "video"}, // Now case-insensitive
+		{".WebM", "video"}, // Mixed case
 		{".mp3", "audio"},
 		{".jpg", "image"},
 		{".txt", "other"},

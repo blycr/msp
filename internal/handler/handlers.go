@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"msp/internal/config"
+	"msp/internal/constants"
 	"msp/internal/db"
 	"msp/internal/media"
 	"msp/internal/server"
@@ -43,13 +44,13 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var cfg config.Config
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-			writeJSON(w, http.StatusBadRequest, types.ConfigResponse{Error: &types.ApiError{Message: "JSON 解析失败"}})
+			writeJSON(w, http.StatusBadRequest, types.ConfigResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
 			return
 		}
 
 		newCfg, err := h.configService.UpdateConfig(cfg)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, types.ConfigResponse{Error: &types.ApiError{Message: "写入配置失败"}})
+			writeJSON(w, http.StatusInternalServerError, types.ConfigResponse{Error: &types.ApiError{Message: constants.ErrMsgWriteConfig}})
 			return
 		}
 		writeJSON(w, http.StatusOK, types.ConfigResponse{Config: newCfg})
@@ -66,7 +67,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 
 	var req types.SharesOpRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: "JSON 解析失败"}})
+		writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
 		return
 	}
 
@@ -77,7 +78,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "exists") || strings.Contains(err.Error(), "missing") {
 			writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: err.Error()}})
 		} else {
-			writeJSON(w, http.StatusInternalServerError, types.SharesOpResponse{Error: &types.ApiError{Message: "写入配置失败"}})
+			writeJSON(w, http.StatusInternalServerError, types.SharesOpResponse{Error: &types.ApiError{Message: constants.ErrMsgWriteConfig}})
 		}
 		return
 	}
@@ -157,23 +158,23 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 		prefs, err := db.GetAllPrefs(r.Context())
 		if err != nil {
 			log.Printf("Error in GetAllPrefs: %v", err)
-			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: "读取偏好失败"}})
+			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: constants.ErrMsgReadPrefs}})
 			return
 		}
 		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: prefs})
 	case http.MethodPost:
 		var req types.PrefsUpdateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: "JSON 解析失败"}})
+			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
 			return
 		}
 		if len(req.Prefs) == 0 {
-			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: "缺少 prefs"}})
+			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: constants.ErrMsgMissingPrefs}})
 			return
 		}
 		if err := db.SetPrefs(r.Context(), req.Prefs); err != nil {
 			log.Printf("Error in SetPrefs: %v", err)
-			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: "写入偏好失败"}})
+			writeJSON(w, http.StatusInternalServerError, types.PrefsResponse{Error: &types.ApiError{Message: constants.ErrMsgWritePrefs}})
 			return
 		}
 		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: req.Prefs})
@@ -187,13 +188,13 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		id := r.URL.Query().Get("id")
 		if id == "" {
-			http.Error(w, "missing id", http.StatusBadRequest)
+			http.Error(w, constants.ErrMsgMissingID, http.StatusBadRequest)
 			return
 		}
 		t, err := db.GetProgress(r.Context(), id)
 		if err != nil {
 			log.Printf("Error in GetProgress: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "读取进度失败"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": constants.ErrMsgReadProgress})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"time": t})
@@ -203,16 +204,16 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			Time float64 `json:"time"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "JSON 解析失败"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgInvalidJSON})
 			return
 		}
 		if req.ID == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "缺少 id"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgMissingID})
 			return
 		}
 		if err := db.SetProgress(r.Context(), req.ID, req.Time); err != nil {
 			log.Printf("Error in SetProgress: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "保存进度失败"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": constants.ErrMsgWriteProgress})
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -259,7 +260,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"valid": false,
-			"error": "Invalid request",
+			"error": constants.ErrMsgInvalidRequest,
 		})
 		return
 	}
@@ -271,7 +272,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 			Name:     "msp_pin",
 			Value:    req.PIN,
 			Path:     "/",
-			MaxAge:   86400 * 7, // 7 days
+			MaxAge:   constants.CookieMaxAge,
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
@@ -526,13 +527,13 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: "missing id"}})
+		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: constants.ErrMsgMissingID}})
 		return
 	}
 
 	target, err := util.DecodeID(id)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: "bad id"}})
+		writeJSON(w, http.StatusBadRequest, types.ProbeResponse{Error: &types.ApiError{Message: constants.ErrMsgBadID}})
 		return
 	}
 	//nolint:gosec // Validated via util.DecodeID
@@ -542,7 +543,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	shares := append([]config.Share(nil), cfg.Shares...)
 
 	if !util.IsAllowedFile(target, shares) {
-		writeJSON(w, http.StatusForbidden, types.ProbeResponse{Error: &types.ApiError{Message: "not allowed"}})
+		writeJSON(w, http.StatusForbidden, types.ProbeResponse{Error: &types.ApiError{Message: constants.ErrMsgNotAllowed}})
 		return
 	}
 
@@ -579,7 +580,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 	case ".srt":
 		h.serveSRT(w, r, f, st)
 	default:
-		http.Error(w, "unsupported subtitle format", http.StatusBadRequest)
+		http.Error(w, constants.ErrMsgUnsupportedFormat, http.StatusBadRequest)
 	}
 }
 
@@ -592,7 +593,7 @@ func (h *Handler) serveVTT(w http.ResponseWriter, r *http.Request, f *os.File, s
 func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
 	b, err := io.ReadAll(f)
 	if err != nil {
-		http.Error(w, "read failed", http.StatusInternalServerError)
+		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
 		return
 	}
 	out := media.SrtToVtt(b)

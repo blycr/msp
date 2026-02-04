@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"msp/internal/constants"
 	"msp/internal/server"
 )
 
@@ -82,7 +83,7 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 		// Check IP whitelist/blacklist
 		if !isIPAllowed(clientIP, cfg.Security.IPWhitelist, cfg.Security.IPBlacklist) {
 			s.Log("info", fmt.Sprintf("Access denied for IP: %s", clientIP))
-			http.Error(w, "Access Denied", http.StatusForbidden)
+			http.Error(w, constants.ErrMsgAccessDenied, http.StatusForbidden)
 			return
 		}
 
@@ -104,7 +105,7 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 			}
 
 			if pin != cfg.Security.PIN {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				http.Error(w, constants.ErrMsgUnauthorized, http.StatusUnauthorized)
 				return
 			}
 		}
