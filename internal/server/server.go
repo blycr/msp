@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"msp/internal/config"
+	"msp/internal/constants"
 	"msp/internal/db"
 	"msp/internal/media"
 	"msp/internal/types"
@@ -60,7 +61,7 @@ func New(cfgPath string) *Server {
 		cfgPath:        cfgPath,
 		mediaCachePath: cfgPath + ".media_cache.json",
 	}
-	s.mediaTTL = 2 * time.Minute
+	s.mediaTTL = constants.MediaCacheTTL
 	s.mediaCond = sync.NewCond(&s.mediaMu)
 	return s
 }
@@ -131,7 +132,7 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 
 // WatchConfig monitors the config file for changes and reloads it automatically
 func (s *Server) WatchConfig(ctx context.Context) {
-	ticker := time.NewTicker(2 * time.Second) // Check every 2 seconds
+	ticker := time.NewTicker(constants.ConfigCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -201,7 +202,7 @@ func (s *Server) SetupLogger() {
 	}
 
 	//nolint:gosec // Log file path is controlled by config/CLI
-	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
 		return
@@ -228,12 +229,12 @@ func (s *Server) Log(level string, msg string) {
 	}
 
 	if shouldLog {
-		ts := time.Now().Format("2006/01/02 15:04:05.000000")
+		ts := time.Now().Format(constants.LogTimeFormat)
 		line := fmt.Sprintf("%s [%s] %s", ts, strings.ToUpper(level), msg)
 		log.Println(line)
 
-		// Rotate only every 100 logs or so to reduce Stat overhead
-		if cnt := atomic.AddInt32(&s.logCnt, 1); cnt%100 == 0 {
+		// Rotate only every N logs or so to reduce Stat overhead
+		if cnt := atomic.AddInt32(&s.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
 			s.RotateLogIfNeeded()
 		}
 	}
@@ -252,8 +253,7 @@ func (s *Server) RotateLogIfNeeded() {
 		return
 	}
 
-	// 10MB limit
-	if st.Size() < 10*1024*1024 {
+	if st.Size() < constants.LogRotateSize {
 		return
 	}
 
@@ -269,7 +269,7 @@ func (s *Server) RotateLogIfNeeded() {
 	_ = os.Rename(path, oldPath)
 
 	//nolint:gosec // Path already verified
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
 	if err == nil {
 		s.logFile = f
 		log.SetOutput(f)
@@ -295,7 +295,7 @@ func (s *Server) LogRequest(r *http.Request, status int, start time.Time) {
 	if ip == "" {
 		ip = r.RemoteAddr
 	}
-	if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+	if ip != "" && ip != constants.LocalhostIPv4 && ip != constants.LocalhostIPv6 {
 		if _, seen := s.seenIPs.Load(ip); !seen {
 			s.seenIPs.Store(ip, true)
 			s.Log(LogLevelInfo, fmt.Sprintf("[NEW DEVICE] %s %s", ip, msg))
@@ -307,7 +307,7 @@ func (s *Server) GetPort() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.cfg.Port <= 0 {
-		return 8099
+		return constants.DefaultPort
 	}
 	return s.cfg.Port
 }
@@ -381,19 +381,26 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 	s.mediaBuilding = true
 	s.mediaMu.Unlock()
 
+	resp, etag := s.buildMediaCacheAndUpdate(ctx, key, shares, blacklist, s.cfg.MaxItems)
+	return resp, etag
+}
+
+// buildMediaCacheAndUpdate 构建媒体缓存并更新内存状态。
+// 返回构建的响应和 ETag。
+func (s *Server) buildMediaCacheAndUpdate(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, string) {
 	var resp types.MediaResponse
 	builtAt := time.Now()
 	if db.DB != nil {
-		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, s.cfg.MaxItems)
+		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
 		if err == nil && !bt.IsZero() {
 			resp = r
 			builtAt = bt
 		} else {
-			resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
+			resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 			builtAt = time.Now()
 		}
 	} else {
-		resp = media.BuildMediaResponse(ctx, shares, blacklist, s.cfg.MaxItems)
+		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 	}
 	etag := weakETag(key, builtAt)
 
@@ -420,36 +427,7 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 }
 
 func (s *Server) rebuildMediaCache(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
-	var resp types.MediaResponse
-	builtAt := time.Now()
-	if db.DB != nil {
-		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
-		if err == nil && !bt.IsZero() {
-			resp = r
-			builtAt = bt
-		} else {
-			resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
-			builtAt = time.Now()
-		}
-	} else {
-		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
-	}
-	etag := weakETag(key, builtAt)
-	b, _ := json.Marshal(resp)
-
-	s.mediaMu.Lock()
-	s.mediaRespJSON = b
-	s.mediaKey = key
-	s.mediaBuiltAt = builtAt
-	s.mediaETag = etag
-	s.mediaBuilding = false
-	s.mediaCond.Broadcast()
-	s.mediaMu.Unlock()
-
-	if db.DB == nil {
-		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
-	}
-	go debug.FreeOSMemory()
+	s.buildMediaCacheAndUpdate(ctx, key, shares, blacklist, maxItems)
 }
 
 func mediaCacheKey(shares []config.Share, blacklist config.BlacklistConfig) string {
@@ -541,7 +519,7 @@ func (s *Server) saveMediaCacheToDisk(key string, builtAt time.Time, etag string
 		return
 	}
 	tmp := s.mediaCachePath + ".tmp"
-	if err := os.WriteFile(tmp, b, 0600); err != nil {
+	if err := os.WriteFile(tmp, b, constants.FilePerm); err != nil {
 		return
 	}
 	_ = os.Rename(tmp, s.mediaCachePath)

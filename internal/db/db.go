@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"log"
+	"msp/internal/constants"
 	"msp/internal/types"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ func newGormLogger() logger.Interface {
 	)
 }
 
+// Init 初始化数据库连接，创建表结构。
 func Init(dbPath string) error {
 	if dbPath == "" {
 		dbPath = "msp.db"
@@ -35,7 +37,7 @@ func Init(dbPath string) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, constants.DirPerm); err != nil {
 		return err
 	}
 
@@ -69,6 +71,7 @@ func Init(dbPath string) error {
 	return DB.AutoMigrate(&types.MediaItem{}, &types.MediaScan{}, &types.UserPref{}, &types.PlaybackProgress{})
 }
 
+// GetProgress 获取指定媒体的播放进度。
 func GetProgress(ctx context.Context, mediaID string) (float64, error) {
 	if DB == nil || mediaID == "" {
 		return 0, nil
@@ -82,6 +85,7 @@ func GetProgress(ctx context.Context, mediaID string) (float64, error) {
 	return p.Time, err
 }
 
+// SetProgress 保存媒体的播放进度。
 func SetProgress(ctx context.Context, mediaID string, t float64) error {
 	if DB == nil || mediaID == "" {
 		return nil
@@ -95,18 +99,21 @@ func SetProgress(ctx context.Context, mediaID string, t float64) error {
 }
 
 // Scopes 提供可复用的查询逻辑
+// ByScan 返回按 scanID 筛选的 Scope。
 func ByScan(scanID int64) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("scan_id = ?", scanID)
 	}
 }
 
+// ByKind 返回按 kind 筛选的 Scope。
 func ByKind(kind string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("kind = ?", kind)
 	}
 }
 
+// GetScanMeta 获取扫描会话的元数据。
 func GetScanMeta(ctx context.Context, cacheKey string) (types.MediaScan, bool, error) {
 	if DB == nil || cacheKey == "" {
 		return types.MediaScan{}, false, nil
@@ -119,6 +126,7 @@ func GetScanMeta(ctx context.Context, cacheKey string) (types.MediaScan, bool, e
 	return scan, true, err
 }
 
+// SetScanMeta 保存或更新扫描会话的元数据。
 func SetScanMeta(ctx context.Context, tx *gorm.DB, cacheKey string, meta types.MediaScan) error {
 	dbConn := DB
 	if tx != nil {
@@ -133,6 +141,7 @@ func SetScanMeta(ctx context.Context, tx *gorm.DB, cacheKey string, meta types.M
 	}).Create(&meta).Error
 }
 
+// UpsertMediaItem 插入或更新媒体条目。
 func UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *types.MediaItem) error {
 	dbConn := DB
 	if tx != nil {
@@ -147,6 +156,7 @@ func UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *types.MediaItem) er
 	}).Create(item).Error
 }
 
+// DeleteStaleByScan 删除指定扫描会话的过期数据。
 func DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
 	dbConn := DB
 	if tx != nil {
@@ -158,6 +168,7 @@ func DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int64, shareRoot
 	return dbConn.WithContext(ctx).Where("scan_id != ? AND share_root IN ?", scanID, shareRoots).Delete(&types.MediaItem{}).Error
 }
 
+// DeleteByShareRootsNotIn 删除不在指定共享根目录下的所有媒体条目。
 func DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, shareRoots []string) error {
 	dbConn := DB
 	if tx != nil {
@@ -172,6 +183,7 @@ func DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, shareRoots []stri
 	return dbConn.WithContext(ctx).Where("share_root NOT IN ?", shareRoots).Delete(&types.MediaItem{}).Error
 }
 
+// QueryMediaItems 查询指定扫描会话和类型的媒体条目。
 func QueryMediaItems(ctx context.Context, scanID int64, kind string) ([]types.MediaItem, error) {
 	if DB == nil || scanID <= 0 || kind == "" {
 		return nil, nil
@@ -184,6 +196,7 @@ func QueryMediaItems(ctx context.Context, scanID int64, kind string) ([]types.Me
 	return items, err
 }
 
+// CountMediaItems 统计指定扫描会话和类型的媒体条目数量。
 func CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error) {
 	if DB == nil || scanID <= 0 || kind == "" {
 		return 0, nil
@@ -195,6 +208,7 @@ func CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error
 	return int(count), err
 }
 
+// GetAllPrefs 获取所有用户偏好设置。
 func GetAllPrefs(ctx context.Context) (map[string]string, error) {
 	if DB == nil {
 		return map[string]string{}, nil
@@ -210,6 +224,7 @@ func GetAllPrefs(ctx context.Context) (map[string]string, error) {
 	return out, nil
 }
 
+// SetPrefs 保存用户偏好设置。
 func SetPrefs(ctx context.Context, kv map[string]string) error {
 	if DB == nil || len(kv) == 0 {
 		return nil
@@ -228,6 +243,7 @@ func SetPrefs(ctx context.Context, kv map[string]string) error {
 	}).Create(&prefs).Error
 }
 
+// Close 关闭数据库连接。
 func Close() {
 	if DB != nil {
 		sqlDB, _ := DB.DB()

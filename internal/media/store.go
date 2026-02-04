@@ -2,9 +2,11 @@ package media
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"msp/internal/config"
+	"msp/internal/constants"
 	"msp/internal/db"
 	"msp/internal/types"
 	"msp/internal/util"
@@ -12,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// LoadMediaFromDB 从数据库加载媒体列表。
 func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []config.Share) (types.MediaResponse, time.Time, bool, error) {
 	if db.DB == nil {
 		return types.MediaResponse{}, time.Time{}, false, nil
@@ -27,6 +30,7 @@ func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []config.Share
 	return resp, time.Unix(0, scan.BuiltAt), true, nil
 }
 
+// ReindexAndLoadMedia 重新索引媒体文件并加载结果。
 func ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, time.Time, error) {
 	if db.DB == nil {
 		return types.MediaResponse{}, time.Time{}, nil
@@ -69,7 +73,7 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []config.Share,
 
 	limit := maxItems
 	if limit <= 0 {
-		limit = 1000000000
+		limit = constants.DBScanLimit
 	}
 	complete = seen < limit
 
@@ -108,7 +112,7 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []config
 	seen := 0
 	limit := maxItems
 	if limit <= 0 {
-		limit = 1000000000
+		limit = constants.DBScanLimit
 	}
 
 	cb := func(item types.MediaItem, path string, root string) error {
@@ -116,28 +120,29 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []config
 		item.ShareRoot = root
 		item.Path = path
 		if err := db.UpsertMediaItem(ctx, tx, &item); err != nil {
-			return err
+			return fmt.Errorf("upsert media item %s: %w", item.ID, err)
 		}
 		seen++
 		return nil
 	}
 
 	if err := WalkShares(ctx, shares, blacklist, limit, cb); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("walk shares: %w", err)
 	}
 	return seen, nil
 }
 
 func cleanupStaleData(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
 	if err := db.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
-		return err
+		return fmt.Errorf("delete stale scan data: %w", err)
 	}
 	if err := db.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
-		return err
+		return fmt.Errorf("delete orphaned share data: %w", err)
 	}
 	return nil
 }
 
+// LoadMediaResponseFromDBScan 从指定的扫描会话加载媒体响应。
 func LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []config.Share) (types.MediaResponse, error) {
 	resp := types.MediaResponse{
 		Shares: make([]config.Share, len(shares)),

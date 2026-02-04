@@ -1,5 +1,7 @@
 package config
 
+import "msp/internal/constants"
+
 type Features struct {
 	Speed        bool      `json:"speed"`
 	SpeedOptions []float64 `json:"speedOptions"`
@@ -88,7 +90,7 @@ func stringPtr(v string) *string { return &v }
 // Default configuration values
 func Default() Config {
 	return Config{
-		Port:     8099,
+		Port:     constants.DefaultPort,
 		MaxItems: 0, // 0 means unlimited (full scan), ideal for SQLite-backed incremental scanning
 		Shares:   []Share{},
 		Features: Features{
@@ -131,7 +133,7 @@ func Default() Config {
 			IPWhitelist: []string{},
 			IPBlacklist: []string{},
 			PINEnabled:  false,
-			PIN:         "0000",
+			PIN:         constants.DefaultPIN,
 		},
 		LogLevel: "info",
 		LogFile:  "",
@@ -157,7 +159,7 @@ func ApplyDefaults(cfg *Config) bool {
 func applyBaseDefaults(cfg *Config) bool {
 	changed := false
 	if cfg.Port <= 0 {
-		cfg.Port = 8099
+		cfg.Port = constants.DefaultPort
 		changed = true
 	}
 	if cfg.Shares == nil {
@@ -270,7 +272,7 @@ func applySecurityDefaults(cfg *Config) bool {
 		changed = true
 	}
 	if cfg.Security.PIN == "" {
-		cfg.Security.PIN = "0000"
+		cfg.Security.PIN = constants.DefaultPIN
 		changed = true
 	}
 	return changed

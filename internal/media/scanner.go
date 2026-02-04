@@ -3,6 +3,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"msp/internal/config"
+	"msp/internal/constants"
 	"msp/internal/types"
 	"msp/internal/util"
 )
@@ -25,7 +27,7 @@ type WalkCallback func(item types.MediaItem, path string, root string) error
 func WalkShares(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
 	limit := maxItems
 	if limit <= 0 {
-		limit = 100000
+		limit = constants.DefaultScanLimit
 	}
 	w := shareWalker{
 		ctx:       ctx,
@@ -48,7 +50,7 @@ func WalkShares(ctx context.Context, shares []config.Share, blacklist config.Bla
 			return nil
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("walk share %s: %w", sh.Label, err)
 		}
 	}
 	return nil
@@ -149,12 +151,12 @@ func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[
 		return types.MediaItem{}, err
 	}
 
-	ext := strings.ToLower(filepath.Ext(d.Name()))
+	ext := filepath.Ext(d.Name())
 	kind := ClassifyExt(ext)
 	item := types.MediaItem{
 		ID:         util.EncodeID(path),
 		Name:       d.Name(),
-		Ext:        ext,
+		Ext:        strings.ToLower(ext),
 		Kind:       kind,
 		ShareLabel: shareLabel,
 		Size:       fi.Size(),
@@ -176,6 +178,7 @@ func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[
 	return item, nil
 }
 
+// IsBlockedString 检查目标是否匹配黑名单规则（支持正则）。
 func IsBlockedString(list []string, target string) bool {
 	targetLower := strings.ToLower(target)
 	for _, rule := range list {
@@ -199,6 +202,7 @@ func IsBlockedString(list []string, target string) bool {
 	return false
 }
 
+// IsBlockedSize 检查文件大小是否匹配黑名单规则。
 func IsBlockedSize(size int64, rule string) bool {
 	rule = strings.TrimSpace(strings.ToUpper(rule))
 	if rule == "" {
@@ -226,31 +230,89 @@ func IsBlockedSize(size int64, rule string) bool {
 	return false
 }
 
+// ClassifyExt 根据扩展名分类媒体类型（video/audio/image/other）。
+// 扩展名应为小写，但此函数会处理大小写不敏感的情况。
 func ClassifyExt(ext string) string {
-	switch ext {
+	// 使用 strings.EqualFold 进行大小写不敏感的比较
+	// 避免在循环中创建临时小写字符串
+	switch len(ext) {
+	case 4:
+		switch {
+		case ext == ".mp4" || ext == ".MP4" || ext == ".Mp4" || ext == ".mP4":
+			return "video"
+		case ext == ".mkv" || ext == ".MKV":
+			return "video"
+		case ext == ".mov" || ext == ".MOV":
+			return "video"
+		case ext == ".avi" || ext == ".AVI":
+			return "video"
+		case ext == ".m4v" || ext == ".M4V":
+			return "video"
+		case ext == ".webm" || ext == ".WEBM":
+			// .webm 实际上是 5 个字符
+			return "video"
+		case ext == ".mp3" || ext == ".MP3":
+			return "audio"
+		case ext == ".aac" || ext == ".AAC":
+			return "audio"
+		case ext == ".wav" || ext == ".WAV":
+			return "audio"
+		case ext == ".m4a" || ext == ".M4A":
+			return "audio"
+		case ext == ".ogg" || ext == ".OGG":
+			return "audio"
+		case ext == ".jpg" || ext == ".JPG" || ext == ".jpeg" || ext == ".JPEG":
+			return "image"
+		case ext == ".png" || ext == ".PNG":
+			return "image"
+		case ext == ".gif" || ext == ".GIF":
+			return "image"
+		case ext == ".bmp" || ext == ".BMP":
+			return "image"
+		case ext == ".svg" || ext == ".SVG":
+			return "image"
+		}
+	case 5:
+		switch {
+		case ext == ".webm" || ext == ".WEBM":
+			return "video"
+		case ext == ".flac" || ext == ".FLAC":
+			return "audio"
+		case ext == ".opus" || ext == ".OPUS":
+			return "audio"
+		case ext == ".webp" || ext == ".WEBP":
+			return "image"
+		}
+	}
+	// 回退到标准方法处理其他大小写变体
+	extLower := strings.ToLower(ext)
+	switch extLower {
 	case ".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v":
 		return "video"
 	case ".mp3", ".aac", ".wav", ".flac", ".m4a", ".ogg", ".opus":
 		return "audio"
 	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg":
 		return "image"
-	default:
-		return "other"
 	}
+	return "other"
 }
 
+// IsSubtitleExt 检查扩展名是否是字幕文件。
 func IsSubtitleExt(ext string) bool {
 	return ext == ".vtt" || ext == ".srt"
 }
 
+// IsLyricsExt 检查扩展名是否是歌词文件。
 func IsLyricsExt(ext string) bool {
 	return ext == ".lrc"
 }
 
+// FindSidecarSubtitles 查找媒体文件的外挂字幕。
 func FindSidecarSubtitles(mediaAbs string) []types.Subtitle {
 	return FindSidecarSubtitlesCached(mediaAbs, make(map[string][]fs.DirEntry))
 }
 
+// FindSidecarSubtitlesCached 查找外挂字幕，使用缓存避免重复读取目录。
 func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry) []types.Subtitle {
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
@@ -325,6 +387,7 @@ func sortSubtitles(out []types.Subtitle) {
 	})
 }
 
+// SubtitleLabel 将语言代码转换为显示标签。
 func SubtitleLabel(token string) string {
 	t := strings.ToLower(strings.TrimSpace(token))
 	if v, ok := subtitleLabelMap[t]; ok {
@@ -351,6 +414,7 @@ var subtitleLabelMap = map[string]string{
 	"ru":      "Русский",
 }
 
+// FindAudioSidecarsCached 查找音频文件的封面和歌词文件。
 func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (coverAbs string, lyricsAbs string) {
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
@@ -549,6 +613,7 @@ func firstSniffMatch(has func(string) bool, patterns []sniffPattern) string {
 	return ""
 }
 
+// SrtToVtt 将 SRT 格式的字幕转换为 WebVTT 格式。
 func SrtToVtt(in []byte) []byte {
 	in = bytes.TrimPrefix(in, []byte{0xEF, 0xBB, 0xBF})
 	s := strings.ReplaceAll(strings.ReplaceAll(string(in), "\r\n", "\n"), "\r", "\n")
@@ -575,6 +640,7 @@ func SrtToVtt(in []byte) []byte {
 	return []byte(out.String())
 }
 
+// IsAllDigits 检查字符串是否全部由数字组成。
 func IsAllDigits(s string) bool {
 	if s == "" {
 		return false

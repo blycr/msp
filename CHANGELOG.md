@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.7
+
+- **代码质量重构**：
+  - 提取魔法数字为常量，集中管理端口、权限、缓存时间等配置
+  - 统一错误消息为常量，便于维护和多语言支持
+  - 为 40+ 个导出函数添加中文文档注释
+  - 消除重复代码，提取 `buildMediaCacheAndUpdate` 公共函数
+  - 改进错误处理，添加更多上下文信息（`fmt.Errorf` 包装）
+- **性能优化**：
+  - 优化 `ClassifyExt` 函数，减少 `strings.ToLower` 调用，提升媒体扫描性能
+  - 优化 `buildMediaItem` 中的字符串处理
+- **测试覆盖**：
+  - 新增 `constants` 包完整测试
+  - `util` 包测试覆盖率从 20.9% 提升至 65.5%
+- **代码清理**：
+  - 删除未使用的 Windows 别名函数（`NormalizeWinPath`, `WithinWinRoot`, `SamePathWin`）
+
 ## 0.8.6
 
 - **代码质量重构**：媒体扫描/入库/响应构建与部分 API Handler 逻辑拆分，降低复杂度、便于维护。
