@@ -21,7 +21,7 @@ func TestPINAuthentication(t *testing.T) {
 	}
 	defer func() {
 		db.Close() // Close DB before removing temp dir
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}()
 
 	configPath := tmpDir + "/test_config.json"
@@ -65,7 +65,7 @@ func TestPINAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get config: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -77,7 +77,7 @@ func TestPINAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get media: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("Expected status 401, got %d", resp.StatusCode)
@@ -89,7 +89,7 @@ func TestPINAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to post PIN: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -101,7 +101,7 @@ func TestPINAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to post PIN: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -126,7 +126,7 @@ func TestPINAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get media: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
