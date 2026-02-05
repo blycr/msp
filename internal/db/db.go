@@ -156,6 +156,21 @@ func UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *types.MediaItem) er
 	}).Create(item).Error
 }
 
+// UpsertMediaItems 批量插入或更新媒体条目。
+func UpsertMediaItems(ctx context.Context, tx *gorm.DB, items []types.MediaItem) error {
+	dbConn := DB
+	if tx != nil {
+		dbConn = tx
+	}
+	if dbConn == nil || len(items) == 0 {
+		return nil
+	}
+	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		UpdateAll: true,
+	}).Create(&items).Error
+}
+
 // DeleteStaleByScan 删除指定扫描会话的过期数据。
 func DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
 	dbConn := DB

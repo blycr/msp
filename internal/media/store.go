@@ -115,13 +115,24 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []config
 		limit = constants.DBScanLimit
 	}
 
+	// 使用批量插入缓冲区，提升性能
+	const batchSize = 100
+	batch := make([]types.MediaItem, 0, batchSize)
+
 	cb := func(item types.MediaItem, path string, root string) error {
 		item.ScanID = scanID
 		item.ShareRoot = root
 		item.Path = path
-		if err := db.UpsertMediaItem(ctx, tx, &item); err != nil {
-			return fmt.Errorf("upsert media item %s: %w", item.ID, err)
+		batch = append(batch, item)
+
+		// 批量写入
+		if len(batch) >= batchSize {
+			if err := db.UpsertMediaItems(ctx, tx, batch); err != nil {
+				return fmt.Errorf("batch upsert media items: %w", err)
+			}
+			batch = batch[:0] // 清空切片但保留容量
 		}
+
 		seen++
 		return nil
 	}
@@ -129,6 +140,14 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []config
 	if err := WalkShares(ctx, shares, blacklist, limit, cb); err != nil {
 		return 0, fmt.Errorf("walk shares: %w", err)
 	}
+
+	// 写入剩余数据
+	if len(batch) > 0 {
+		if err := db.UpsertMediaItems(ctx, tx, batch); err != nil {
+			return 0, fmt.Errorf("final batch upsert: %w", err)
+		}
+	}
+
 	return seen, nil
 }
 

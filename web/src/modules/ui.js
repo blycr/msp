@@ -1,6 +1,6 @@
 import { state, el, lsSet, LS } from './state.js';
 import { t } from './i18n.js';
-import { currentList, filterFiles, sortFiles, setPlaylist, renderPlaylist, playAtIndex, playPrev, playNext, rebuildPlayOrderFromCurrent } from './playlist.js';
+import { currentList, filterFiles, sortFiles, setPlaylist, renderPlaylist, updateNavLabels, playAtIndex, playPrev, playNext, rebuildPlayOrderFromCurrent } from './playlist.js';
 import { playItem, updateResumeButton, resumeLast, setFitBtnVisible } from './player.js';
 import { formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { createArrowDownIcon, createArrowUpIcon } from './icons.js';

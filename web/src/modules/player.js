@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { gpGet, gpSet, logRemote, probeItem, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from './lyrics.js';
-import { setPlaylist, updateNavLabels, updateNavButtons, playAtIndex, playNext } from './playlist.js';
+import { setPlaylist, updateNavLabels, updateNavButtons, playAtIndex, playNext, buildPlaylist, generatePlayOrder } from './playlist.js';
 
 export function getActiveMedia() {
   const kind = state.current?.kind;

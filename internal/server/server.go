@@ -338,7 +338,10 @@ func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share
 	if s.mediaKey == key && !s.mediaBuiltAt.IsZero() && !refresh {
 		if time.Since(s.mediaBuiltAt) >= s.mediaTTL && !s.mediaBuilding {
 			s.mediaBuilding = true
+			s.mediaMu.Unlock()
+			// 在锁外启动重建，避免持有锁期间阻塞其他请求
 			go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
+			s.mediaMu.Lock()
 		}
 		var r types.MediaResponse
 		_ = json.Unmarshal(s.mediaRespJSON, &r)

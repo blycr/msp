@@ -17,14 +17,57 @@ func NewConfigService(s *server.Server) *ConfigService {
 	return &ConfigService{s: s}
 }
 
-// ConfigView 包含了前端所需的配置和环境信息
+// SecurityConfigView 是安全配置的安全视图（隐藏敏感信息）
+type SecurityConfigView struct {
+	IPWhitelist []string `json:"ipWhitelist"`
+	IPBlacklist []string `json:"ipBlacklist"`
+	PINEnabled  bool     `json:"pinEnabled"`
+	// PIN 字段不暴露给前端
+}
+
+// ConfigView 包含了前端所需的配置和环境信息（安全版本，隐藏敏感字段）
 type ConfigView struct {
-	Config           config.Config `json:"config"`
-	LanIPs           []string      `json:"lanIPs"`
-	URLs             []string      `json:"urls"`
-	NowUnix          int64         `json:"nowUnix"`
-	FFmpegAvailable  bool          `json:"ffmpegAvailable"`
-	FFprobeAvailable bool          `json:"ffprobeAvailable"`
+	Config           SafeConfig `json:"config"`
+	LanIPs           []string   `json:"lanIPs"`
+	URLs             []string   `json:"urls"`
+	NowUnix          int64      `json:"nowUnix"`
+	FFmpegAvailable  bool       `json:"ffmpegAvailable"`
+	FFprobeAvailable bool       `json:"ffprobeAvailable"`
+}
+
+// SafeConfig 是 Config 的安全视图，隐藏敏感信息
+type SafeConfig struct {
+	Port        int                   `json:"port"`
+	LogLevel    string                `json:"logLevel"`
+	LogFile     string                `json:"logFile"`
+	MaxItems    int                   `json:"maxItems"`
+	Shares      []config.Share        `json:"shares"`
+	Features    config.Features       `json:"features"`
+	UI          config.UIConfig       `json:"ui"`
+	Playback    config.PlaybackConfig `json:"playback"`
+	Security    SecurityConfigView    `json:"security"`
+	Blacklist   config.BlacklistConfig `json:"blacklist"`
+}
+
+// toSafeConfig 将 Config 转换为安全视图
+func toSafeConfig(cfg config.Config) SafeConfig {
+	return SafeConfig{
+		Port:     cfg.Port,
+		LogLevel: cfg.LogLevel,
+		LogFile:  cfg.LogFile,
+		MaxItems: cfg.MaxItems,
+		Shares:   cfg.Shares,
+		Features: cfg.Features,
+		UI:       cfg.UI,
+		Playback: cfg.Playback,
+		Security: SecurityConfigView{
+			IPWhitelist: cfg.Security.IPWhitelist,
+			IPBlacklist: cfg.Security.IPBlacklist,
+			PINEnabled:  cfg.Security.PINEnabled,
+			// PIN 字段被故意省略
+		},
+		Blacklist: cfg.Blacklist,
+	}
 }
 
 func (s *ConfigService) GetConfigView() ConfigView {
@@ -37,7 +80,7 @@ func (s *ConfigService) GetConfigView() ConfigView {
 	}
 
 	return ConfigView{
-		Config:           s.s.Config(),
+		Config:           toSafeConfig(s.s.Config()),
 		LanIPs:           ips,
 		URLs:             urls,
 		NowUnix:          time.Now().Unix(),

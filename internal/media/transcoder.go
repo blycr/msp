@@ -23,6 +23,52 @@ type TranscodeOptions struct {
 	Offset  float64 // 起始偏移量 (秒)
 }
 
+// 允许的转码格式白名单
+var allowedFormats = map[string]bool{
+	"mp4":  true,
+	"mp3":  true,
+	"aac":  true,
+	"webm": true,
+	"ogg":  true,
+}
+
+// 验证转码选项
+func (opts *TranscodeOptions) Validate() error {
+	// 验证格式
+	if opts.Format == "" {
+		opts.Format = "mp4"
+	}
+	opts.Format = strings.ToLower(strings.TrimSpace(opts.Format))
+	if !allowedFormats[opts.Format] {
+		return fmt.Errorf("不支持的格式: %s", opts.Format)
+	}
+	
+	// 验证码率（如果提供）
+	if opts.Bitrate != "" {
+		// 只允许数字和特定后缀
+		bitrate := strings.ToLower(strings.TrimSpace(opts.Bitrate))
+		// 匹配格式如: 128k, 2M, 1000, 等
+		validBitrate := true
+		for _, c := range bitrate {
+			if !((c >= '0' && c <= '9') || c == 'k' || c == 'm') {
+				validBitrate = false
+				break
+			}
+		}
+		if !validBitrate {
+			return fmt.Errorf("无效的码率格式: %s", opts.Bitrate)
+		}
+		opts.Bitrate = bitrate
+	}
+	
+	// 验证偏移量
+	if opts.Offset < 0 {
+		opts.Offset = 0
+	}
+	
+	return nil
+}
+
 // limitReleaser wraps io.ReadCloser to release semaphore on Close
 type limitReleaser struct {
 	io.ReadCloser
@@ -91,6 +137,11 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 
 // TranscodeStream 执行智能转码输出
 func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOptions) (io.ReadCloser, error) {
+	// 验证转码选项
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid options: %w", err)
+	}
+
 	// Validate input path exists and is a regular file
 	info, err := os.Stat(inputPath)
 	if err != nil {
@@ -99,6 +150,11 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	if info.IsDir() {
 		return nil, fmt.Errorf("input path is a directory, not a file")
 	}
+	
+	// 验证是常规文件（不是符号链接、设备等）
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("input path is not a regular file")
+	}
 
 	// Acquire semaphore
 	select {
@@ -106,10 +162,6 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 		// Acquired
 	default:
 		return nil, fmt.Errorf("server busy: max transcode limit reached")
-	}
-
-	if opts.Format == "" {
-		opts.Format = "mp4"
 	}
 
 	// Helper to release if we fail before returning
@@ -146,7 +198,8 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 		if codec.VideoCodec == "h264" {
 			args = append(args, "-vcodec", "copy")
 		} else {
-			args = append(args, "-vcodec", "libx264", "-pix_fmt", "yuv420p")
+			// 使用 fast 预设平衡速度和质量，限制线程数避免阻塞
+			args = append(args, "-vcodec", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-threads", "2")
 			if opts.Bitrate != "" {
 				args = append(args, "-b:v", opts.Bitrate)
 			}
@@ -159,7 +212,8 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 			args = append(args, "-acodec", "aac")
 		}
 
-		args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof")
+		// 优化 MP4 输出格式，添加 faststart 优化网络传输
+		args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof+faststart")
 
 		// 保留时间戳，以便前端进度条能正确显示位置
 		if opts.Offset > 0 {

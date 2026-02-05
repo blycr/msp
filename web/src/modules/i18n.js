@@ -76,7 +76,7 @@ export const I18N = {
     pin_submit: "Submit",
     pin_error: "Incorrect PIN. Please try again.",
     pin_checking: "Verifying...",
-    
+
     // New additions
     fit_cover: "Fit Mode: Cover",
     fit_contain: "Fit Mode: Adapt",

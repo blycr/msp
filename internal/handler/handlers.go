@@ -537,7 +537,14 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 func (h *Handler) serveDirect(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo, ct string) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Cache-Control", "no-store")
+
+	// 大文件使用更长的缓存，小文件不缓存
+	if st.Size() > 10*1024*1024 { // > 10MB
+		w.Header().Set("Cache-Control", "private, max-age=3600") // 1小时
+	} else {
+		w.Header().Set("Cache-Control", "no-store")
+	}
+
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
 	http.ServeContent(w, r, st.Name(), time.Time{}, f)
 }
