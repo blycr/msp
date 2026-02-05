@@ -50,7 +50,7 @@ func (opts *TranscodeOptions) Validate() error {
 		// 匹配格式如: 128k, 2M, 1000, 等
 		validBitrate := true
 		for _, c := range bitrate {
-			if !((c >= '0' && c <= '9') || c == 'k' || c == 'm') {
+			if (c < '0' || c > '9') && c != 'k' && c != 'm' {
 				validBitrate = false
 				break
 			}

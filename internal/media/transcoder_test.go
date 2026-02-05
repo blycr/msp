@@ -22,62 +22,62 @@ func TestTranscodeOptionsValidate(t *testing.T) {
 		after   TranscodeOptions // 验证后的期望状态
 	}{
 		{
-			name: "默认格式",
-			opts: TranscodeOptions{},
+			name:    "默认格式",
+			opts:    TranscodeOptions{},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp4", Bitrate: "", Offset: 0},
+			after:   TranscodeOptions{Format: "mp4", Bitrate: "", Offset: 0},
 		},
 		{
-			name: "有效格式 mp4",
-			opts: TranscodeOptions{Format: "mp4"},
+			name:    "有效格式 mp4",
+			opts:    TranscodeOptions{Format: "mp4"},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp4"},
+			after:   TranscodeOptions{Format: "mp4"},
 		},
 		{
-			name: "有效格式 mp3",
-			opts: TranscodeOptions{Format: "mp3"},
+			name:    "有效格式 mp3",
+			opts:    TranscodeOptions{Format: "mp3"},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp3"},
+			after:   TranscodeOptions{Format: "mp3"},
 		},
 		{
-			name: "有效格式 aac",
-			opts: TranscodeOptions{Format: "AAC"}, // 大写也应该被接受
+			name:    "有效格式 aac",
+			opts:    TranscodeOptions{Format: "AAC"}, // 大写也应该被接受
 			wantErr: false,
-			after: TranscodeOptions{Format: "aac"},
+			after:   TranscodeOptions{Format: "aac"},
 		},
 		{
-			name: "无效格式",
-			opts: TranscodeOptions{Format: "exe"},
+			name:    "无效格式",
+			opts:    TranscodeOptions{Format: "exe"},
 			wantErr: true,
 		},
 		{
-			name: "有效码率",
-			opts: TranscodeOptions{Format: "mp4", Bitrate: "2M"},
+			name:    "有效码率",
+			opts:    TranscodeOptions{Format: "mp4", Bitrate: "2M"},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp4", Bitrate: "2m"},
+			after:   TranscodeOptions{Format: "mp4", Bitrate: "2m"},
 		},
 		{
-			name: "有效码率 k",
-			opts: TranscodeOptions{Format: "mp3", Bitrate: "128k"},
+			name:    "有效码率 k",
+			opts:    TranscodeOptions{Format: "mp3", Bitrate: "128k"},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp3", Bitrate: "128k"},
+			after:   TranscodeOptions{Format: "mp3", Bitrate: "128k"},
 		},
 		{
-			name: "无效码率格式",
-			opts: TranscodeOptions{Format: "mp4", Bitrate: "2M;rm -rf /"},
+			name:    "无效码率格式",
+			opts:    TranscodeOptions{Format: "mp4", Bitrate: "2M;rm -rf /"},
 			wantErr: true,
 		},
 		{
-			name: "负偏移量",
-			opts: TranscodeOptions{Format: "mp4", Offset: -10},
+			name:    "负偏移量",
+			opts:    TranscodeOptions{Format: "mp4", Offset: -10},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp4", Offset: 0},
+			after:   TranscodeOptions{Format: "mp4", Offset: 0},
 		},
 		{
-			name: "正常偏移量",
-			opts: TranscodeOptions{Format: "mp4", Offset: 30.5},
+			name:    "正常偏移量",
+			opts:    TranscodeOptions{Format: "mp4", Offset: 30.5},
 			wantErr: false,
-			after: TranscodeOptions{Format: "mp4", Offset: 30.5},
+			after:   TranscodeOptions{Format: "mp4", Offset: 30.5},
 		},
 	}
 
@@ -122,17 +122,17 @@ func TestGetCodecInfo(t *testing.T) {
 	// 创建一个假的 MP4 文件
 	tmpDir := t.TempDir()
 	fakeMP4 := filepath.Join(tmpDir, "test.mp4")
-	
+
 	// 写入一个最小的 MP4 文件头（ftyp 盒子）
 	// ftyp 盒子结构：大小(4字节) + "ftyp"(4字节) + 品牌(4字节) + 版本(4字节)
 	mp4Header := []byte{
 		0x00, 0x00, 0x00, 0x18, // 盒子大小 24
-		'f', 't', 'y', 'p',     // 盒子类型
-		'i', 's', 'o', 'm',     // 主要品牌
+		'f', 't', 'y', 'p', // 盒子类型
+		'i', 's', 'o', 'm', // 主要品牌
 		0x00, 0x00, 0x00, 0x00, // 次要版本
-		'i', 's', 'o', 'm',     // 兼容品牌
+		'i', 's', 'o', 'm', // 兼容品牌
 	}
-	require.NoError(t, os.WriteFile(fakeMP4, mp4Header, 0644))
+	require.NoError(t, os.WriteFile(fakeMP4, mp4Header, 0600))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -146,30 +146,30 @@ func TestGetCodecInfo(t *testing.T) {
 
 func TestTranscodeStreamValidation(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	t.Run("目录而不是文件", func(t *testing.T) {
 		opts := TranscodeOptions{Format: "mp4"}
 		_, err := TranscodeStream(context.Background(), tmpDir, opts)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "directory")
 	})
-	
+
 	t.Run("不存在的文件", func(t *testing.T) {
 		opts := TranscodeOptions{Format: "mp4"}
 		_, err := TranscodeStream(context.Background(), "/nonexistent/file.mp4", opts)
 		assert.Error(t, err)
 	})
-	
+
 	t.Run("无效格式", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "test.mp4")
-		require.NoError(t, os.WriteFile(testFile, []byte("fake"), 0644))
-		
+		require.NoError(t, os.WriteFile(testFile, []byte("fake"), 0600))
+
 		opts := TranscodeOptions{Format: "invalid"}
 		_, err := TranscodeStream(context.Background(), testFile, opts)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid options")
 	})
-	
+
 	t.Run("非普通文件（符号链接）", func(t *testing.T) {
 		// Windows 上符号链接的行为与 Unix 不同
 		// 在 Windows 上，os.Symlink 创建的链接可能被报告为常规文件
@@ -177,12 +177,12 @@ func TestTranscodeStreamValidation(t *testing.T) {
 		if os.PathSeparator == '\\' {
 			t.Skip("跳过 Windows 符号链接测试")
 		}
-		
+
 		targetFile := filepath.Join(tmpDir, "target.mp4")
 		linkFile := filepath.Join(tmpDir, "link.mp4")
-		require.NoError(t, os.WriteFile(targetFile, []byte("fake"), 0644))
+		require.NoError(t, os.WriteFile(targetFile, []byte("fake"), 0600))
 		require.NoError(t, os.Symlink(targetFile, linkFile))
-		
+
 		opts := TranscodeOptions{Format: "mp4"}
 		_, err := TranscodeStream(context.Background(), linkFile, opts)
 		// 符号链接应该被拒绝
@@ -198,7 +198,7 @@ func TestTranscodeStreamConcurrency(t *testing.T) {
 	// 创建一个测试视频文件
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.mp4")
-	
+
 	// 使用 FFmpeg 创建一个测试视频
 	cmd := createTestVideo(testFile)
 	if cmd != nil {
@@ -242,25 +242,25 @@ func TestTranscodeStreamConcurrency(t *testing.T) {
 func TestLimitReleaser(t *testing.T) {
 	// 重置信号量用于测试
 	transcodeLimit = make(chan struct{}, 2)
-	
+
 	// 获取信号量
 	transcodeLimit <- struct{}{}
 	assert.Equal(t, 1, len(transcodeLimit))
-	
+
 	// 创建 limitReleaser
 	pr, pw := io.Pipe()
 	lr := &limitReleaser{ReadCloser: pr}
-	
+
 	// 关闭应该释放信号量
 	err := lr.Close()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(transcodeLimit))
-	
+
 	// 多次关闭应该安全（只释放一次）
 	err = lr.Close()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(transcodeLimit))
-	
+
 	_ = pw.Close()
 }
 

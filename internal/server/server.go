@@ -51,9 +51,8 @@ type Server struct {
 	logCnt  int32
 
 	// Session management for PIN authentication
-	sessionMu    sync.RWMutex
-	sessions     map[string]time.Time // token -> expiry time
-	sessionTimer *time.Timer
+	sessionMu sync.RWMutex
+	sessions  map[string]time.Time // token -> expiry time
 }
 
 const (
@@ -560,7 +559,7 @@ func weakETag(key string, builtAt time.Time) string {
 	var t [8]byte
 	//nolint:gosec // int64 timestamp to uint64 hash input is safe for build time
 	n := uint64(builtAt.UnixNano())
-	for i := range 8 {
+	for i := 0; i < 8; i++ {
 		t[i] = byte(n)
 		n >>= 8
 	}

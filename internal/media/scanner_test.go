@@ -303,69 +303,69 @@ func TestIsAllDigits(t *testing.T) {
 func TestWalkShares(t *testing.T) {
 	// 创建临时目录结构
 	tmpDir := t.TempDir()
-	
+
 	// 创建测试文件
 	videoDir := filepath.Join(tmpDir, "videos")
 	audioDir := filepath.Join(tmpDir, "music")
-	require.NoError(t, os.MkdirAll(videoDir, 0755))
-	require.NoError(t, os.MkdirAll(audioDir, 0755))
-	
+	require.NoError(t, os.MkdirAll(videoDir, 0750))
+	require.NoError(t, os.MkdirAll(audioDir, 0750))
+
 	// 创建媒体文件
-	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.mp4"), []byte("fake video"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "show.mkv"), []byte("fake video"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(audioDir, "song.mp3"), []byte("fake audio"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.mp4"), []byte("fake video"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "show.mkv"), []byte("fake video"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(audioDir, "song.mp3"), []byte("fake audio"), 0600))
+
 	// 创建字幕文件
-	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.zh.srt"), []byte("1\n00:00:01,000 --> 00:00:04,000\nHello"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.zh.srt"), []byte("1\n00:00:01,000 --> 00:00:04,000\nHello"), 0600))
+
 	// 创建隐藏目录和文件（应该被跳过）
 	hiddenDir := filepath.Join(tmpDir, ".hidden")
-	require.NoError(t, os.MkdirAll(hiddenDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(hiddenDir, "secret.mp4"), []byte("secret"), 0644))
-	
+	require.NoError(t, os.MkdirAll(hiddenDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenDir, "secret.mp4"), []byte("secret"), 0600))
+
 	shares := []config.Share{
 		{Path: videoDir, Label: "Videos"},
 		{Path: audioDir, Label: "Music"},
 	}
-	
+
 	blacklist := config.BlacklistConfig{}
-	
+
 	t.Run("遍历所有共享目录", func(t *testing.T) {
 		var items []types.MediaItem
 		cb := func(item types.MediaItem, path string, root string) error {
 			items = append(items, item)
 			return nil
 		}
-		
+
 		err := WalkShares(context.Background(), shares, blacklist, 0, cb)
 		require.NoError(t, err)
-		
+
 		// 应该有 3 个媒体文件（2 视频 + 1 音频）
 		assert.Len(t, items, 3)
-		
+
 		// 验证隐藏目录的文件没有被包含
 		for _, item := range items {
 			assert.NotContains(t, item.Path, ".hidden")
 		}
 	})
-	
+
 	t.Run("限制数量", func(t *testing.T) {
 		var items []types.MediaItem
 		cb := func(item types.MediaItem, path string, root string) error {
 			items = append(items, item)
 			return nil
 		}
-		
+
 		err := WalkShares(context.Background(), shares, blacklist, 2, cb)
 		require.NoError(t, err)
-		
+
 		// 应该只有 2 个
 		assert.Len(t, items, 2)
 	})
-	
+
 	t.Run("上下文取消", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		
+
 		var count int
 		cb := func(item types.MediaItem, path string, root string) error {
 			count++
@@ -374,7 +374,7 @@ func TestWalkShares(t *testing.T) {
 			}
 			return nil
 		}
-		
+
 		err := WalkShares(ctx, shares, blacklist, 0, cb)
 		// 应该返回上下文取消错误
 		assert.Error(t, err)
@@ -383,21 +383,21 @@ func TestWalkShares(t *testing.T) {
 
 func TestFindSidecarSubtitles(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// 创建视频文件
 	videoPath := filepath.Join(tmpDir, "movie.mp4")
-	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0644))
-	
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0600))
+
 	// 创建字幕文件
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.en.srt"), []byte("subtitle"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.srt"), []byte("subtitle"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.en.srt"), []byte("subtitle"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.srt"), []byte("subtitle"), 0600))
+
 	subs := FindSidecarSubtitles(videoPath)
-	
+
 	// 应该找到 2 个字幕（zh 和 en）
 	assert.Len(t, subs, 2)
-	
+
 	// 中文应该排在前面
 	if len(subs) >= 2 {
 		assert.Equal(t, "zh", subs[0].Lang)
@@ -407,20 +407,20 @@ func TestFindSidecarSubtitles(t *testing.T) {
 
 func TestFindAudioSidecars(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// 创建音频文件
 	audioPath := filepath.Join(tmpDir, "song.mp3")
-	require.NoError(t, os.WriteFile(audioPath, []byte("fake"), 0644))
-	
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake"), 0600))
+
 	// 创建歌词文件
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.lrc"), []byte("[00:00.00]Lyrics"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.lrc"), []byte("[00:00.00]Lyrics"), 0600))
+
 	// 创建封面文件
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.jpg"), []byte("fake image"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.jpg"), []byte("fake image"), 0600))
+
 	cache := make(map[string][]os.DirEntry)
 	cover, lyrics := FindAudioSidecarsCached(audioPath, cache)
-	
+
 	assert.NotEmpty(t, cover)
 	assert.NotEmpty(t, lyrics)
 	assert.Contains(t, cover, "song.jpg")
@@ -431,15 +431,15 @@ func TestSniffContainerCodecs(t *testing.T) {
 	// 创建假的 MKV 文件（包含特征码）
 	tmpDir := t.TempDir()
 	mkvPath := filepath.Join(tmpDir, "test.mkv")
-	
+
 	// 写入 MKV 头部和特征码
-	data := []byte("\x1a\x45\xdf\xa3") // EBML 头部
+	data := []byte("\x1a\x45\xdf\xa3")                // EBML 头部
 	data = append(data, []byte("V_MPEG4/ISO/AVC")...) // H.264
-	data = append(data, []byte("A_AAC")...) // AAC
-	require.NoError(t, os.WriteFile(mkvPath, data, 0644))
-	
+	data = append(data, []byte("A_AAC")...)           // AAC
+	require.NoError(t, os.WriteFile(mkvPath, data, 0600))
+
 	video, audio := SniffContainerCodecs(mkvPath, ".mkv")
-	
+
 	assert.Contains(t, video, "H.264")
 	assert.Contains(t, audio, "AAC")
 }
@@ -473,22 +473,22 @@ func TestNormalizeBaseForMatch(t *testing.T) {
 
 func TestBuildMediaItem(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// 创建测试文件
 	videoPath := filepath.Join(tmpDir, "movie.mp4")
-	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0644))
-	
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0600))
+
 	// 创建字幕文件
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0644))
-	
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0600))
+
 	// 获取文件信息
 	info, err := os.Stat(videoPath)
 	require.NoError(t, err)
-	
+
 	// 创建 DirEntry
 	entries, err := os.ReadDir(tmpDir)
 	require.NoError(t, err)
-	
+
 	var videoEntry os.DirEntry
 	for _, e := range entries {
 		if e.Name() == "movie.mp4" {
@@ -497,11 +497,11 @@ func TestBuildMediaItem(t *testing.T) {
 		}
 	}
 	require.NotNil(t, videoEntry)
-	
+
 	cache := make(map[string][]os.DirEntry)
 	item, err := buildMediaItem(videoPath, videoEntry, "Videos", cache)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, "movie.mp4", item.Name)
 	assert.Equal(t, ".mp4", item.Ext)
 	assert.Equal(t, "video", item.Kind)
