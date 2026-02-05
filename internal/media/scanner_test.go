@@ -1,7 +1,18 @@
 package media
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
+
+	"msp/internal/config"
+	"msp/internal/types"
+	"msp/internal/util"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClassifyExt(t *testing.T) {
@@ -9,52 +20,606 @@ func TestClassifyExt(t *testing.T) {
 		ext      string
 		expected string
 	}{
+		// 视频
 		{".mp4", "video"},
-		{".MP4", "video"}, // Now case-insensitive
-		{".WebM", "video"}, // Mixed case
+		{".MP4", "video"},
+		{".mkv", "video"},
+		{".MKV", "video"},
+		{".mov", "video"},
+		{".avi", "video"},
+		{".webm", "video"},
+		{".m4v", "video"},
+		// 音频
 		{".mp3", "audio"},
+		{".MP3", "audio"},
+		{".aac", "audio"},
+		{".flac", "audio"},
+		{".wav", "audio"},
+		{".m4a", "audio"},
+		{".ogg", "audio"},
+		{".opus", "audio"},
+		// 图片
 		{".jpg", "image"},
+		{".jpeg", "image"},
+		{".png", "image"},
+		{".gif", "image"},
+		{".webp", "image"},
+		{".svg", "image"},
+		// 其他
 		{".txt", "other"},
+		{".doc", "other"},
+		{"", "other"},
 	}
 
 	for _, tt := range tests {
-		got := ClassifyExt(tt.ext)
-		if got != tt.expected {
-			t.Errorf("ClassifyExt(%s) = %s, expected %s", tt.ext, got, tt.expected)
-		}
+		t.Run(tt.ext, func(t *testing.T) {
+			result := ClassifyExt(tt.ext)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsSubtitleExt(t *testing.T) {
+	tests := []struct {
+		ext      string
+		expected bool
+	}{
+		{".vtt", true},
+		{".srt", true},
+		{".ass", true},
+		{".ssa", true},
+		{".VTT", true},
+		{".mp4", false},
+		{".txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			result := IsSubtitleExt(tt.ext)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsLyricsExt(t *testing.T) {
+	tests := []struct {
+		ext      string
+		expected bool
+	}{
+		{".lrc", true},
+		{".LRC", false}, // 区分大小写
+		{".txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			result := IsLyricsExt(tt.ext)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsBlockedString(t *testing.T) {
+	tests := []struct {
+		name     string
+		list     []string
+		target   string
+		expected bool
+	}{
+		{
+			name:     "精确匹配",
+			list:     []string{"test.txt"},
+			target:   "test.txt",
+			expected: true,
+		},
+		{
+			name:     "大小写不敏感匹配",
+			list:     []string{"TEST.TXT"},
+			target:   "test.txt",
+			expected: true,
+		},
+		{
+			name:     "正则匹配",
+			list:     []string{"/^test.*\\.txt$/"},
+			target:   "test123.txt",
+			expected: true,
+		},
+		{
+			name:     "不匹配",
+			list:     []string{"other.txt"},
+			target:   "test.txt",
+			expected: false,
+		},
+		{
+			name:     "空列表",
+			list:     []string{},
+			target:   "test.txt",
+			expected: false,
+		},
+		{
+			name:     "列表中有空字符串",
+			list:     []string{"", "test.txt"},
+			target:   "test.txt",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsBlockedString(tt.list, tt.target)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }
 
 func TestIsBlockedSize(t *testing.T) {
 	tests := []struct {
+		name     string
 		size     int64
 		rule     string
 		expected bool
 	}{
-		{100, ">50", true},
-		{100, "< 50", false},
-		{100, "50-150", true},
-		{200, "50-150", false},
+		{
+			name:     "范围匹配",
+			size:     500,
+			rule:     "100-1000",
+			expected: true,
+		},
+		{
+			name:     "范围不匹配",
+			size:     50,
+			rule:     "100-1000",
+			expected: false,
+		},
+		{
+			name:     "大于等于",
+			size:     1000,
+			rule:     ">=1000",
+			expected: true,
+		},
+		{
+			name:     "小于等于",
+			size:     500,
+			rule:     "<=1000",
+			expected: true,
+		},
+		{
+			name:     "大于",
+			size:     1001,
+			rule:     ">1000",
+			expected: true,
+		},
+		{
+			name:     "小于",
+			size:     999,
+			rule:     "<1000",
+			expected: true,
+		},
+		{
+			name:     "带单位",
+			size:     1024 * 1024,
+			rule:     ">=1MB",
+			expected: true,
+		},
+		{
+			name:     "空规则",
+			size:     1000,
+			rule:     "",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
-		got := IsBlockedSize(tt.size, tt.rule)
-		if got != tt.expected {
-			t.Errorf("IsBlockedSize(%d, %s) = %v, expected %v", tt.size, tt.rule, got, tt.expected)
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsBlockedSize(tt.size, tt.rule)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSubtitleLabel(t *testing.T) {
+	tests := []struct {
+		token    string
+		expected string
+	}{
+		{"zh", "中文"},
+		{"zh-cn", "中文"},
+		{"en", "English"},
+		{"eng", "English"},
+		{"ja", "日本語"},
+		{"unknown", "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.token, func(t *testing.T) {
+			result := SubtitleLabel(tt.token)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSrtToVtt(t *testing.T) {
+	srt := `1
+00:00:01,000 --> 00:00:04,000
+Hello World
+
+2
+00:00:05,000 --> 00:00:08,000
+Second subtitle
+with multiple lines
+`
+
+	vtt := SrtToVtt([]byte(srt))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "00:00:01.000 --> 00:00:04.000")
+	assert.Contains(t, vttStr, "Hello World")
+	assert.NotContains(t, vttStr, "00:00:01,000") // 逗号应该被替换为点
+}
+
+func TestAssToVtt(t *testing.T) {
+	ass := `[Script Info]
+Title: Test
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,Hello World
+Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,Second line
+`
+
+	vtt := AssToVtt([]byte(ass))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "00:00:01.00")
+	assert.Contains(t, vttStr, "Hello World")
+}
+
+func TestIsAllDigits(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"123", true},
+		{"0", true},
+		{"123abc", false},
+		{"", false},
+		{"12 3", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := IsAllDigits(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestWalkShares(t *testing.T) {
+	// 创建临时目录结构
+	tmpDir := t.TempDir()
+	
+	// 创建测试文件
+	videoDir := filepath.Join(tmpDir, "videos")
+	audioDir := filepath.Join(tmpDir, "music")
+	require.NoError(t, os.MkdirAll(videoDir, 0755))
+	require.NoError(t, os.MkdirAll(audioDir, 0755))
+	
+	// 创建媒体文件
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.mp4"), []byte("fake video"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "show.mkv"), []byte("fake video"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(audioDir, "song.mp3"), []byte("fake audio"), 0644))
+	
+	// 创建字幕文件
+	require.NoError(t, os.WriteFile(filepath.Join(videoDir, "movie.zh.srt"), []byte("1\n00:00:01,000 --> 00:00:04,000\nHello"), 0644))
+	
+	// 创建隐藏目录和文件（应该被跳过）
+	hiddenDir := filepath.Join(tmpDir, ".hidden")
+	require.NoError(t, os.MkdirAll(hiddenDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(hiddenDir, "secret.mp4"), []byte("secret"), 0644))
+	
+	shares := []config.Share{
+		{Path: videoDir, Label: "Videos"},
+		{Path: audioDir, Label: "Music"},
+	}
+	
+	blacklist := config.BlacklistConfig{}
+	
+	t.Run("遍历所有共享目录", func(t *testing.T) {
+		var items []types.MediaItem
+		cb := func(item types.MediaItem, path string, root string) error {
+			items = append(items, item)
+			return nil
+		}
+		
+		err := WalkShares(context.Background(), shares, blacklist, 0, cb)
+		require.NoError(t, err)
+		
+		// 应该有 3 个媒体文件（2 视频 + 1 音频）
+		assert.Len(t, items, 3)
+		
+		// 验证隐藏目录的文件没有被包含
+		for _, item := range items {
+			assert.NotContains(t, item.Path, ".hidden")
+		}
+	})
+	
+	t.Run("限制数量", func(t *testing.T) {
+		var items []types.MediaItem
+		cb := func(item types.MediaItem, path string, root string) error {
+			items = append(items, item)
+			return nil
+		}
+		
+		err := WalkShares(context.Background(), shares, blacklist, 2, cb)
+		require.NoError(t, err)
+		
+		// 应该只有 2 个
+		assert.Len(t, items, 2)
+	})
+	
+	t.Run("上下文取消", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		
+		var count int
+		cb := func(item types.MediaItem, path string, root string) error {
+			count++
+			if count >= 1 {
+				cancel() // 取消上下文
+			}
+			return nil
+		}
+		
+		err := WalkShares(ctx, shares, blacklist, 0, cb)
+		// 应该返回上下文取消错误
+		assert.Error(t, err)
+	})
+}
+
+func TestFindSidecarSubtitles(t *testing.T) {
+	tmpDir := t.TempDir()
+	
+	// 创建视频文件
+	videoPath := filepath.Join(tmpDir, "movie.mp4")
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0644))
+	
+	// 创建字幕文件
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.en.srt"), []byte("subtitle"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.srt"), []byte("subtitle"), 0644))
+	
+	subs := FindSidecarSubtitles(videoPath)
+	
+	// 应该找到 2 个字幕（zh 和 en）
+	assert.Len(t, subs, 2)
+	
+	// 中文应该排在前面
+	if len(subs) >= 2 {
+		assert.Equal(t, "zh", subs[0].Lang)
+		assert.True(t, subs[0].Default)
+	}
+}
+
+func TestFindAudioSidecars(t *testing.T) {
+	tmpDir := t.TempDir()
+	
+	// 创建音频文件
+	audioPath := filepath.Join(tmpDir, "song.mp3")
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake"), 0644))
+	
+	// 创建歌词文件
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.lrc"), []byte("[00:00.00]Lyrics"), 0644))
+	
+	// 创建封面文件
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "song.jpg"), []byte("fake image"), 0644))
+	
+	cache := make(map[string][]os.DirEntry)
+	cover, lyrics := FindAudioSidecarsCached(audioPath, cache)
+	
+	assert.NotEmpty(t, cover)
+	assert.NotEmpty(t, lyrics)
+	assert.Contains(t, cover, "song.jpg")
+	assert.Contains(t, lyrics, "song.lrc")
+}
+
+func TestSniffContainerCodecs(t *testing.T) {
+	// 创建假的 MKV 文件（包含特征码）
+	tmpDir := t.TempDir()
+	mkvPath := filepath.Join(tmpDir, "test.mkv")
+	
+	// 写入 MKV 头部和特征码
+	data := []byte("\x1a\x45\xdf\xa3") // EBML 头部
+	data = append(data, []byte("V_MPEG4/ISO/AVC")...) // H.264
+	data = append(data, []byte("A_AAC")...) // AAC
+	require.NoError(t, os.WriteFile(mkvPath, data, 0644))
+	
+	video, audio := SniffContainerCodecs(mkvPath, ".mkv")
+	
+	assert.Contains(t, video, "H.264")
+	assert.Contains(t, audio, "AAC")
+}
+
+func TestNormalizeBaseForMatch(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Movie.2024.1080p.BluRay.x264",
+			expected: "movie.2024", // 年份不会被移除
+		},
+		{
+			input:    "TV.Show.S01E01.720p.WEB-DL",
+			expected: "tv.show.s01e01",
+		},
+		{
+			input:    "Simple Movie",
+			expected: "simple movie",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeBaseForMatch(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBuildMediaItem(t *testing.T) {
+	tmpDir := t.TempDir()
+	
+	// 创建测试文件
+	videoPath := filepath.Join(tmpDir, "movie.mp4")
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0644))
+	
+	// 创建字幕文件
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("subtitle"), 0644))
+	
+	// 获取文件信息
+	info, err := os.Stat(videoPath)
+	require.NoError(t, err)
+	
+	// 创建 DirEntry
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	
+	var videoEntry os.DirEntry
+	for _, e := range entries {
+		if e.Name() == "movie.mp4" {
+			videoEntry = e
+			break
+		}
+	}
+	require.NotNil(t, videoEntry)
+	
+	cache := make(map[string][]os.DirEntry)
+	item, err := buildMediaItem(videoPath, videoEntry, "Videos", cache)
+	require.NoError(t, err)
+	
+	assert.Equal(t, "movie.mp4", item.Name)
+	assert.Equal(t, ".mp4", item.Ext)
+	assert.Equal(t, "video", item.Kind)
+	assert.Equal(t, "Videos", item.ShareLabel)
+	assert.Equal(t, info.Size(), item.Size)
+	assert.NotEmpty(t, item.ID)
+	assert.NotEmpty(t, item.Subtitles)
+}
+
+// 基准测试
+
+func BenchmarkClassifyExt(b *testing.B) {
+	exts := []string{".mp4", ".MP4", ".mkv", ".avi", ".mp3", ".flac", ".jpg", ".png"}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, ext := range exts {
+			_ = ClassifyExt(ext)
 		}
 	}
 }
 
-func TestIsBlockedString(t *testing.T) {
-	list := []string{"System Volume Information", "$RECYCLE.BIN", "/^\\./"}
-	
-	if IsBlockedString(list, "foo") {
-		t.Error("foo should not be blocked")
+func BenchmarkIsBlockedString(b *testing.B) {
+	list := []string{"test.txt", "/^prefix.*/", "exact.match"}
+	target := "prefix_test_file.txt"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = IsBlockedString(list, target)
 	}
-	if !IsBlockedString(list, "System Volume Information") {
-		t.Error("System Volume Information should be blocked")
+}
+
+func BenchmarkSrtToVtt(b *testing.B) {
+	srt := []byte(`1
+00:00:01,000 --> 00:00:04,000
+Hello World
+
+2
+00:00:05,000 --> 00:00:08,000
+Second subtitle
+`)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SrtToVtt(srt)
 	}
-	if !IsBlockedString(list, ".git") {
-		t.Error(".git should be blocked by regex")
+}
+
+// 平台特定测试
+
+func TestWithinRoot(t *testing.T) {
+	tests := []struct {
+		name     string
+		root     string
+		target   string
+		expected bool
+	}{
+		{
+			name:     "在根目录内",
+			root:     "/media/videos",
+			target:   "/media/videos/movie.mp4",
+			expected: true,
+		},
+		{
+			name:     "在子目录内",
+			root:     "/media",
+			target:   "/media/videos/movie.mp4",
+			expected: true,
+		},
+		{
+			name:     "在根目录外",
+			root:     "/media/videos",
+			target:   "/media/music/song.mp3",
+			expected: false,
+		},
+		{
+			name:     "目录遍历尝试",
+			root:     "/media/videos",
+			target:   "/media/videos/../music/song.mp3",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := util.WithinRoot(tt.root, tt.target)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// Windows 特定测试
+func TestWithinRootWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows 特定测试")
+	}
+
+	tests := []struct {
+		name     string
+		root     string
+		target   string
+		expected bool
+	}{
+		{
+			name:     "Windows 路径",
+			root:     `C:\media\videos`,
+			target:   `C:\media\videos\movie.mp4`,
+			expected: true,
+		},
+		{
+			name:     "Windows 大小写不敏感",
+			root:     `C:\Media\Videos`,
+			target:   `c:\media\videos\movie.mp4`,
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := util.WithinRoot(tt.root, tt.target)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

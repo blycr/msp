@@ -146,23 +146,35 @@ func IsExistingDir(p string) bool {
 }
 
 // IsAllowedFile 检查文件是否在允许的共享目录内且存在。
+// 安全特性：解析符号链接，防止通过符号链接绕过目录限制。
 func IsAllowedFile(fileAbs string, shares []config.Share) bool {
 	if fileAbs == "" {
 		return false
 	}
+	
+	// 获取绝对路径
 	f, err := filepath.Abs(fileAbs)
 	if err != nil {
 		return false
 	}
 	f = filepath.Clean(f)
+	
+	// 解析符号链接获取真实路径（安全关键）
+	realPath, err := filepath.EvalSymlinks(f)
+	if err != nil {
+		// 如果无法解析符号链接，使用原始路径
+		realPath = f
+	}
+	realPath = filepath.Clean(realPath)
 
 	for _, sh := range shares {
 		root := NormalizePath(sh.Path)
 		if root == "" {
 			continue
 		}
-		if WithinRoot(root, f) {
-			st, err := os.Stat(f)
+		// 检查真实路径是否在允许目录内
+		if WithinRoot(root, realPath) {
+			st, err := os.Stat(realPath)
 			return err == nil && !st.IsDir()
 		}
 	}
