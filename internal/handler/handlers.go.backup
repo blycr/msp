@@ -265,27 +265,16 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate PIN using constant-time comparison to prevent timing attacks
-	valid := constantTimeCompare(req.PIN, cfg.Security.PIN)
+	valid := req.PIN == cfg.Security.PIN
 	if valid {
-		// Create a new session token
-		sessionToken, err := h.s.CreateSession()
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{
-				"valid": false,
-				"error": "Failed to create session",
-			})
-			return
-		}
-
-		// Set session cookie for future requests
+		// Set cookie for future requests
 		http.SetCookie(w, &http.Cookie{
-			Name:     "msp_session",
-			Value:    sessionToken,
+			Name:     "msp_pin",
+			Value:    req.PIN,
 			Path:     "/",
 			MaxAge:   constants.CookieMaxAge,
 			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
+			SameSite: http.SameSiteStrictMode,
 		})
 	}
 
@@ -293,18 +282,6 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		"valid":   valid,
 		"enabled": true,
 	})
-}
-
-// constantTimeCompare compares two strings in constant time to prevent timing attacks
-func constantTimeCompare(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	result := 0
-	for i := 0; i < len(a); i++ {
-		result |= int(a[i] ^ b[i])
-	}
-	return result == 0
 }
 
 func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
@@ -602,8 +579,6 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 		h.serveVTT(w, r, f, st)
 	case ".srt":
 		h.serveSRT(w, r, f, st)
-	case ".ass", ".ssa":
-		h.serveASS(w, r, f, st)
 	default:
 		http.Error(w, constants.ErrMsgUnsupportedFormat, http.StatusBadRequest)
 	}
@@ -622,18 +597,6 @@ func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, s
 		return
 	}
 	out := media.SrtToVtt(b)
-	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-	w.Header().Set("Cache-Control", "private, max-age=0")
-	http.ServeContent(w, r, strings.TrimSuffix(st.Name(), filepath.Ext(st.Name()))+".vtt", st.ModTime(), bytes.NewReader(out))
-}
-
-func (h *Handler) serveASS(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
-	b, err := io.ReadAll(f)
-	if err != nil {
-		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
-		return
-	}
-	out := media.AssToVtt(b)
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	w.Header().Set("Cache-Control", "private, max-age=0")
 	http.ServeContent(w, r, strings.TrimSuffix(st.Name(), filepath.Ext(st.Name()))+".vtt", st.ModTime(), bytes.NewReader(out))

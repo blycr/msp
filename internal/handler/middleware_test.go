@@ -146,36 +146,49 @@ func TestGetClientIP(t *testing.T) {
 		name       string
 		remoteAddr string
 		headers    map[string]string
+		trustProxy bool
 		want       string
 	}{
 		{
-			name:       "X-Forwarded-For single IP",
+			name:       "X-Forwarded-For single IP with trustProxy",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Forwarded-For": "192.168.1.100"},
+			trustProxy: true,
 			want:       "192.168.1.100",
 		},
 		{
-			name:       "X-Forwarded-For multiple IPs",
+			name:       "X-Forwarded-For multiple IPs with trustProxy",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Forwarded-For": "192.168.1.100, 10.0.0.1"},
+			trustProxy: true,
 			want:       "192.168.1.100",
 		},
 		{
-			name:       "X-Real-IP",
+			name:       "X-Real-IP with trustProxy",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Real-IP": "192.168.1.100"},
+			trustProxy: true,
+			want:       "192.168.1.100",
+		},
+		{
+			name:       "X-Forwarded-For ignored without trustProxy",
+			remoteAddr: "192.168.1.100:5678",
+			headers:    map[string]string{"X-Forwarded-For": "10.0.0.1"},
+			trustProxy: false,
 			want:       "192.168.1.100",
 		},
 		{
 			name:       "RemoteAddr only",
 			remoteAddr: "192.168.1.100:5678",
 			headers:    map[string]string{},
+			trustProxy: false,
 			want:       "192.168.1.100",
 		},
 		{
 			name:       "IPv6 RemoteAddr",
 			remoteAddr: "[::1]:5678",
 			headers:    map[string]string{},
+			trustProxy: false,
 			want:       "::1",
 		},
 	}
@@ -188,7 +201,7 @@ func TestGetClientIP(t *testing.T) {
 				req.Header.Set(k, v)
 			}
 
-			result := getClientIP(req)
+			result := getClientIP(req, tt.trustProxy)
 			if result != tt.want {
 				t.Errorf("getClientIP() = %v, want %v", result, tt.want)
 			}
@@ -223,9 +236,9 @@ func TestRequiresPIN(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "API path requires PIN",
+			name: "API config does not require PIN (needed for PIN check)",
 			path: "/api/config",
-			want: true,
+			want: false,
 		},
 		{
 			name: "API media requires PIN",

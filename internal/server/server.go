@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +49,11 @@ type Server struct {
 	logMu   sync.Mutex
 	logFile *os.File
 	logCnt  int32
+
+	// Session management for PIN authentication
+	sessionMu    sync.RWMutex
+	sessions     map[string]time.Time // token -> expiry time
+	sessionTimer *time.Timer
 }
 
 const (
@@ -60,6 +67,7 @@ func New(cfgPath string) *Server {
 	s := &Server{
 		cfgPath:        cfgPath,
 		mediaCachePath: cfgPath + ".media_cache.json",
+		sessions:       make(map[string]time.Time),
 	}
 	s.mediaTTL = constants.MediaCacheTTL
 	s.mediaCond = sync.NewCond(&s.mediaMu)
@@ -549,10 +557,68 @@ func weakETag(key string, builtAt time.Time) string {
 	var t [8]byte
 	//nolint:gosec // int64 timestamp to uint64 hash input is safe for build time
 	n := uint64(builtAt.UnixNano())
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		t[i] = byte(n)
 		n >>= 8
 	}
 	_, _ = h.Write(t[:])
 	return `W/` + util.U64Base36(h.Sum64()) + ``
+}
+
+// Session management for PIN authentication
+
+// CreateSession creates a new session token for authenticated users
+func (s *Server) CreateSession() (string, error) {
+	token := make([]byte, constants.SessionTokenLength)
+	if _, err := rand.Read(token); err != nil {
+		return "", err
+	}
+	tokenStr := hex.EncodeToString(token)
+
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+
+	// Store session with expiry time (7 days)
+	s.sessions[tokenStr] = time.Now().Add(time.Duration(constants.CookieMaxAge) * time.Second)
+
+	// Clean up expired sessions periodically
+	s.cleanupExpiredSessionsLocked()
+
+	return tokenStr, nil
+}
+
+// ValidateSession checks if a session token is valid
+func (s *Server) ValidateSession(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	s.sessionMu.RLock()
+	expiry, exists := s.sessions[token]
+	s.sessionMu.RUnlock()
+
+	if !exists {
+		return false
+	}
+
+	if time.Now().After(expiry) {
+		// Session expired, remove it
+		s.sessionMu.Lock()
+		delete(s.sessions, token)
+		s.sessionMu.Unlock()
+		return false
+	}
+
+	return true
+}
+
+// cleanupExpiredSessionsLocked removes expired sessions
+// Must be called with sessionMu held
+func (s *Server) cleanupExpiredSessionsLocked() {
+	now := time.Now()
+	for token, expiry := range s.sessions {
+		if now.After(expiry) {
+			delete(s.sessions, token)
+		}
+	}
 }

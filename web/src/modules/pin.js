@@ -42,11 +42,25 @@ export async function verifyPin(pin) {
 export async function checkPinRequired() {
   try {
     // Try to access config endpoint to see if PIN is required
-    const response = await fetch("/api/config", { cache: "no-store" });
+    const response = await fetch("/api/config", { cache: "no-store", credentials: "include" });
 
     if (response.status === 401) {
-      // PIN is required
+      // PIN is required and not authenticated
       return true;
+    }
+
+    if (response.ok) {
+      const data = await response.json();
+      // Check if PIN is enabled in config
+      if (data.config && data.config.security && data.config.security.pinEnabled) {
+        // PIN is enabled, check if we're already authenticated
+        // by trying to access a protected endpoint
+        const testResponse = await fetch("/api/media", { cache: "no-store", credentials: "include" });
+        if (testResponse.status === 401) {
+          // Not authenticated, PIN required
+          return true;
+        }
+      }
     }
 
     // PIN not required or already authenticated

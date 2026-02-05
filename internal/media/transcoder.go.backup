@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -91,15 +90,6 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 
 // TranscodeStream 执行智能转码输出
 func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOptions) (io.ReadCloser, error) {
-	// Validate input path exists and is a regular file
-	info, err := os.Stat(inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("input path not accessible: %w", err)
-	}
-	if info.IsDir() {
-		return nil, fmt.Errorf("input path is a directory, not a file")
-	}
-
 	// Acquire semaphore
 	select {
 	case transcodeLimit <- struct{}{}:

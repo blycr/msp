@@ -299,7 +299,8 @@ func ClassifyExt(ext string) string {
 
 // IsSubtitleExt 检查扩展名是否是字幕文件。
 func IsSubtitleExt(ext string) bool {
-	return ext == ".vtt" || ext == ".srt"
+	ext = strings.ToLower(ext)
+	return ext == ".vtt" || ext == ".srt" || ext == ".ass" || ext == ".ssa"
 }
 
 // IsLyricsExt 检查扩展名是否是歌词文件。
@@ -335,8 +336,49 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry)
 	return out
 }
 
+// normalizeBaseForMatch 提取视频基础名称用于字幕匹配。
+// 移除常见的质量标识、年份等，以便更灵活地匹配字幕。
+func normalizeBaseForMatch(base string) string {
+	// 常见需要移除的后缀模式（按优先级排序）
+	patterns := []string{
+		// 分辨率
+		`\.\d{3,4}p`, `\.\d{3,4}x\d{3,4}`,
+		// 视频编码
+		`\.h\.?26[45]`, `\.x\.?26[45]`, `\.av1`, `\.vp[89]`, `\.mpeg`, `\.divx`, `\.xvid`,
+		// 音频编码
+		`\.aac`, `\.ac3`, `\.dts`, `\.eac3`, `\.flac`, `\.mp3`,
+		// 来源/发布组相关
+		`\.blu-?ray`, `\.bdrip`, `\.brrip`, `\.dvd`, `\.dvdrip`, `\.web-?dl`, `\.webrip`,
+		`\.hdtv`, `\.pdtv`, `\.dsr`, `\.tvrip`,
+		// HDR/DV
+		`\.hdr`, `\.hdr10`, `\.hdr10\+`, `\.dv`, `\.dolby`, `\.vision`,
+		// 其他常见标识
+		`\.repack`, `\.proper`, `\.extended`, `\.directors?\.cut`, `\.unrated`, `\.remastered`,
+		`\.limited`, `\.internal`, `\.read\.nfo`, `\.subbed`, `\.dubbed`,
+		// 发布组（通常在最末尾）
+		`\.[a-z0-9]+$`,
+	}
+
+	result := strings.ToLower(base)
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(`(?i)` + pattern + `$`)
+		result = re.ReplaceAllString(result, "")
+	}
+	return result
+}
+
+// extractBaseVariants 生成可能的视频基础名称变体。
+func extractBaseVariants(base string) []string {
+	variants := []string{strings.ToLower(base)}
+	normalized := normalizeBaseForMatch(base)
+	if normalized != strings.ToLower(base) && normalized != "" {
+		variants = append(variants, normalized)
+	}
+	return variants
+}
+
 func collectSubtitles(dir, base string, ents []fs.DirEntry) []types.Subtitle {
-	baseLower := strings.ToLower(base)
+	baseVariants := extractBaseVariants(base)
 	var out []types.Subtitle
 
 	for _, e := range ents {
@@ -346,22 +388,34 @@ func collectSubtitles(dir, base string, ents []fs.DirEntry) []types.Subtitle {
 		name := e.Name()
 		low := strings.ToLower(name)
 		ext := strings.ToLower(filepath.Ext(low))
-		if ext != ".vtt" && ext != ".srt" {
+		if !IsSubtitleExt(ext) {
 			continue
 		}
 		stem := strings.TrimSuffix(low, ext)
 		token := ""
-		if stem == baseLower {
-			token = ""
-		} else if strings.HasPrefix(stem, baseLower+".") {
-			token = strings.TrimPrefix(stem, baseLower+".")
-		} else {
+		matched := false
+
+		// 尝试所有基础名称变体
+		for _, baseVariant := range baseVariants {
+			if stem == baseVariant {
+				token = ""
+				matched = true
+				break
+			} else if strings.HasPrefix(stem, baseVariant+".") {
+				token = strings.TrimPrefix(stem, baseVariant+".")
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
 			continue
 		}
+
 		abs := filepath.Join(dir, name)
 		id := util.EncodeID(abs)
 		src := "/api/stream?id=" + id
-		if ext == ".srt" {
+		if ext == ".srt" || ext == ".ass" || ext == ".ssa" {
 			src = "/api/subtitle?id=" + id
 		}
 		lang := "zh"
@@ -397,21 +451,92 @@ func SubtitleLabel(token string) string {
 }
 
 var subtitleLabelMap = map[string]string{
+	// 简体中文
 	"zh":      "中文",
 	"zh-cn":   "中文",
 	"zh-hans": "中文",
+	"zh-chs":  "中文",
+	"sc":      "简体中文",
+	"chs":     "简体中文",
+	"gb":      "简体中文",
+	"cn":      "简体中文",
+	// 繁體中文
 	"zh-tw":   "繁體",
 	"zh-hant": "繁體",
-	"en":      "English",
-	"en-us":   "English",
-	"en-gb":   "English",
-	"ja":      "日本語",
-	"jp":      "日本語",
-	"ko":      "한국어",
-	"fr":      "Français",
-	"de":      "Deutsch",
-	"es":      "Español",
-	"ru":      "Русский",
+	"zh-cht":  "繁體",
+	"tc":      "繁體中文",
+	"cht":     "繁體中文",
+	"hk":      "繁體中文",
+	"big5":    "繁體中文",
+	"tw":      "繁體中文",
+	// 英语
+	"en":    "English",
+	"en-us": "English",
+	"en-gb": "English",
+	"eng":   "English",
+	// 日语
+	"ja":  "日本語",
+	"jp":  "日本語",
+	"jpn": "日本語",
+	// 韩语
+	"ko":  "한국어",
+	"kor": "한국어",
+	"kr":  "한국어",
+	// 欧洲语言
+	"fr":  "Français",
+	"fra": "Français",
+	"de":  "Deutsch",
+	"ger": "Deutsch",
+	"deu": "Deutsch",
+	"es":  "Español",
+	"spa": "Español",
+	"ru":  "Русский",
+	"rus": "Русский",
+	// 其他亚洲语言
+	"th":  "ไทย",
+	"tha": "ไทย",
+	"vi":  "Tiếng Việt",
+	"vie": "Tiếng Việt",
+	"id":  "Bahasa Indonesia",
+	"ind": "Bahasa Indonesia",
+	"ms":  "Bahasa Melayu",
+	"may": "Bahasa Melayu",
+	"tl":  "Tagalog",
+	"tgl": "Tagalog",
+	// 其他欧洲语言
+	"it":    "Italiano",
+	"ita":   "Italiano",
+	"pt":    "Português",
+	"por":   "Português",
+	"pt-br": "Português (Brasil)",
+	"nl":    "Nederlands",
+	"dut":   "Nederlands",
+	"nld":   "Nederlands",
+	"pl":    "Polski",
+	"pol":   "Polski",
+	"tr":    "Türkçe",
+	"tur":   "Türkçe",
+	"sv":    "Svenska",
+	"swe":   "Svenska",
+	"da":    "Dansk",
+	"dan":   "Dansk",
+	"no":    "Norsk",
+	"nor":   "Norsk",
+	"fi":    "Suomi",
+	"fin":   "Suomi",
+	"cs":    "Čeština",
+	"cze":   "Čeština",
+	"hu":    "Magyar",
+	"hun":   "Magyar",
+	"el":    "Ελληνικά",
+	"gre":   "Ελληνικά",
+	"ell":   "Ελληνικά",
+	"ar":    "العربية",
+	"ara":   "العربية",
+	"he":    "עברית",
+	"heb":   "עברית",
+	"hi":    "हिन्दी",
+	"hin":   "हिन्दी",
 }
 
 // FindAudioSidecarsCached 查找音频文件的封面和歌词文件。
@@ -637,6 +762,148 @@ func SrtToVtt(in []byte) []byte {
 		out.WriteString(line)
 		out.WriteString("\n")
 	}
+	return []byte(out.String())
+}
+
+// AssToVtt 将 ASS/SSA 格式的字幕转换为 WebVTT 格式。
+func AssToVtt(in []byte) []byte {
+	in = bytes.TrimPrefix(in, []byte{0xEF, 0xBB, 0xBF})
+	s := strings.ReplaceAll(strings.ReplaceAll(string(in), "\r\n", "\n"), "\r", "\n")
+	lines := strings.Split(s, "\n")
+
+	var out strings.Builder
+	out.WriteString("WEBVTT\n\n")
+
+	var inEvents bool
+	var formatFields []string
+
+	// ASS 时间格式: H:MM:SS.cc 或 HH:MM:SS.cc
+	// WebVTT 时间格式: HH:MM:SS.mmm
+	convertTime := func(t string) string {
+		t = strings.TrimSpace(t)
+		// 处理小数点或冒号分隔的百分秒
+		t = strings.Replace(t, ",", ".", 1)
+		parts := strings.Split(t, ":")
+		if len(parts) == 3 {
+			hours := parts[0]
+			minutes := parts[1]
+			seconds := parts[2]
+			// 确保小时是两位数
+			if len(hours) == 1 {
+				hours = "0" + hours
+			}
+			// 转换百分秒到毫秒
+			if dotIdx := strings.Index(seconds, "."); dotIdx != -1 {
+				cs := seconds[dotIdx+1:]
+				if len(cs) == 2 {
+					// 百分秒转毫秒
+					ms := cs + "0"
+					seconds = seconds[:dotIdx+1] + ms
+				} else if len(cs) == 1 {
+					ms := cs + "00"
+					seconds = seconds[:dotIdx+1] + ms
+				} else if len(cs) > 3 {
+					seconds = seconds[:dotIdx+4]
+				}
+			}
+			return hours + ":" + minutes + ":" + seconds
+		}
+		return t
+	}
+
+	// 处理 ASS 格式文本（去除样式标签）
+	cleanText := func(text string) string {
+		// 移除 ASS 样式标签 {\...}
+		re := regexp.MustCompile(`\{[^}]*\}`)
+		text = re.ReplaceAllString(text, "")
+		// 转换硬换行符 \N 为 WebVTT 换行
+		text = strings.ReplaceAll(text, "\\N", "\n")
+		text = strings.ReplaceAll(text, "\\n", "\n")
+		// 移除其他 ASS 特殊序列
+		text = strings.ReplaceAll(text, "\\h", " ")  // 硬空格
+		text = strings.ReplaceAll(text, "\\t", "\t") // 制表符
+		return text
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 检测 Events 段落
+		if strings.EqualFold(trimmed, "[events]") {
+			inEvents = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			inEvents = false
+			continue
+		}
+
+		if !inEvents {
+			continue
+		}
+
+		// 解析 Format 行
+		if strings.HasPrefix(strings.ToUpper(trimmed), "FORMAT:") {
+			formatStr := strings.TrimPrefix(line, "Format:")
+			formatStr = strings.TrimPrefix(formatStr, "FORMAT:")
+			formatFields = []string{}
+			for _, f := range strings.Split(formatStr, ",") {
+				formatFields = append(formatFields, strings.TrimSpace(strings.ToLower(f)))
+			}
+			continue
+		}
+
+		// 解析 Dialogue 行
+		if strings.HasPrefix(strings.ToUpper(trimmed), "DIALOGUE:") {
+			dialogueStr := strings.TrimPrefix(line, "Dialogue:")
+			dialogueStr = strings.TrimPrefix(dialogueStr, "DIALOGUE:")
+
+			// 找到第一个逗号后的内容（跳过 Layer 字段）
+			parts := strings.SplitN(dialogueStr, ",", 10)
+			if len(parts) < 10 {
+				// 尝试更宽松的解析
+				parts = strings.Split(dialogueStr, ",")
+			}
+
+			var startTime, endTime, text string
+
+			if len(formatFields) >= 10 {
+				// 根据 Format 字段解析
+				fieldMap := make(map[string]string)
+				for i, field := range formatFields {
+					if i < len(parts) {
+						fieldMap[field] = parts[i]
+					}
+				}
+				startTime = fieldMap["start"]
+				endTime = fieldMap["end"]
+				text = fieldMap["text"]
+			} else {
+				// 默认解析: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+				if len(parts) >= 3 {
+					startTime = parts[1]
+					endTime = parts[2]
+					if len(parts) >= 10 {
+						text = parts[9]
+					} else if len(parts) > 3 {
+						text = strings.Join(parts[3:], ",")
+					}
+				}
+			}
+
+			if startTime != "" && endTime != "" {
+				start := convertTime(startTime)
+				end := convertTime(endTime)
+				cleanedText := cleanText(text)
+
+				if cleanedText != "" {
+					out.WriteString(start + " --> " + end + "\n")
+					out.WriteString(cleanedText + "\n\n")
+				}
+			}
+		}
+	}
+
 	return []byte(out.String())
 }
 
