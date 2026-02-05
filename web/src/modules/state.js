@@ -5,10 +5,12 @@
 /**
  * @typedef {Object} PlaylistState
  * @property {?string} kind - Current playlist type (video, audio, etc)
- * @property {Array<Object>} items - List of media items
- * @property {number} index - Current index in items
+ * @property {Array<Object>} items - List of media items (always sorted)
+ * @property {number} index - Current index in items (actual position in sorted list)
  * @property {boolean} shuffle - Shuffle mode enabled
  * @property {boolean} loop - Loop mode enabled
+ * @property {Array<number>} playOrder - Play order array (stores indices into items)
+ * @property {number} playIndex - Current position in playOrder
  */
 
 /**
@@ -75,6 +77,8 @@ export const state = {
     index: -1,
     shuffle: false,
     loop: false,
+    playOrder: [],
+    playIndex: -1,
   },
   listPageSize: 10,
   listPage: 1,

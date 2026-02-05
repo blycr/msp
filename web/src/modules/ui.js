@@ -1,10 +1,10 @@
 import { state, el, lsSet, LS } from './state.js';
 import { t } from './i18n.js';
-import { currentList, filterFiles, sortFiles, buildPlaylist, setPlaylist, getSortVal, renderPlaylist, updateNavLabels, playAtIndex } from './playlist.js';
+import { currentList, filterFiles, sortFiles, setPlaylist, renderPlaylist, playAtIndex, playPrev, playNext, rebuildPlayOrderFromCurrent } from './playlist.js';
 import { playItem, updateResumeButton, resumeLast, setFitBtnVisible } from './player.js';
 import { formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { createArrowDownIcon, createArrowUpIcon } from './icons.js';
-import { apiPost, gpSet, gpGet, logRemote, probeItem, probeText, probeWarnText } from './api.js';
+import { apiPost, gpSet, gpGet, logRemote } from './api.js';
 import { loadConfig, loadMedia } from './actions.js';
 
 export function setMeta(text) {
@@ -377,8 +377,9 @@ export function bindUI() {
     state.playlist.shuffle = on;
     gpSet(LS.audioShuffle, on ? "1" : "0");
     if (state.current?.kind === "audio" && getCfg("playback.audio.enabled", true)) {
-      const pl = buildPlaylist(state.current, "audio");
-      setPlaylist("audio", pl.items, pl.index);
+      rebuildPlayOrderFromCurrent(on);
+      renderPlaylist();
+      updateNavButtons();
     }
   });
 
@@ -410,10 +411,6 @@ export function bindUI() {
     updateResumeButton();
   } catch { }
   
-  el("btnPrev").addEventListener("click", () => {
-    if (state.playlist.index > 0) playAtIndex(state.playlist.index - 1, true);
-  });
-  el("btnNext").addEventListener("click", () => {
-    if (state.playlist.items?.length && state.playlist.index < state.playlist.items.length - 1) playAtIndex(state.playlist.index + 1, true);
-  });
+  el("btnPrev").addEventListener("click", () => playPrev(true));
+  el("btnNext").addEventListener("click", () => playNext(true));
 }

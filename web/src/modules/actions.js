@@ -51,7 +51,7 @@ export async function loadMedia(refresh, limit) {
   const qs = params.toString();
   if (qs) url += `?${qs}`;
 
-  const res = await fetch(url, { cache: "no-store", headers });
+  const res = await fetch(url, { cache: "no-store", headers, credentials: "include" });
 
   if (res.status === 304) {
     const hadLimited = !!state.media?.limited;

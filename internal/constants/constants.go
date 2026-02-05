@@ -44,6 +44,9 @@ const (
 
 	// CookieMaxAge 是 PIN cookie 的最大存活时间 (7天)
 	CookieMaxAge = 86400 * 7
+
+	// SessionTokenLength 是 Session Token 的长度 (字节)
+	SessionTokenLength = 32
 )
 
 // 扫描限制

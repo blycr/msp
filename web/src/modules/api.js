@@ -1,4 +1,4 @@
-import { state, el, lsSet, lsGet } from './state.js';
+import { state, lsSet, lsGet } from './state.js';
 import { t } from './i18n.js';
 import { getCfg } from './utils.js';
 
@@ -14,7 +14,7 @@ export async function apiRetry(fn, retries = 3, delay = 1000) {
 }
 
 export async function apiGet(url) {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", credentials: "include" });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
   if (data?.error?.message) throw new Error(data.error.message);
@@ -26,6 +26,7 @@ export async function apiPost(url, body) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));

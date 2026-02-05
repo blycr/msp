@@ -3,9 +3,7 @@ package handler
 import (
 	"compress/gzip"
 	"fmt"
-	"net"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -79,11 +77,8 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg := s.Config()
 
-		// Apply security headers to all responses
-		applySecurityHeaders(w)
-
-		// Get client IP (respect TrustProxy setting)
-		clientIP := getClientIP(r, cfg.Security.TrustProxy)
+		// Get client IP
+		clientIP := getClientIP(r)
 
 		// Check IP whitelist/blacklist
 		if !isIPAllowed(clientIP, cfg.Security.IPWhitelist, cfg.Security.IPBlacklist) {
@@ -100,16 +95,16 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 				return
 			}
 
-			// Check session token from header or cookie
-			sessionToken := r.Header.Get("X-Session-Token")
-			if sessionToken == "" {
-				cookie, err := r.Cookie("msp_session")
+			// Check PIN from header or cookie
+			pin := r.Header.Get("X-PIN")
+			if pin == "" {
+				cookie, err := r.Cookie("msp_pin")
 				if err == nil {
-					sessionToken = cookie.Value
+					pin = cookie.Value
 				}
 			}
 
-			if !s.ValidateSession(sessionToken) {
+			if pin != cfg.Security.PIN {
 				http.Error(w, constants.ErrMsgUnauthorized, http.StatusUnauthorized)
 				return
 			}
@@ -119,40 +114,24 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 	})
 }
 
-// applySecurityHeaders adds security headers to HTTP responses
-func applySecurityHeaders(w http.ResponseWriter) {
-	// Prevent MIME type sniffing
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// Prevent clickjacking
-	w.Header().Set("X-Frame-Options", "DENY")
-	// Enable XSS protection in browsers
-	w.Header().Set("X-XSS-Protection", "1; mode=block")
-	// Referrer policy
-	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-}
-
 // getClientIP extracts the real client IP from the request
-// When trustProxy is false (default), only RemoteAddr is used to prevent IP spoofing
-func getClientIP(r *http.Request, trustProxy bool) string {
-	// Only trust proxy headers when explicitly configured
-	if trustProxy {
-		// Check X-Forwarded-For header (take the first IP which is closest to the client)
-		xff := r.Header.Get("X-Forwarded-For")
-		if xff != "" {
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				return strings.TrimSpace(ips[0])
-			}
-		}
-
-		// Check X-Real-IP header
-		xri := r.Header.Get("X-Real-IP")
-		if xri != "" {
-			return strings.TrimSpace(xri)
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff != "" {
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
 		}
 	}
 
-	// Use RemoteAddr (most secure option, cannot be spoofed by client)
+	// Check X-Real-IP header
+	xri := r.Header.Get("X-Real-IP")
+	if xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	// Use RemoteAddr
 	ip := r.RemoteAddr
 	if idx := strings.LastIndex(ip, ":"); idx != -1 {
 		ip = ip[:idx]
@@ -206,34 +185,66 @@ func matchesIPList(clientIP string, ipList []string) bool {
 }
 
 // matchesCIDR checks if an IP matches a CIDR range
-// Uses standard library net.ParseCIDR for proper CIDR matching
 func matchesCIDR(clientIP, cidr string) bool {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	if err != nil {
+	// Simple CIDR matching - parse IP and network
+	// For production use, consider using net.ParseCIDR
+	parts := strings.Split(cidr, "/")
+	if len(parts) != 2 {
 		return false
 	}
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
+
+	networkIP := parts[0]
+	// For simplicity, we'll do prefix matching for common cases
+	// A full implementation would use proper CIDR calculation
+
+	// Handle /24 (most common case)
+	if parts[1] == "24" {
+		clientParts := strings.Split(clientIP, ".")
+		networkParts := strings.Split(networkIP, ".")
+		if len(clientParts) == 4 && len(networkParts) == 4 {
+			return clientParts[0] == networkParts[0] &&
+				clientParts[1] == networkParts[1] &&
+				clientParts[2] == networkParts[2]
+		}
 	}
-	return ipNet.Contains(ip)
+
+	// Handle /16
+	if parts[1] == "16" {
+		clientParts := strings.Split(clientIP, ".")
+		networkParts := strings.Split(networkIP, ".")
+		if len(clientParts) == 4 && len(networkParts) == 4 {
+			return clientParts[0] == networkParts[0] &&
+				clientParts[1] == networkParts[1]
+		}
+	}
+
+	// Handle /8
+	if parts[1] == "8" {
+		clientParts := strings.Split(clientIP, ".")
+		networkParts := strings.Split(networkIP, ".")
+		if len(clientParts) == 4 && len(networkParts) == 4 {
+			return clientParts[0] == networkParts[0]
+		}
+	}
+
+	return false
 }
 
 // requiresPIN determines if a path requires PIN authentication
 func requiresPIN(path string) bool {
-	// PIN authentication only applies to API endpoints (except exempted ones)
+	// PIN authentication only applies to API endpoints (except /api/pin itself)
 	// Static resources (HTML, CSS, JS, images, etc.) should be accessible without PIN
 	// so that the frontend can load and display the PIN dialog
 
 	// Exempt paths that never require PIN
 	exemptPaths := []string{
-		"/api/pin",    // PIN verification endpoint itself
-		"/api/ip",     // IP info needed for UI
-		"/api/config", // Config needed to check if PIN is enabled
+		"/api/pin", // PIN verification endpoint itself
 	}
 
-	if slices.Contains(exemptPaths, path) {
-		return false
+	for _, exempt := range exemptPaths {
+		if path == exempt {
+			return false
+		}
 	}
 
 	// Only API endpoints require PIN (except those explicitly exempted above)

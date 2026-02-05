@@ -1,9 +1,9 @@
-import { state, el, lsGet, LS } from './state.js';
+import { state, el, LS } from './state.js';
 import { t } from './i18n.js';
-import { gpGet, gpSet, logRemote, apiPost, probeItem, probeText, probeWarnText, mediaErrorText, rememberEnabled, reportProgress, getProgress } from './api.js';
-import { mimeFor, canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
+import { gpGet, gpSet, logRemote, probeItem, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
+import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from './lyrics.js';
-import { setPlaylist, renderPlaylist, buildPlaylist, updateNavLabels, updateNavButtons, playAtIndex } from './playlist.js';
+import { setPlaylist, updateNavLabels, updateNavButtons, playAtIndex, playNext } from './playlist.js';
 
 export function getActiveMedia() {
   const kind = state.current?.kind;
@@ -98,7 +98,11 @@ export async function resumeLast() {
         if (plData.kind === kind && Array.isArray(plData.ids)) {
           const items = plData.ids.map(id => pool.find(x => x.id === id)).filter(Boolean);
           if (items.length > 0) {
-            setPlaylist(kind, items, plData.index);
+            // Rebuild playOrder based on current shuffle state and restored index
+            const index = Math.max(0, Math.min(plData.index || 0, items.length - 1));
+            const playOrder = generatePlayOrder(items.length, index, state.playlist.shuffle);
+            const playIndex = playOrder.findIndex(idx => idx === index);
+            setPlaylist(kind, items, index, playOrder, playIndex);
             restored = true;
           }
         }
@@ -106,7 +110,7 @@ export async function resumeLast() {
     }
     if (!restored) {
       const pl = buildPlaylist(item, kind);
-      setPlaylist(kind, pl.items, pl.index);
+      setPlaylist(kind, pl.items, pl.index, pl.playOrder, pl.playIndex);
     }
     playItem(item, { fromPlaylist: true, autoplay: false, resume: true });
   } else {
@@ -273,12 +277,8 @@ function onMediaEnded() {
   if (k !== "audio" && k !== "video") return;
   if (state.playlist.kind !== k) return;
 
-  if (state.playlist.index < 0) return;
-  if (state.playlist.index >= (state.playlist.items?.length || 0) - 1) {
-    if (state.playlist.loop) playAtIndex(0, true);
-    return;
-  }
-  playAtIndex(state.playlist.index + 1, true);
+  if (state.playlist.playIndex < 0) return;
+  playNext(true);
 }
 
 export function applyPlyr(element) {
@@ -413,13 +413,32 @@ export function applyPlyr(element) {
   } catch { }
   const opts = {};
 
+  // 配置控件，确保字幕按钮显示
+  // Plyr 会自动从 video.textTracks 读取内封字幕
+  opts.controls = [
+    'play-large',
+    'play',
+    'progress',
+    'current-time',
+    'duration',
+    'mute',
+    'volume',
+    'captions',  // 字幕切换按钮
+    'settings',  // 设置菜单（包含字幕语言选择）
+    'fullscreen'
+  ];
+
   if (features.speed) {
     opts.speed = { selected: 1, options: Array.isArray(features.speedOptions) && features.speedOptions.length ? features.speedOptions : [0.5, 0.75, 1, 1.25, 1.5, 2] };
   }
 
-  if (features.captions && String(element?.tagName || "").toUpperCase() === "VIDEO") {
+  // 视频始终启用字幕功能（只要有字幕轨道就会显示按钮）
+  if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
     opts.captions = { active: true, update: true, language: "auto" };
   }
+
+  // 启用设置菜单，包含字幕、质量、速度和循环选项
+  opts.settings = ['captions', 'quality', 'speed', 'loop'];
 
   opts.fullscreen = { enabled: true, fallback: true };
   opts.storage = { enabled: !!canStorage() };
@@ -466,15 +485,12 @@ export function applyPlyr(element) {
   // Smart Seeking for Transcoded Streams
   // ENABLED: Required for seeking in non-native formats (MKV, AVI, etc.) when transcoding is active.
   // The backend uses FFmpeg to generate a new stream from the requested offset.
-  const ext = (state.current?.ext || "").toLowerCase();
-  const isVideo = state.current?.kind === "video";
-  const isAudio = state.current?.kind === "audio";
 
   // Logic updated: Check if we are CURRENTLY transcoding
   // We determine this by checking the current source URL for "transcode=1"
   // OR if we are about to switch to a known hostile format (fallback for initial load)
 
-  // Actually, since we now try Direct Play first for EVERYTHING, 
+  // Actually, since we now try Direct Play first for EVERYTHING,
   // we only need Smart Seeking if the CURRENT active stream is a transcode stream.
   // We can attach the listener dynamically, or check inside the listener.
   // Let's check inside.
@@ -611,6 +627,131 @@ export function applyPlyr(element) {
       }, 2000);
     }
   } catch { }
+
+  // 音轨检测和切换功能
+  // 使用原生 HTML5 audioTracks API（如果浏览器支持）
+  setupAudioTrackHandling(element);
+}
+
+// 设置音轨和字幕处理
+// 使用原生 HTML5 API，因为 Plyr 对音轨和内封字幕的支持有限
+function setupAudioTrackHandling(videoEl) {
+  if (!videoEl || videoEl.tagName !== "VIDEO") return;
+
+  // 在 loadedmetadata 时检测音轨和内封字幕
+  videoEl.addEventListener("loadedmetadata", () => {
+    // 检测音轨
+    if (videoEl.audioTracks) {
+      const audioTracks = videoEl.audioTracks;
+      if (audioTracks && audioTracks.length > 1) {
+        console.log(`检测到 ${audioTracks.length} 个音轨:`);
+        for (let i = 0; i < audioTracks.length; i++) {
+          const track = audioTracks[i];
+          console.log(`  [${i}] ${track.label || "未命名"} (${track.language || "未知语言"})${track.enabled ? " [当前]" : ""}`);
+        }
+
+        // 尝试恢复用户上次选择的音轨
+        const mid = String(state.current?.id || "");
+        const savedTrackIdx = gpGet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack");
+        if (savedTrackIdx !== null && savedTrackIdx !== undefined) {
+          const idx = Number(savedTrackIdx);
+          if (!Number.isNaN(idx) && idx >= 0 && idx < audioTracks.length) {
+            for (let i = 0; i < audioTracks.length; i++) {
+              audioTracks[i].enabled = (i === idx);
+            }
+          }
+        }
+      }
+    }
+
+    // 检测内封字幕
+    const textTracks = videoEl.textTracks;
+    console.log(`字幕轨道检测: 找到 ${textTracks?.length || 0} 个轨道`);
+    if (textTracks && textTracks.length > 0) {
+      for (let i = 0; i < textTracks.length; i++) {
+        const track = textTracks[i];
+        console.log(`  [${i}] ${track.label || "未命名"} (${track.language || "未知语言"}) kind=${track.kind} mode=${track.mode}`);
+      }
+
+      // 尝试通过 Plyr API 刷新字幕菜单
+      if (state.plyr) {
+        try {
+          // 触发 captions 更新事件
+          state.plyr.emit('captionsenabled');
+        } catch (e) {
+          console.log("Plyr 字幕刷新失败:", e);
+        }
+      }
+    } else {
+      console.log("未检测到内封字幕轨道。注意: 浏览器对 MKV 内封字幕的支持有限，可能需要外挂字幕。");
+    }
+  });
+
+  // 监听音轨变化
+  if (videoEl.audioTracks) {
+    videoEl.audioTracks.addEventListener("change", () => {
+      const tracks = Array.from(videoEl.audioTracks);
+      const enabledTrack = tracks.find(t => t.enabled);
+      if (enabledTrack) {
+        console.log(`音轨切换至: ${enabledTrack.label || enabledTrack.language || "未知"}`);
+      }
+    });
+  }
+
+  // 定期保存当前音轨选择
+  let lastAudioTrackIdx = -1;
+  setInterval(() => {
+    try {
+      const tracks = videoEl.audioTracks;
+      if (!tracks || tracks.length <= 1) return;
+
+      let currentIdx = -1;
+      for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].enabled) {
+          currentIdx = i;
+          break;
+        }
+      }
+
+      if (currentIdx !== lastAudioTrackIdx && currentIdx >= 0) {
+        const mid = String(state.current?.id || "");
+        gpSet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack", String(currentIdx));
+        lastAudioTrackIdx = currentIdx;
+      }
+    } catch { }
+  }, 3000);
+}
+
+// 手动切换音轨的 API（供外部调用）
+export function switchAudioTrack(trackIndex) {
+  const videoEl = el("videoEl");
+  if (!videoEl || !videoEl.audioTracks) return false;
+
+  const tracks = videoEl.audioTracks;
+  if (trackIndex < 0 || trackIndex >= tracks.length) return false;
+
+  for (let i = 0; i < tracks.length; i++) {
+    tracks[i].enabled = (i === trackIndex);
+  }
+
+  // 保存选择
+  const mid = String(state.current?.id || "");
+  gpSet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack", String(trackIndex));
+
+  return true;
+}
+
+// 获取当前音轨信息
+export function getAudioTracks() {
+  const videoEl = el("videoEl");
+  if (!videoEl || !videoEl.audioTracks) return [];
+
+  return Array.from(videoEl.audioTracks).map((track, index) => ({
+    index,
+    label: track.label || "未命名",
+    language: track.language || "未知",
+    enabled: track.enabled
+  }));
 }
 
 export function playItem(item, opts) {
@@ -699,7 +840,7 @@ export function playItem(item, opts) {
   if (options.user && !options.fromPlaylist && getCfg("features.playlist", true)) {
     const pl = buildPlaylist(item, item.kind);
     if (pl.items.length) {
-      setPlaylist(item.kind, pl.items, pl.index);
+      setPlaylist(item.kind, pl.items, pl.index, pl.playOrder, pl.playIndex);
     }
   }
 
@@ -1044,12 +1185,14 @@ export function bindGlobalHotkeys() {
 
     if (k === "[" || k === "]") {
       const pl = state.playlist;
-      if (pl && pl.items && pl.items.length > 0) {
+      if (pl && pl.items && pl.items.length > 0 && pl.playOrder.length > 0) {
         handled();
         if (k === "[") {
-          if (pl.index > 0) playAtIndex(pl.index - 1, true, true);
+          if (pl.playIndex > 0) playAtIndex(pl.playIndex - 1, true, true);
+          else if (pl.loop) playAtIndex(pl.playOrder.length - 1, true, true);
         } else {
-          if (pl.index < pl.items.length - 1) playAtIndex(pl.index + 1, true, true);
+          if (pl.playIndex < pl.playOrder.length - 1) playAtIndex(pl.playIndex + 1, true, true);
+          else if (pl.loop) playAtIndex(0, true, true);
         }
       }
       return;

@@ -88,15 +88,17 @@ export function filterFiles(list) {
   return list.filter(x => (x.name || "").toLowerCase().includes(lower) || (x.shareLabel || "").toLowerCase().includes(lower));
 }
 
-export function setPlaylist(kind, items, index) {
+export function setPlaylist(kind, items, index, playOrder = null, playIndex = -1) {
   state.playlist.kind = kind;
   state.playlist.items = Array.isArray(items) ? items : [];
   state.playlist.index = Number.isFinite(index) ? index : -1;
+  state.playlist.playOrder = Array.isArray(playOrder) ? playOrder : [];
+  state.playlist.playIndex = Number.isFinite(playIndex) ? playIndex : -1;
   renderPlaylist();
   scheduleAutoFitPlaylistPageSize();
   updateNavButtons();
   updateNavLabels();
-  logRemote("info", `Playlist updated: kind=${kind} count=${items?.length} index=${index}`);
+  logRemote("info", `Playlist updated: kind=${kind} count=${items?.length} index=${index} playIndex=${playIndex}`);
 }
 
 const plAutoFit = {
@@ -256,8 +258,12 @@ export function renderPlaylist() {
   for (let i = start; i < Math.min(total, start + psize); i++) {
     const it = items[i];
     const row = document.createElement("div");
-    row.className = "plitem" + (i === state.playlist.index ? " plitem--active" : "");
-    row.addEventListener("click", () => playAtIndex(i, true));
+    // Highlight based on playOrder position, not raw index
+    const isActive = state.playlist.playOrder[state.playlist.playIndex] === i;
+    row.className = "plitem" + (isActive ? " plitem--active" : "");
+    // Find the position in playOrder for clicking
+    const playPos = state.playlist.playOrder.findIndex(idx => idx === i);
+    row.addEventListener("click", () => playAtIndex(playPos >= 0 ? playPos : i, true));
 
     const idx = document.createElement("div");
     idx.className = "plitem__idx";
@@ -321,28 +327,81 @@ export function renderPlaylist() {
 export function updateNavButtons() {
   const prev = el("btnPrev");
   const next = el("btnNext");
-  const items = state.playlist.items || [];
-  const idx = state.playlist.index;
-  if (prev) prev.disabled = !(items.length && idx > 0);
-  if (next) next.disabled = !(items.length && idx >= 0 && idx < items.length - 1);
+  const pl = state.playlist;
+  const items = pl.items || [];
+  const playOrder = pl.playOrder || [];
+  const playIndex = pl.playIndex;
+
+  const hasItems = items.length > 0 && playOrder.length > 0;
+  const canPrev = hasItems && playIndex > 0;
+  const canNext = hasItems && playIndex < playOrder.length - 1;
+
+  if (prev) prev.disabled = !canPrev;
+  if (next) next.disabled = !canNext;
   updateNavLabels();
 }
 
 export function playAtIndex(i, autoplay, user) {
   const items = state.playlist.items || [];
   if (!items.length) return;
-  const idx = Math.max(0, Math.min(items.length - 1, i));
-  state.playlist.index = idx;
+
+  const playOrder = state.playlist.playOrder;
+  const playIndex = Math.max(0, Math.min(playOrder.length - 1, i));
+  const actualIndex = playOrder[playIndex];
+
+  if (actualIndex === undefined || actualIndex < 0 || actualIndex >= items.length) return;
+
+  state.playlist.playIndex = playIndex;
+  state.playlist.index = actualIndex;
   renderPlaylist();
   updateNavButtons();
-  playItem(items[idx], { fromPlaylist: true, autoplay: !!autoplay, user: !!user });
+  playItem(items[actualIndex], { fromPlaylist: true, autoplay: !!autoplay, user: !!user });
 }
 
-export function buildPlaylist(item, kind) {
+export function playPrev(autoplay = true) {
+  const pl = state.playlist;
+  if (!pl.items.length || pl.playIndex < 0) return;
+
+  if (pl.playIndex > 0) {
+    playAtIndex(pl.playIndex - 1, autoplay, true);
+  } else if (pl.loop) {
+    playAtIndex(pl.playOrder.length - 1, autoplay, true);
+  }
+}
+
+export function playNext(autoplay = true) {
+  const pl = state.playlist;
+  if (!pl.items.length || pl.playIndex < 0) return;
+
+  if (pl.playIndex < pl.playOrder.length - 1) {
+    playAtIndex(pl.playIndex + 1, autoplay, true);
+  } else if (pl.loop) {
+    playAtIndex(0, autoplay, true);
+  }
+}
+
+export function generatePlayOrder(itemCount, startIndex, shuffle) {
+  const order = Array.from({ length: itemCount }, (_, i) => i);
+  if (!shuffle || itemCount <= 1) return order;
+
+  // Fisher-Yates shuffle, but keep startIndex at position 0
+  if (startIndex > 0 && startIndex < itemCount) {
+    [order[0], order[startIndex]] = [order[startIndex], order[0]];
+  }
+
+  for (let i = itemCount - 1; i > 1; i--) {
+    const j = Math.floor(Math.random() * i) + 1;
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+
+  return order;
+}
+
+export function buildPlaylist(item, kind, shuffle = null) {
   const scope = getCfg(`playback.${kind}.scope`, kind === "audio" ? "all" : "folder");
   const poolMap = { video: "videos", audio: "audios", image: "images" };
   const all = state.media?.[poolMap[kind]] || [];
-  if (!all.length) return { items: [], index: -1 };
+  if (!all.length) return { items: [], index: -1, playOrder: [], playIndex: -1 };
 
   let items = [...all];
   if (scope === "folder") {
@@ -352,16 +411,46 @@ export function buildPlaylist(item, kind) {
     items = items.filter(x => x.shareLabel === item.shareLabel);
   }
 
-  // INTUITIVE SORTING LOGIC:
   items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh", { numeric: true, sensitivity: "base" }));
 
-  if (kind === "audio" && state.playlist.shuffle) {
-    for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [items[i], items[j]] = [items[j], items[i]];
+  const index = items.findIndex(x => x.id === item.id);
+  if (index < 0) return { items: [], index: -1, playOrder: [], playIndex: -1 };
+
+  const isShuffle = shuffle !== null ? shuffle : state.playlist.shuffle;
+  const playOrder = generatePlayOrder(items.length, index, isShuffle);
+  const playIndex = playOrder.findIndex(idx => idx === index);
+
+  return { items, index, playOrder, playIndex };
+}
+
+export function rebuildPlayOrderFromCurrent(shuffle) {
+  const pl = state.playlist;
+  if (!pl.items.length) return;
+
+  const currentPlayIndex = pl.playIndex;
+  const currentItemIndex = pl.playOrder[currentPlayIndex] ?? pl.index;
+
+  const newOrder = Array.from({ length: pl.items.length }, (_, i) => i);
+
+  if (shuffle && pl.items.length > 1) {
+    // Keep current song at current position, shuffle the rest
+    if (currentItemIndex >= 0 && currentItemIndex < pl.items.length) {
+      newOrder[currentPlayIndex] = currentItemIndex;
+
+      const remaining = newOrder.filter((_, i) => i !== currentPlayIndex);
+      for (let i = remaining.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+      }
+
+      let ri = 0;
+      for (let i = 0; i < newOrder.length; i++) {
+        if (i !== currentPlayIndex) {
+          newOrder[i] = remaining[ri++];
+        }
+      }
     }
   }
 
-  const index = items.findIndex(x => x.id === item.id);
-  return { items, index };
+  pl.playOrder = newOrder;
 }

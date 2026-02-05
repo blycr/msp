@@ -63,10 +63,6 @@ type SecurityConfig struct {
 	// IPs in this list will be denied access
 	IPBlacklist []string `json:"ipBlacklist"`
 
-	// TrustProxy enables trusting X-Forwarded-For and X-Real-IP headers
-	// Only enable this when MSP is behind a trusted reverse proxy
-	TrustProxy bool `json:"trustProxy"`
-
 	// PINEnabled enables PIN authentication
 	PINEnabled bool `json:"pinEnabled"`
 
@@ -136,7 +132,6 @@ func Default() Config {
 		Security: SecurityConfig{
 			IPWhitelist: []string{},
 			IPBlacklist: []string{},
-			TrustProxy:  false,
 			PINEnabled:  false,
 			PIN:         constants.DefaultPIN,
 		},
@@ -280,6 +275,5 @@ func applySecurityDefaults(cfg *Config) bool {
 		cfg.Security.PIN = constants.DefaultPIN
 		changed = true
 	}
-	// TrustProxy defaults to false for security
 	return changed
 }
