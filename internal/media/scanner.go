@@ -235,7 +235,7 @@ func IsBlockedSize(size int64, rule string) bool {
 func ClassifyExt(ext string) string {
 	extLower := strings.ToLower(ext)
 	switch extLower {
-	case ".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v":
+	case ".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v", ".wmv":
 		return "video"
 	case ".mp3", ".aac", ".wav", ".flac", ".m4a", ".ogg", ".opus":
 		return "audio"

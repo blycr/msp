@@ -502,6 +502,7 @@ var contentTypeByExt = map[string]string{
 	".mkv":  "video/x-matroska",
 	".webm": "video/webm",
 	".avi":  "video/x-msvideo",
+	".wmv":  "video/x-ms-wmv",
 	".mov":  "video/quicktime",
 	".ts":   "video/mp2t",
 	".vtt":  "text/vtt; charset=utf-8",

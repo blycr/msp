@@ -292,7 +292,7 @@ export function applyPlyr(element) {
     element.addEventListener("error", (e) => {
       const err = element.error;
       const d = element.duration;
-      const t = element.currentTime;
+      const currentTime = element.currentTime;
 
       // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
       if (err && (err.code === 3 || err.code === 4)) {
@@ -300,9 +300,9 @@ export function applyPlyr(element) {
         // 1. > 90% progress
         // 2. < 10s remaining
         // 3. We have played something (t > 5) but duration is NaN (stream)
-        const isNearEnd = (d > 0 && t / d > 0.9) ||
-          (d > 0 && d - t < 10) ||
-          (Number.isNaN(d) && t > 5);
+        const isNearEnd = (d > 0 && currentTime / d > 0.9) ||
+          (d > 0 && d - currentTime < 10) ||
+          (Number.isNaN(d) && currentTime > 5);
 
         if (isNearEnd) {
           console.warn("Media decoding error near end - suppressing error and skipping to next", err);
@@ -328,8 +328,8 @@ export function applyPlyr(element) {
           e.preventDefault();
           e.stopPropagation();
 
-          const url = streamUrl(state.current.id, t) + "&transcode=1"; // Use 't' as start offset
-          logRemote("info", `Fallback to transcode: ${state.current.name} @ ${t}s`);
+          const url = streamUrl(state.current.id, currentTime) + "&transcode=1"; // Use current time as start offset
+          logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
 
           // Reload Player Source
           // Plyr handles source updates gracefully
@@ -353,7 +353,7 @@ export function applyPlyr(element) {
           state.plyr.source = newSource;
           state.plyr.once("ready", () => {
             // Note: Backend uses -copyts, so setting currentTime is correct.
-            element.currentTime = t;
+            element.currentTime = currentTime;
             state.plyr.play().catch(() => { });
           });
           return;
