@@ -1,6 +1,6 @@
 import { state, el, LS } from './state.js';
 import { t } from './i18n.js';
-import { gpGet, gpSet, logRemote, probeItem, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
+import { gpGet, gpSet, logRemote, probeItem, probePeek, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from './lyrics.js';
 import { setPlaylist, updateNavLabels, updateNavButtons, playAtIndex, playNext, buildPlaylist, generatePlayOrder } from './playlist.js';
@@ -266,6 +266,31 @@ export function canStorage() {
 }
 
 let lastMediaEndedAt = 0;
+function hasAnyPattern(text, patterns) {
+  if (!text) return false;
+  const s = String(text).toUpperCase();
+  return patterns.some(p => s.includes(p));
+}
+
+function needsCompatibilityVideoTranscode(item) {
+  const ext = String(item?.ext || "").toLowerCase();
+  if (ext === ".avi" || ext === ".wmv") return true;
+
+  const p = probePeek(item?.id);
+  if (!p) return false;
+
+  const container = String(p.container || "").toLowerCase();
+  if (container === "avi" || container === "wmv") return true;
+
+  const riskyVideoCodecs = [
+    "HEVC", "H.265", "H265", "VC-1", "WMV3", "MPEG-2", "MPEG2"
+  ];
+  const riskyAudioCodecs = [
+    "AC-3", "E-AC-3", "DTS", "TRUEHD"
+  ];
+  return hasAnyPattern(p.video, riskyVideoCodecs) || hasAnyPattern(p.audio, riskyAudioCodecs);
+}
+
 function onMediaEnded() {
   const now = Date.now();
   if (now - lastMediaEndedAt < 500) return;
@@ -293,6 +318,11 @@ export function applyPlyr(element) {
       const err = element.error;
       const d = element.duration;
       const currentTime = element.currentTime;
+      const currentSrc = element.currentSrc || element.src || "";
+
+      // Ignore transient errors during source teardown/switch.
+      // Empty source is common when resetting media elements.
+      if (!currentSrc) return;
 
       // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
       if (err && (err.code === 3 || err.code === 4)) {
@@ -314,7 +344,6 @@ export function applyPlyr(element) {
 
         // --- Auto-Transcode Fallback ---
         // If decoding failed midway, and we haven't tried transcoding yet, try it now.
-        const currentSrc = element.currentSrc || element.src || "";
         const isAlreadyTranscoding = currentSrc.includes("transcode=1");
 
         // Check config permissions
@@ -322,8 +351,24 @@ export function applyPlyr(element) {
         const isAudio = state.current?.kind === "audio";
         const allowVideo = isVideo && getCfg("playback.video.transcode", false);
         const allowAudio = isAudio && getCfg("playback.audio.transcode", false);
+        const allowVideoFallback = allowVideo;
+        const allowFallback = allowVideoFallback || allowAudio;
 
-        if (!isAlreadyTranscoding && (allowVideo || allowAudio)) {
+        // One-shot direct retry for transient source failures (code=4).
+        // This helps with occasional stale/broken range requests on some browsers.
+        if (err.code === 4 && !isAlreadyTranscoding && element.dataset.mspDirectRetryDone !== "1") {
+          element.dataset.mspDirectRetryDone = "1";
+          const retryURL = currentSrc.includes("ts=")
+            ? currentSrc.replace(/([?&])ts=\d+/, `$1ts=${Date.now()}`)
+            : `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}ts=${Date.now()}`;
+          console.warn("Playback source error, retrying once with refreshed URL", retryURL);
+          try { element.src = retryURL; } catch { }
+          try { element.load(); } catch { }
+          try { state.plyr?.play?.().catch(() => { }); } catch { }
+          return;
+        }
+
+        if (!isAlreadyTranscoding && allowFallback) {
           console.warn("Playback failed, attempting fallback to transcode...", err);
           e.preventDefault();
           e.stopPropagation();
@@ -363,7 +408,7 @@ export function applyPlyr(element) {
         // 1. We already tried transcoding and it failed again (isAlreadyTranscoding = true)
         // 2. Transcoding is disabled in config (!allowVideo)
         // In either case, we must show a visible error to the user.
-        console.error("Playback failed permanently. Transcode enabled:", allowVideo || allowAudio);
+        console.error("Playback failed permanently. Transcode enabled:", allowFallback);
         showPreviewError(t("err_unsupported") + (isAlreadyTranscoding ? " (Transcode Failed)" : " (Transcode Disabled)"));
       }
       console.error("Critical Media Error:", err);
@@ -873,6 +918,7 @@ export function playItem(item, opts) {
       return;
     }
     resetMediaEl(audio);
+    try { delete audio.dataset.mspDirectRetryDone; } catch { }
     audio.src = streamUrl(item.id);
     audio.style.opacity = "0";
     audio.style.display = "block";
@@ -984,6 +1030,7 @@ export function playItem(item, opts) {
       showPreviewError(t("err_video_format", item.ext || ""));
       return;
     }
+    try { delete video.dataset.mspDirectRetryDone; } catch { }
 
     if (isVideoSwitch) {
       if (state.plyr) {
@@ -994,8 +1041,7 @@ export function playItem(item, opts) {
           // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
           // Only AVI needs pre-emptive transcode because browsers will show download dialog.
           // Other formats should try direct play first, let error handler fallback to transcode.
-          const ext = (item.ext || "").toLowerCase();
-          const needsPreemptiveTranscode = ext === ".avi" && getCfg("playback.video.transcode", false);
+          const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
 
           let src = streamUrl(item.id);
           if (needsPreemptiveTranscode) {
@@ -1078,8 +1124,7 @@ export function playItem(item, opts) {
     // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
     // Only AVI needs pre-emptive transcode because browsers will show download dialog.
     // Other formats should try direct play first, let error handler fallback to transcode.
-    const ext = (item.ext || "").toLowerCase();
-    const needsPreemptiveTranscode = ext === ".avi" && getCfg("playback.video.transcode", false);
+    const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
 
     let src = streamUrl(item.id);
     if (needsPreemptiveTranscode) {
