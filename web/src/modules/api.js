@@ -41,6 +41,11 @@ export function logRemote(level, msg) {
 
 const probeCache = new Map();
 
+export function probePeek(id) {
+  if (!id) return null;
+  return probeCache.get(id) || null;
+}
+
 export async function probeItem(id) {
   if (!id) return null;
   if (probeCache.has(id)) return probeCache.get(id);
