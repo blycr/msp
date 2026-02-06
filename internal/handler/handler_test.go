@@ -22,3 +22,10 @@ func TestHandleIP(t *testing.T) {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
 }
+
+func TestDetermineContentTypeWMV(t *testing.T) {
+	ct := determineContentType(".wmv")
+	if ct != "video/x-ms-wmv" {
+		t.Fatalf("expected video/x-ms-wmv, got %s", ct)
+	}
+}

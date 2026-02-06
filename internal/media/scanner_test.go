@@ -29,6 +29,8 @@ func TestClassifyExt(t *testing.T) {
 		{".avi", "video"},
 		{".webm", "video"},
 		{".m4v", "video"},
+		{".wmv", "video"},
+		{".WMV", "video"},
 		// 音频
 		{".mp3", "audio"},
 		{".MP3", "audio"},
