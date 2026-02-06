@@ -10,7 +10,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
 
 <h3>打造你的家庭局域网影院。</h3>
-<p>轻量、高速、隐私安全的媒体流服务，专为家庭网络设计。</p>
+<p>面向家庭局域网的轻量媒体服务器。</p>
 
 [English](README.md) | [Wiki 文档](https://github.com/blycr/msp/wiki) | [提交 Bug](https://github.com/blycr/msp/issues)
 
@@ -18,18 +18,25 @@
 
 ---
 
-**MSP** 是一个单文件部署的媒体服务器。只需在电脑上运行它，即可立刻通过现代化的 Web 界面，在局域网内的任何设备（手机、平板、电视）上播放你的视频和音频收藏。
+MSP 是一个单文件部署的媒体服务器，面向家庭场景。  
+在电脑上启动后，即可通过浏览器在局域网内访问并播放本地媒体。
 
-## 核心特性
+## 核心亮点
 
-| 功能 | 说明 |
-| :--- | :--- |
-| **零配置启动** | 无需安装数据库，无需复杂的环境配置。下载即用，一键运行。 |
-| **智能播放策略** | 采用“探测感知 + 直连优先 + 失败回退”，仅对高风险容器/编码（如 AVI/WMV、HEVC、AC-3）优先转码。 |
-| **断点续播** | 自动记录播放进度，在不同设备间无缝切换，随时继续观看。 |
-| **全平台支持** | 服务端支持 Windows/Linux/macOS。客户端支持所有现代浏览器（移动端适配完美）。 |
-| **隐私优先** | 数据完全保存在本地，不上传云端，无追踪，安全可靠。 |
-| **极速体验** | 基于 Go 和 Vite 构建。秒级启动，瞬间扫描海量媒体库。 |
+- 零配置启动：无需外部数据库和复杂部署。
+- 智能播放：优先直连，必要时再转码。
+- 断点续播：跨设备记住播放进度。
+- 全平台服务端：支持 Windows、Linux、macOS。
+- 浏览器客户端：支持桌面端与移动端现代浏览器。
+- 本地优先：不依赖云账号，不做数据追踪。
+
+## 播放策略
+
+- 默认优先直连播放。
+- 仅对高风险场景优先转码，例如：
+  - 容器：`AVI`、`WMV`
+  - 编码：`HEVC/H.265`、`VC-1`、`AC-3`、`DTS`、`TrueHD`
+- 直连失败时先重试一次，仍失败再回退到转码（需启用转码）。
 
 ## 界面预览
 
@@ -51,43 +58,39 @@
 
 ## 快速开始
 
-1.  **下载** 对应系统的最新版本：[Releases 页面](https://github.com/blycr/msp/releases)。
-2.  **运行** 可执行文件：
-    ```bash
-    # Windows
-    ./msp.exe
+1. 从 [Releases 页面](https://github.com/blycr/msp/releases) 下载对应系统版本。
+2. 运行可执行文件：
+```bash
+# Windows
+./msp.exe
 
-    # Linux/macOS
-    ./msp
-    ```
-3.  **打开浏览器**：
-    控制台会打印访问地址（例如 `http://127.0.0.1:8099`）。
-    *首次运行时，你可以在网页界面中直接添加需要共享的文件夹。*
+# Linux/macOS
+./msp
+```
+3. 打开控制台输出地址，例如 `http://127.0.0.1:8099`。
+4. 首次进入后在设置中添加共享目录。
 
 ## 文档支持
 
-更多高级用法，请查阅 **[项目 Wiki](https://github.com/blycr/msp/wiki)**：
-
-*   **[安装指南](https://github.com/blycr/msp/wiki/Installation)** (包含 Docker、服务化运行教程)
-*   **[配置详解](https://github.com/blycr/msp/wiki/Configuration)**
-*   **[编码与转码](https://github.com/blycr/msp/wiki/Encoding)** (支持的格式说明)
-*   **[安全功能](https://github.com/blycr/msp/wiki/Security_CN)** (局域网场景 IP/PIN 安全建议)
-*   **[发布流程](https://github.com/blycr/msp/wiki/Release)** (标签触发 Release 构建)
+- Wiki 总览：[项目 Wiki](https://github.com/blycr/msp/wiki)
+- 安装与运行：[Installation_CN](https://github.com/blycr/msp/wiki/Installation_CN)
+- 配置说明：[Configuration_CN](https://github.com/blycr/msp/wiki/Configuration_CN)
+- 编码与转码：[Encoding_CN](https://github.com/blycr/msp/wiki/Encoding_CN)
+- 安全功能：[Security_CN](https://github.com/blycr/msp/wiki/Security_CN)
+- 发布流程：[Release](https://github.com/blycr/msp/wiki/Release)
 
 ## 源码编译
 
-编译环境要求：**Go 1.24+**, **Node.js 18+** (用于编译前端)
+环境要求：`Go 1.24+`、`Node.js 18+`（用于构建前端）
 
 ```bash
-# 克隆仓库
 git clone https://github.com/blycr/msp.git
 cd msp
 
-# 编译所有组件 (前端 + 后端)
-# Windows 用户
+# Windows
 ./scripts/build.ps1 -Platforms windows -Architectures x64
 
-# Linux/macOS 用户
+# Linux/macOS
 ./scripts/build.sh --platforms linux --architectures amd64
 ```
 
