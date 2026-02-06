@@ -150,25 +150,25 @@ func TestGetClientIP(t *testing.T) {
 		want       string
 	}{
 		{
-			name:       "X-Forwarded-For single IP with trustProxy",
+			name:       "X-Forwarded-For ignored in home mode",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Forwarded-For": "192.168.1.100"},
 			trustProxy: true,
-			want:       "192.168.1.100",
+			want:       "10.0.0.1",
 		},
 		{
-			name:       "X-Forwarded-For multiple IPs with trustProxy",
+			name:       "X-Forwarded-For multiple IPs still ignored",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Forwarded-For": "192.168.1.100, 10.0.0.1"},
 			trustProxy: true,
-			want:       "192.168.1.100",
+			want:       "10.0.0.1",
 		},
 		{
-			name:       "X-Real-IP with trustProxy",
+			name:       "X-Real-IP ignored in home mode",
 			remoteAddr: "10.0.0.1:1234",
 			headers:    map[string]string{"X-Real-IP": "192.168.1.100"},
 			trustProxy: true,
-			want:       "192.168.1.100",
+			want:       "10.0.0.1",
 		},
 		{
 			name:       "X-Forwarded-For ignored without trustProxy",

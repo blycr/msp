@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.10
+
+- **安全与稳健性优化**：
+  - 关键 JSON 接口统一增加请求体大小限制（1 MiB），超限返回 `413`
+  - 修复媒体 `limit` 标记语义，仅在真实截断时设置 `Limited=true`
+  - 字幕转换接口增加大文件保护（8 MiB），避免异常文件导致内存风险
+  - 家庭局域网模式下移除 HTTPS 推断：PIN 会话 Cookie 固定非 `Secure`，客户端 IP 固定取 `RemoteAddr`
+- **测试补强**：
+  - 新增 `internal/handler/handlers_safety_test.go` 覆盖上述安全边界
+- **文档**：
+  - 详细说明见 `docs/release/v0.8.10.md`
+
 ## 0.8.8
 
 - **随机播放逻辑重构**：

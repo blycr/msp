@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,6 +30,11 @@ type Handler struct {
 	configService *service.ConfigService
 }
 
+const (
+	defaultJSONBodyLimit   int64 = 1 << 20 // 1 MiB
+	maxSubtitleConvertSize int64 = 8 << 20 // 8 MiB
+)
+
 func New(s *server.Server) *Handler {
 	return &Handler{
 		s:             s,
@@ -43,8 +49,8 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, view)
 	case http.MethodPost:
 		var cfg config.Config
-		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-			writeJSON(w, http.StatusBadRequest, types.ConfigResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
+		if err := decodeJSONBody(w, r, &cfg, defaultJSONBodyLimit); err != nil {
+			writeJSONDecodeError(w, err)
 			return
 		}
 
@@ -66,8 +72,8 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req types.SharesOpRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, types.SharesOpResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
+	if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
+		writeJSONDecodeError(w, err)
 		return
 	}
 
@@ -164,8 +170,8 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, types.PrefsResponse{Prefs: prefs})
 	case http.MethodPost:
 		var req types.PrefsUpdateRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, types.PrefsResponse{Error: &types.ApiError{Message: constants.ErrMsgInvalidJSON}})
+		if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
+			writeJSONDecodeError(w, err)
 			return
 		}
 		if len(req.Prefs) == 0 {
@@ -203,8 +209,12 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			ID   string  `json:"id"`
 			Time float64 `json:"time"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgInvalidJSON})
+		if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
+			if isPayloadTooLarge(err) {
+				writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{"error": "payload too large"})
+			} else {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgInvalidJSON})
+			}
 			return
 		}
 		if req.ID == "" {
@@ -228,8 +238,12 @@ func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req types.LogRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
+		if isPayloadTooLarge(err) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		return
 	}
 	if req.Msg != "" {
@@ -257,11 +271,18 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		PIN string `json:"pin"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"valid": false,
-			"error": constants.ErrMsgInvalidRequest,
-		})
+	if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
+		if isPayloadTooLarge(err) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{
+				"valid": false,
+				"error": "payload too large",
+			})
+		} else {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"valid": false,
+				"error": constants.ErrMsgInvalidRequest,
+			})
+		}
 		return
 	}
 
@@ -286,6 +307,8 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 			MaxAge:   constants.CookieMaxAge,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
+			// Home/LAN mode: no HTTPS/TLS handling.
+			Secure: false,
 		})
 	}
 
@@ -351,20 +374,25 @@ func applyLimit(resp *types.MediaResponse, limit int) bool {
 	if limit <= 0 {
 		return false
 	}
+	limited := false
 	if len(resp.Videos) > limit {
 		resp.Videos = resp.Videos[:limit]
+		limited = true
 	}
 	if len(resp.Audios) > limit {
 		resp.Audios = resp.Audios[:limit]
+		limited = true
 	}
 	if len(resp.Images) > limit {
 		resp.Images = resp.Images[:limit]
+		limited = true
 	}
 	if len(resp.Others) > limit {
 		resp.Others = resp.Others[:limit]
+		limited = true
 	}
-	resp.Limited = true
-	return true
+	resp.Limited = limited
+	return limited
 }
 
 func writeNotModifiedIfMatch(w http.ResponseWriter, r *http.Request, etag string, refresh bool) bool {
@@ -623,6 +651,10 @@ func (h *Handler) serveVTT(w http.ResponseWriter, r *http.Request, f *os.File, s
 }
 
 func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
+	if st.Size() > maxSubtitleConvertSize {
+		http.Error(w, "subtitle too large", http.StatusRequestEntityTooLarge)
+		return
+	}
 	b, err := io.ReadAll(f)
 	if err != nil {
 		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
@@ -635,6 +667,10 @@ func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, s
 }
 
 func (h *Handler) serveASS(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
+	if st.Size() > maxSubtitleConvertSize {
+		http.Error(w, "subtitle too large", http.StatusRequestEntityTooLarge)
+		return
+	}
 	b, err := io.ReadAll(f)
 	if err != nil {
 		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
@@ -657,4 +693,27 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := enc.Encode(v); err != nil {
 		log.Printf("writeJSON encode error: %v", err)
 	}
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	dec := json.NewDecoder(r.Body)
+	return dec.Decode(dst)
+}
+
+func isPayloadTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	return errors.As(err, &maxErr)
+}
+
+func writeJSONDecodeError(w http.ResponseWriter, err error) {
+	if isPayloadTooLarge(err) {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{
+			"error": &types.ApiError{Message: "payload too large"},
+		})
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]any{
+		"error": &types.ApiError{Message: constants.ErrMsgInvalidJSON},
+	})
 }

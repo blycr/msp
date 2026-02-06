@@ -82,8 +82,8 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 		// Apply security headers to all responses
 		applySecurityHeaders(w)
 
-		// Get client IP (respect TrustProxy setting)
-		clientIP := getClientIP(r, cfg.Security.TrustProxy)
+		// Home/LAN mode: only trust direct TCP peer address.
+		clientIP := getClientIP(r, false)
 
 		// Check IP whitelist/blacklist
 		if !isIPAllowed(clientIP, cfg.Security.IPWhitelist, cfg.Security.IPBlacklist) {
@@ -131,28 +131,9 @@ func applySecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 }
 
-// getClientIP extracts the real client IP from the request
-// When trustProxy is false (default), only RemoteAddr is used to prevent IP spoofing
-func getClientIP(r *http.Request, trustProxy bool) string {
-	// Only trust proxy headers when explicitly configured
-	if trustProxy {
-		// Check X-Forwarded-For header (take the first IP which is closest to the client)
-		xff := r.Header.Get("X-Forwarded-For")
-		if xff != "" {
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				return strings.TrimSpace(ips[0])
-			}
-		}
-
-		// Check X-Real-IP header
-		xri := r.Header.Get("X-Real-IP")
-		if xri != "" {
-			return strings.TrimSpace(xri)
-		}
-	}
-
-	// Use RemoteAddr (most secure option, cannot be spoofed by client)
+// getClientIP extracts client IP from RemoteAddr only.
+// Home/LAN mode does not trust proxy headers.
+func getClientIP(r *http.Request, _ bool) string {
 	ip := r.RemoteAddr
 	if idx := strings.LastIndex(ip, ":"); idx != -1 {
 		ip = ip[:idx]
