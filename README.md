@@ -10,7 +10,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
 
 <h3>Your Personal LAN Cinema.</h3>
-<p>Lightweight, fast, and privacy-friendly media streaming for your home network.</p>
+<p>A lightweight media server for home LAN streaming.</p>
 
 [中文文档](README_CN.md) | [Wiki](https://github.com/blycr/msp/wiki) | [Report Bug](https://github.com/blycr/msp/issues)
 
@@ -18,18 +18,25 @@
 
 ---
 
-**MSP** is a single-binary media server designed for simplicity. Run it on your PC, and instantly stream your video and audio collections to any device on your Wi-Fi/LAN via a modern web interface.
+MSP is a single-binary media server focused on practical home use.  
+Run it on your PC, share local folders, and play media from any modern browser in your LAN.
 
-## Why MSP?
+## Highlights
 
-| Feature | Description |
-| :--- | :--- |
-| **Zero Config** | No database setup, no complex installation. Just run the binary. |
-| **Smart Playback Strategy** | Probe-aware direct play first; preemptive transcode only for risky containers/codecs (e.g. AVI/WMV, HEVC, AC-3), then fallback on real failures. |
-| **Resume Playback** | Remember exactly where you left off, across all devices. |
-| **Cross Platform** | Server runs on Windows/Linux/macOS. Client works on any modern browser (Mobile/Desktop). |
-| **Privacy First** | No cloud accounts, no tracking. Your media stays on your local network. |
-| **Blazing Fast** | Built with Go and Vite. Instant scanning and navigation. |
+- Zero setup: no external database or complex deployment.
+- Smart playback: direct play first, transcode only when needed.
+- Resume playback: continue from last position across devices.
+- Cross-platform server: Windows, Linux, macOS.
+- Browser client: desktop and mobile modern browsers.
+- Local-first: no cloud account, no tracking.
+
+## Playback Behavior
+
+- Direct play is preferred by default.
+- Preemptive transcode is applied only for higher-risk cases, such as:
+  - Containers: `AVI`, `WMV`
+  - Codecs: `HEVC/H.265`, `VC-1`, `AC-3`, `DTS`, `TrueHD`
+- If direct play fails, MSP retries once, then falls back to transcoding (when enabled).
 
 ## Preview
 
@@ -51,39 +58,35 @@
 
 ## Quick Start
 
-1.  **Download** the latest release for your OS from [Releases](https://github.com/blycr/msp/releases).
-2.  **Run** the executable:
-    ```bash
-    # Windows
-    ./msp.exe
+1. Download the latest build from [Releases](https://github.com/blycr/msp/releases).
+2. Run the executable:
+```bash
+# Windows
+./msp.exe
 
-    # Linux/macOS
-    ./msp
-    ```
-3.  **Open** the browser:
-    The console will print the address (e.g., `http://127.0.0.1:8099`).
-    *On first run, you can configure your shared folders directly in the UI.*
+# Linux/macOS
+./msp
+```
+3. Open the URL printed in the console, for example `http://127.0.0.1:8099`.
+4. Add shared folders from Settings on first launch.
 
 ## Documentation
 
-Visit the **[Project Wiki](https://github.com/blycr/msp/wiki)** for detailed guides:
+- Wiki index: [Project Wiki](https://github.com/blycr/msp/wiki)
+- Installation: [Installation Guide](https://github.com/blycr/msp/wiki/Installation)
+- Configuration: [Configuration Reference](https://github.com/blycr/msp/wiki/Configuration)
+- Playback/Transcode: [Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)
+- Security: [Security Guide](https://github.com/blycr/msp/wiki/Security)
+- Release: [Release Workflow](https://github.com/blycr/msp/wiki/Release)
 
-*   **[Installation Guide](https://github.com/blycr/msp/wiki/Installation)** (Run as Service, Docker, etc.)
-*   **[Configuration Reference](https://github.com/blycr/msp/wiki/Configuration)**
-*   **[Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)**
-*   **[Security](https://github.com/blycr/msp/wiki/Security)** (LAN-oriented IP/PIN hardening)
-*   **[Release](https://github.com/blycr/msp/wiki/Release)** (tag-triggered release workflow)
+## Build from Source
 
-## 🛠️ 🛠️ Build from Source
-
-Requirements: **Go 1.24+**, **Node.js 18+** (for frontend)
+Requirements: `Go 1.24+`, `Node.js 18+` (frontend build)
 
 ```bash
-# Clone the repo
 git clone https://github.com/blycr/msp.git
 cd msp
 
-# Build everything (frontend + backend)
 # Windows
 ./scripts/build.ps1 -Platforms windows -Architectures x64
 
