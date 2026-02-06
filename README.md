@@ -25,7 +25,7 @@
 | Feature | Description |
 | :--- | :--- |
 | **Zero Config** | No database setup, no complex installation. Just run the binary. |
-| **Smart Transcoding** | Automatically transcodes unsupported formats (MKV, FLAC, AVI) to play in your browser. |
+| **Smart Playback Strategy** | Probe-aware direct play first; preemptive transcode only for risky containers/codecs (e.g. AVI/WMV, HEVC, AC-3), then fallback on real failures. |
 | **Resume Playback** | Remember exactly where you left off, across all devices. |
 | **Cross Platform** | Server runs on Windows/Linux/macOS. Client works on any modern browser (Mobile/Desktop). |
 | **Privacy First** | No cloud accounts, no tracking. Your media stays on your local network. |
@@ -71,6 +71,8 @@ Visit the **[Project Wiki](https://github.com/blycr/msp/wiki)** for detailed gui
 *   **[Installation Guide](https://github.com/blycr/msp/wiki/Installation)** (Run as Service, Docker, etc.)
 *   **[Configuration Reference](https://github.com/blycr/msp/wiki/Configuration)**
 *   **[Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)**
+*   **[Security](https://github.com/blycr/msp/wiki/Security)** (LAN-oriented IP/PIN hardening)
+*   **[Release](https://github.com/blycr/msp/wiki/Release)** (tag-triggered release workflow)
 
 ## 🛠️ 🛠️ Build from Source
 

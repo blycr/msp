@@ -167,12 +167,12 @@ fetch('/api/pin', {
 });
 ```
 
-3. 也可以在请求头中传递 PIN：
+3. 也可以在请求头中传递会话令牌（由 `/api/pin` 验证成功后获取）：
 
 ```javascript
 fetch('/api/config', {
   headers: {
-    'X-PIN': '1234'
+    'X-Session-Token': 'your-session-token'
   }
 })
 ```
