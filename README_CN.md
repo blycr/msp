@@ -25,7 +25,7 @@
 | 功能 | 说明 |
 | :--- | :--- |
 | **零配置启动** | 无需安装数据库，无需复杂的环境配置。下载即用，一键运行。 |
-| **智能转码** | 自动检测并实时转码浏览器不支持的格式（如 MKV, FLAC, AVI），实现无缝播放。 |
+| **智能播放策略** | 采用“探测感知 + 直连优先 + 失败回退”，仅对高风险容器/编码（如 AVI/WMV、HEVC、AC-3）优先转码。 |
 | **断点续播** | 自动记录播放进度，在不同设备间无缝切换，随时继续观看。 |
 | **全平台支持** | 服务端支持 Windows/Linux/macOS。客户端支持所有现代浏览器（移动端适配完美）。 |
 | **隐私优先** | 数据完全保存在本地，不上传云端，无追踪，安全可靠。 |
@@ -71,6 +71,8 @@
 *   **[安装指南](https://github.com/blycr/msp/wiki/Installation)** (包含 Docker、服务化运行教程)
 *   **[配置详解](https://github.com/blycr/msp/wiki/Configuration)**
 *   **[编码与转码](https://github.com/blycr/msp/wiki/Encoding)** (支持的格式说明)
+*   **[安全功能](https://github.com/blycr/msp/wiki/Security_CN)** (局域网场景 IP/PIN 安全建议)
+*   **[发布流程](https://github.com/blycr/msp/wiki/Release)** (标签触发 Release 构建)
 
 ## 源码编译
 
