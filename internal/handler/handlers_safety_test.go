@@ -103,6 +103,7 @@ func TestServeSRTRejectsLargeFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	p := filepath.Join(tmpDir, "large.srt")
 
+	// #nosec G304 -- test path is created under t.TempDir().
 	fw, err := os.Create(p)
 	if err != nil {
 		t.Fatalf("failed to create temp subtitle file: %v", err)
@@ -113,6 +114,7 @@ func TestServeSRTRejectsLargeFile(t *testing.T) {
 	}
 	_ = fw.Close()
 
+	// #nosec G304 -- test path is created under t.TempDir().
 	f, err := os.Open(p)
 	if err != nil {
 		t.Fatalf("failed to open subtitle file: %v", err)
