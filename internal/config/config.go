@@ -63,8 +63,8 @@ type SecurityConfig struct {
 	// IPs in this list will be denied access
 	IPBlacklist []string `json:"ipBlacklist"`
 
-	// TrustProxy enables trusting X-Forwarded-For and X-Real-IP headers
-	// Only enable this when MSP is behind a trusted reverse proxy
+	// TrustProxy is kept for backward compatibility in config schema.
+	// Home/LAN mode ignores proxy forwarding headers.
 	TrustProxy bool `json:"trustProxy"`
 
 	// PINEnabled enables PIN authentication

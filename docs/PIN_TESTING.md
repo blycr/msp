@@ -127,16 +127,21 @@ PIN 对话框完全遵循现有的设计语言：
 
 1. **Cookie 安全**
    - HttpOnly: 防止 XSS 攻击
-   - SameSite: Strict 模式
+   - SameSite: Lax 模式
+   - Secure: 家庭局域网模式固定为 `false`
    - 7 天有效期
 
 2. **传输安全**
-   - 建议在生产环境使用 HTTPS
-   - PIN 通过 POST 请求传输
+   - 默认面向家庭局域网 HTTP 使用场景
+   - PIN 通过 POST 请求传输，会签发会话令牌（cookie/header）
 
 3. **暴力破解防护**
    - 建议使用较长的 PIN（6-8 位）
    - 可以结合 IP 白名单使用
+
+4. **IP 来源规则**
+   - 当前版本仅使用 `RemoteAddr` 作为客户端 IP
+   - 不信任 `X-Forwarded-For` / `X-Real-IP`
 
 ## 测试场景
 
