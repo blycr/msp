@@ -188,7 +188,7 @@
 验证访问 PIN 码。验证成功后会设置 HttpOnly Cookie。
 
 - **端点**: `POST /api/pin`
-- **请求体**: `{"pin": "1234"}`
+- **请求体**: `{"pin": "1234"}`（PIN 必须为 4-8 位数字）
 - **响应**:
   ```json
   {
@@ -196,6 +196,10 @@
     "enabled": true
   }
   ```
+- **补充说明**:
+  - `pinEnabled=false` 时，返回 `{"valid": true, "enabled": false}`。
+  - 会话通过 cookie `msp_session` 或请求头 `X-Session-Token` 传递。
+  - PIN 认证仅作用于 `/api/*`，其中 `/api/pin`、`/api/ip`、`/api/config` 为豁免端点。
 
 ### 前端日志上报
 允许前端将错误或调试信息发送到后端日志文件。
