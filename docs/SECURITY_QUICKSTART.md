@@ -60,7 +60,7 @@
 
 **说明：**
 - 将 `pinEnabled` 设为 `true`
-- 将 `pin` 改为您想要的密码（建议 4-6 位数字）
+- 将 `pin` 改为 4-8 位数字
 - 所有访问都需要输入正确的 PIN
 
 #### 场景 C：我想阻止某个 IP 访问
@@ -80,7 +80,7 @@
 - 将要阻止的 IP 添加到 `ipBlacklist` 数组中
 - 可以添加多个 IP，用逗号分隔
 
-#### 场景 D：最安全配置（推荐公网使用）
+#### 场景 D：更严格配置（不建议直连公网）
 
 ```json
 {
@@ -145,7 +145,7 @@
 
 **A:** 当启用 PIN 认证后：
 
-1. 访问任何页面时，如果 PIN 无效，会收到 401 错误
+1. 访问受保护的 API（`/api/*`）时，如果 PIN 无效，会收到 401 错误
 2. 调用 `/api/pin` 端点验证 PIN：
 
 ```javascript
@@ -200,12 +200,12 @@ fetch('/api/config', {
     "ipWhitelist": ["192.168.1.0/24", "192.168.2.0/24"],
     "ipBlacklist": [],
     "pinEnabled": true,
-    "pin": "office2024"
+    "pin": "628491"
   }
 }
 ```
 
-### 公网访问（最高安全）
+### 公网访问（不建议直连，仅作示例）
 
 ```json
 {
@@ -213,7 +213,7 @@ fetch('/api/config', {
     "ipWhitelist": ["你的公网IP"],
     "ipBlacklist": [],
     "pinEnabled": true,
-    "pin": "strong_password_123"
+    "pin": "83927461"
   }
 }
 ```
@@ -233,6 +233,7 @@ fetch('/api/config', {
 
 ## 下一步
 
+- 注意：`pin` 必须为 4-8 位数字；当前版本默认面向家庭局域网，不建议直接公网暴露。
 - 查看完整的[安全配置指南](./SECURITY.md)
 - 了解所有[配置选项](./CONFIG_EXAMPLE.md)
 - 阅读[更新说明](./SECURITY_UPDATE.md)
