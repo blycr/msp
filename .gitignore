@@ -1,10 +1,14 @@
-# Binaries
+# ------------------------------------------------------------
+# Binaries / Libraries
+# ------------------------------------------------------------
 *.exe
 *.dll
 *.so
 *.dylib
 
+# ------------------------------------------------------------
 # Logs
+# ------------------------------------------------------------
 *.log
 *.log.*
 *.log.old
@@ -15,93 +19,113 @@ yarn-error.log*
 pnpm-debug.log*
 msp.log
 
-# OS / Editor
+# ------------------------------------------------------------
+# OS / Editor junk
+# ------------------------------------------------------------
 .DS_Store
+.Spotlight-V100
+.Trashes
 Thumbs.db
 desktop.ini
 *.lnk
-.idea/
-.vscode/
 *.swp
 *.swo
+*.iml
+.idea/
+.vscode/
+.vs/
+.history/
 
-# Build artifacts
-scripts/build.log
+# ------------------------------------------------------------
+# Build outputs
+# ------------------------------------------------------------
 bin/
 dist/
 debug/
 checksums/
 release_out/
+scripts/build.log
+web/dist/
+web/.vite/
 
-# Go build cache / outputs
+# ------------------------------------------------------------
+# Go test / profiling artifacts
+# ------------------------------------------------------------
 *.test
 *.out
+*.cov
 coverage.out
 *.coverprofile
 *.pprof
 *.trace
 
-# Runtime config (contains local paths)
+# ------------------------------------------------------------
+# Runtime data (local machine specific)
+# ------------------------------------------------------------
 config.json
 !config.example.json
 config.local.json
 config.*.local.json
 .env
 .env.local
+
 *.media_cache.json
 *.media_cache.json.tmp
+
 msp.db
 msp.db-shm
 msp.db-wal
-# SQLite temp files
 *.db-journal
 
+# ------------------------------------------------------------
+# Frontend dependencies / cache
+# ------------------------------------------------------------
+node_modules/
+web/node_modules/
+.npm/
+.pnpm-store/
+.pnpm/
+web/.cache/
+web/.eslintcache
+
+# Lock files (keep pnpm lock; ignore npm/yarn locks)
+package-lock.json
+yarn.lock
+
+# ------------------------------------------------------------
 # Temp / backup
+# ------------------------------------------------------------
 *.tmp
 *.bak
+tmp/
 
-# Private / Local Project Configs
+# ------------------------------------------------------------
+# Local project tooling / private configs
+# ------------------------------------------------------------
 .trae/
 vercel.json
 .vercel/
 
-# Dependencies
-node_modules/
-web/node_modules/
-vendor/
-.npm/
-.pnpm-store/
-.pnpm/
-# Lock files (keep pnpm-lock.yaml, ignore npm/yarn locks)
-package-lock.json
-yarn.lock
-
-# Local wiki & temp exports
-wiki_temp/
-msp.wiki/
-
-# Frontend Build Artifacts
-web/dist/
-web/.vite/
-
-# Local IDE / workspace
-msp.code-workspace
-.vs/
-.history/
-.idea/
-*.iml
-
-// Shared files
+# Shared local folders
 .shared/
 .agent/
 
-# Local Docs (User request to ignore)
+# Local wiki clone / exports
+wiki_temp/
+msp.wiki/
+
+# Local IDE workspace
+msp.code-workspace
+
+# Local docs and scratch files
 prompt.md
 PROJECT_REVIEW.md
 AGENTS.md
 
-# Testing
+# Testing helper file
 test.json
-*.tmp
-tmp/
 
+# Optional Go vendor dir (if not vendoring dependencies)
+vendor/
+docs/CODEX_35_HIGH_VALUE_WORK_CN.md
+docs/v0.7.0_RELEASE_SUMMARY.md
