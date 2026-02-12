@@ -78,6 +78,7 @@ export function mimeFor(kind, ext) {
     if (e === ".mov") return "video/quicktime";
     if (e === ".mkv") return "video/x-matroska";
     if (e === ".avi") return "video/x-msvideo";
+    if (e === ".wmv") return "video/x-ms-wmv";
   }
   if (kind === "audio") {
     if (e === ".mp3") return "audio/mpeg";
