@@ -266,29 +266,76 @@ export function canStorage() {
 }
 
 let lastMediaEndedAt = 0;
-function hasAnyPattern(text, patterns) {
-  if (!text) return false;
-  const s = String(text).toUpperCase();
-  return patterns.some(p => s.includes(p));
-}
+
+const preemptiveTranscodeVideoExts = new Set([".avi", ".wmv"]);
 
 function needsCompatibilityVideoTranscode(item) {
   const ext = String(item?.ext || "").toLowerCase();
-  if (ext === ".avi" || ext === ".wmv") return true;
+  if (preemptiveTranscodeVideoExts.has(ext)) return true;
 
   const p = probePeek(item?.id);
   if (!p) return false;
 
   const container = String(p.container || "").toLowerCase();
-  if (container === "avi" || container === "wmv") return true;
+  return container === "avi" || container === "wmv";
+}
 
-  const riskyVideoCodecs = [
-    "HEVC", "H.265", "H265", "VC-1", "WMV3", "MPEG-2", "MPEG2"
-  ];
-  const riskyAudioCodecs = [
-    "AC-3", "E-AC-3", "DTS", "TRUEHD"
-  ];
-  return hasAnyPattern(p.video, riskyVideoCodecs) || hasAnyPattern(p.audio, riskyAudioCodecs);
+function getActivePlyr() {
+  const p = state.plyr;
+  if (!p || typeof p !== "object") return null;
+  if (typeof p.play !== "function") return null;
+  return p;
+}
+
+function switchToTranscodeSource(element, isVideo, url, currentTime) {
+  const player = getActivePlyr();
+  if (!player) {
+    try { element.src = url; } catch { return false; }
+    try { element.load(); } catch { }
+    try { element.currentTime = currentTime; } catch { }
+    try { element.play().catch(() => { }); } catch { }
+    return true;
+  }
+
+  const newSource = {
+    type: isVideo ? "video" : "audio",
+    title: state.current?.name || "",
+    sources: [{ src: url, type: isVideo ? "video/mp4" : "audio/mpeg" }],
+  };
+
+  if (isVideo) {
+    newSource.poster = state.current?.coverId ? streamUrl(state.current.coverId) : undefined;
+    newSource.tracks = (state.current?.subtitles || []).map(s => ({
+      kind: "subtitles",
+      label: s.label || "字幕",
+      srclang: s.lang || "zh",
+      src: s.src || streamUrl(s.id),
+      default: !!s.default
+    }));
+  }
+
+  try {
+    player.source = newSource;
+    if (typeof player.once === "function") {
+      player.once("ready", () => {
+        try { element.currentTime = currentTime; } catch { }
+        player.play().catch(() => { });
+      });
+    } else {
+      setTimeout(() => {
+        try { element.currentTime = currentTime; } catch { }
+        player.play().catch(() => { });
+      }, 120);
+    }
+    return true;
+  } catch (err) {
+    console.error("Failed to switch source via player, fallback to native element", err);
+    try { element.src = url; } catch { return false; }
+    try { element.load(); } catch { }
+    try { element.currentTime = currentTime; } catch { }
+    try { element.play().catch(() => { }); } catch { }
+    return true;
+  }
 }
 
 function onMediaEnded() {
@@ -308,6 +355,7 @@ function onMediaEnded() {
 
 export function applyPlyr(element) {
   destroyPlyr();
+  const isVideoElement = String(element?.tagName || "").toUpperCase() === "VIDEO";
 
   // Smart Error Interceptor:
   // If a decoding error occurs near the end of the file, we treat it as "ended" 
@@ -315,103 +363,82 @@ export function applyPlyr(element) {
   if (!element._errBound) {
     element._errBound = true;
     element.addEventListener("error", (e) => {
-      const err = element.error;
-      const d = element.duration;
-      const currentTime = element.currentTime;
-      const currentSrc = element.currentSrc || element.src || "";
+      try {
+        const err = element.error;
+        const d = element.duration;
+        const currentTime = element.currentTime;
+        const currentSrc = element.currentSrc || element.src || "";
 
-      // Ignore transient errors during source teardown/switch.
-      // Empty source is common when resetting media elements.
-      if (!currentSrc) return;
+        // Ignore transient errors during source teardown/switch.
+        // Empty source is common when resetting media elements.
+        if (!currentSrc) return;
 
-      // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
-      if (err && (err.code === 3 || err.code === 4)) {
-        // Condition: We are playing and either:
-        // 1. > 90% progress
-        // 2. < 10s remaining
-        // 3. We have played something (t > 5) but duration is NaN (stream)
-        const isNearEnd = (d > 0 && currentTime / d > 0.9) ||
-          (d > 0 && d - currentTime < 10) ||
-          (Number.isNaN(d) && currentTime > 5);
+        // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
+        if (err && (err.code === 3 || err.code === 4)) {
+          // Condition: We are playing and either:
+          // 1. > 90% progress
+          // 2. < 10s remaining
+          // 3. We have played something (t > 5) but duration is NaN (stream)
+          const isNearEnd = (d > 0 && currentTime / d > 0.9) ||
+            (d > 0 && d - currentTime < 10) ||
+            (Number.isNaN(d) && currentTime > 5);
 
-        if (isNearEnd) {
-          console.warn("Media decoding error near end - suppressing error and skipping to next", err);
-          e.preventDefault();
-          e.stopPropagation();
-          onMediaEnded(); // Treat as successful end
-          return;
-        }
-
-        // --- Auto-Transcode Fallback ---
-        // If decoding failed midway, and we haven't tried transcoding yet, try it now.
-        const isAlreadyTranscoding = currentSrc.includes("transcode=1");
-
-        // Check config permissions
-        const isVideo = state.current?.kind === "video";
-        const isAudio = state.current?.kind === "audio";
-        const allowVideo = isVideo && getCfg("playback.video.transcode", false);
-        const allowAudio = isAudio && getCfg("playback.audio.transcode", false);
-        const allowVideoFallback = allowVideo;
-        const allowFallback = allowVideoFallback || allowAudio;
-
-        // One-shot direct retry for transient source failures (code=4).
-        // This helps with occasional stale/broken range requests on some browsers.
-        if (err.code === 4 && !isAlreadyTranscoding && element.dataset.mspDirectRetryDone !== "1") {
-          element.dataset.mspDirectRetryDone = "1";
-          const retryURL = currentSrc.includes("ts=")
-            ? currentSrc.replace(/([?&])ts=\d+/, `$1ts=${Date.now()}`)
-            : `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}ts=${Date.now()}`;
-          console.warn("Playback source error, retrying once with refreshed URL", retryURL);
-          try { element.src = retryURL; } catch { }
-          try { element.load(); } catch { }
-          try { state.plyr?.play?.().catch(() => { }); } catch { }
-          return;
-        }
-
-        if (!isAlreadyTranscoding && allowFallback) {
-          console.warn("Playback failed, attempting fallback to transcode...", err);
-          e.preventDefault();
-          e.stopPropagation();
-
-          const url = streamUrl(state.current.id, currentTime) + "&transcode=1"; // Use current time as start offset
-          logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
-
-          // Reload Player Source
-          // Plyr handles source updates gracefully
-          const newSource = {
-            type: isVideo ? "video" : "audio",
-            title: state.current.name || "",
-            sources: [{ src: url }],
-          };
-
-          if (isVideo) {
-            newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
-            newSource.tracks = (state.current.subtitles || []).map(s => ({
-              kind: "subtitles",
-              label: s.label || "字幕",
-              srclang: s.lang || "zh",
-              src: s.src || streamUrl(s.id),
-              default: !!s.default
-            }));
+          if (isNearEnd) {
+            console.warn("Media decoding error near end - suppressing error and skipping to next", err);
+            e.preventDefault();
+            e.stopPropagation();
+            onMediaEnded(); // Treat as successful end
+            return;
           }
 
-          state.plyr.source = newSource;
-          state.plyr.once("ready", () => {
-            // Note: Backend uses -copyts, so setting currentTime is correct.
-            element.currentTime = currentTime;
-            state.plyr.play().catch(() => { });
-          });
-          return;
-        }
+          // --- Auto-Transcode Fallback ---
+          // If decoding failed midway, and we haven't tried transcoding yet, try it now.
+          const isAlreadyTranscoding = currentSrc.includes("transcode=1");
 
-        // If we reached here, it means either:
-        // 1. We already tried transcoding and it failed again (isAlreadyTranscoding = true)
-        // 2. Transcoding is disabled in config (!allowVideo)
-        // In either case, we must show a visible error to the user.
-        console.error("Playback failed permanently. Transcode enabled:", allowFallback);
-        showPreviewError(t("err_unsupported") + (isAlreadyTranscoding ? " (Transcode Failed)" : " (Transcode Disabled)"));
+          // Check config permissions
+          const isVideo = state.current?.kind === "video";
+          const isAudio = state.current?.kind === "audio";
+          const allowVideo = isVideo && getCfg("playback.video.transcode", false);
+          const allowAudio = isAudio && getCfg("playback.audio.transcode", false);
+          const allowFallback = allowVideo || allowAudio;
+
+          // One-shot direct retry for transient source failures (code=4).
+          // This helps with occasional stale/broken range requests on some browsers.
+          if (err.code === 4 && !isAlreadyTranscoding && element.dataset.mspDirectRetryDone !== "1") {
+            element.dataset.mspDirectRetryDone = "1";
+            const retryURL = currentSrc.includes("ts=")
+              ? currentSrc.replace(/([?&])ts=\d+/, `$1ts=${Date.now()}`)
+              : `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}ts=${Date.now()}`;
+            console.warn("Playback source error, retrying once with refreshed URL", retryURL);
+            try { element.src = retryURL; } catch { }
+            try { element.load(); } catch { }
+            const activePlayer = getActivePlyr();
+            if (activePlayer) activePlayer.play().catch(() => { });
+            else try { element.play().catch(() => { }); } catch { }
+            return;
+          }
+
+          if (!isAlreadyTranscoding && allowFallback && state.current?.id) {
+            console.warn("Playback failed, attempting fallback to transcode...", err);
+            e.preventDefault();
+            e.stopPropagation();
+
+            const url = streamUrl(state.current.id, currentTime) + "&transcode=1"; // Use current time as start offset
+            logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
+            if (switchToTranscodeSource(element, isVideo, url, currentTime)) return;
+          }
+
+          // If we reached here, it means either:
+          // 1. We already tried transcoding and it failed again (isAlreadyTranscoding = true)
+          // 2. Transcoding is disabled in config (!allowVideo)
+          // In either case, we must show a visible error to the user.
+          console.error("Playback failed permanently. Transcode enabled:", allowFallback);
+          showPreviewError(t("err_unsupported") + (isAlreadyTranscoding ? " (Transcode Failed)" : " (Transcode Disabled)"));
+        }
+        console.error("Critical Media Error:", err);
+      } catch (handlerErr) {
+        console.error("Media error handler crashed:", handlerErr);
       }
-      console.error("Critical Media Error:", err);
     }, true); // Capture phase to intercept early
   }
 
@@ -478,7 +505,7 @@ export function applyPlyr(element) {
   }
 
   // 视频始终启用字幕功能（只要有字幕轨道就会显示按钮）
-  if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
+  if (isVideoElement) {
     opts.captions = { active: true, update: true, language: "auto" };
   }
 
@@ -567,12 +594,12 @@ export function applyPlyr(element) {
 
       // Update source based on kind
       const newSource = {
-        type: isVideo ? "video" : "audio",
+        type: isVideoElement ? "video" : "audio",
         title: state.current.name || "",
-        sources: [{ src: url }],
+        sources: [{ src: url, type: isVideoElement ? "video/mp4" : "audio/mpeg" }],
       };
 
-      if (isVideo) {
+      if (isVideoElement) {
         newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
         newSource.tracks = (state.current.subtitles || []).map(s => ({
           kind: "subtitles",
@@ -1046,7 +1073,7 @@ export function playItem(item, opts) {
           let src = streamUrl(item.id);
           if (needsPreemptiveTranscode) {
             src += "&transcode=1";
-            logRemote("info", `Pre-emptive transcode for AVI format`);
+            logRemote("info", `Pre-emptive transcode for AVI/WMV compatibility`);
           }
 
           state.plyr.source = {
@@ -1129,7 +1156,7 @@ export function playItem(item, opts) {
     let src = streamUrl(item.id);
     if (needsPreemptiveTranscode) {
       src += "&transcode=1";
-      logRemote("info", `Pre-emptive transcode for AVI format`);
+      logRemote("info", `Pre-emptive transcode for AVI/WMV compatibility`);
     }
 
     video.src = src;
