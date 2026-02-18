@@ -82,7 +82,25 @@
       // 1) 常见 MP4(H.264/AAC) 仍优先直连；
       // 2) 仅对已知浏览器高风险容器（AVI/WMV）优先转码；
       // 3) 其余场景在直连真实失败后自动回退转码。
-      "transcode": true
+      "transcode": true,
+
+      // 转码编码配置
+      "encoding": {
+        // 硬件加速模式：
+        //   "auto"          — 启动时自动探测最佳可用编码器（推荐）
+        //   "nvenc"         — 强制使用 NVIDIA GPU (h264_nvenc)
+        //   "qsv"           — 强制使用 Intel Quick Sync (h264_qsv)
+        //   "amf"           — 强制使用 AMD AMF (h264_amf, 仅 Windows)
+        //   "vaapi"         — 强制使用 VAAPI (h264_vaapi, 仅 Linux)
+        //   "videotoolbox"  — 强制使用 VideoToolbox (仅 macOS)
+        //   "none"          — 禁用硬件加速，始终使用 libx264 软件编码
+        "hwAccel": "auto",
+
+        // 最大并发转码数：
+        //   0 — 自动（软件编码默认 2，硬件加速默认 4）
+        //   手动设定时建议范围 1-8
+        "maxJobs": 0
+      }
     },
     "image": {
       "enabled": true,

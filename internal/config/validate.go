@@ -365,6 +365,13 @@ func validatePlayback(pb *PlaybackConfig) []error {
 		}
 	}
 
+	// 验证转码编码配置
+	if pb.Video.Encoding != nil {
+		if errs := validateTranscodeConfig(pb.Video.Encoding); len(errs) > 0 {
+			errors = append(errors, errs...)
+		}
+	}
+
 	// 验证图片配置
 	if pb.Image.Scope != nil {
 		if err := validateScope(*pb.Image.Scope); err != nil {
@@ -373,6 +380,34 @@ func validatePlayback(pb *PlaybackConfig) []error {
 				Message: err.Error(),
 			})
 		}
+	}
+
+	return errors
+}
+
+// validHWAccelValues is the whitelist of accepted hardware acceleration modes.
+var validHWAccelValues = map[string]bool{
+	"auto": true, "nvenc": true, "qsv": true, "amf": true,
+	"vaapi": true, "videotoolbox": true, "none": true, "": true,
+}
+
+// validateTranscodeConfig 验证转码编码配置
+func validateTranscodeConfig(tc *TranscodeConfig) []error {
+	var errors []error
+
+	hw := strings.ToLower(strings.TrimSpace(tc.HWAccel))
+	if !validHWAccelValues[hw] {
+		errors = append(errors, &ValidationError{
+			Field:   "playback.video.encoding.hwAccel",
+			Message: fmt.Sprintf("无效的硬件加速模式: %s，可选值: auto, nvenc, qsv, amf, vaapi, videotoolbox, none", tc.HWAccel),
+		})
+	}
+
+	if tc.MaxJobs < 0 {
+		errors = append(errors, &ValidationError{
+			Field:   "playback.video.encoding.maxJobs",
+			Message: fmt.Sprintf("并发数不能为负数: %d", tc.MaxJobs),
+		})
 	}
 
 	return errors

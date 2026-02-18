@@ -17,6 +17,7 @@ import (
 
 	"msp/internal/db"
 	"msp/internal/handler"
+	"msp/internal/media"
 	"msp/internal/server"
 	"msp/internal/util"
 	"msp/internal/web"
@@ -36,6 +37,9 @@ func main() {
 	}
 
 	s.SetupLogger()
+
+	// Detect hardware-accelerated transcoding and adjust concurrency
+	initHWAccel(s)
 
 	// Init DB (after logger setup to avoid noisy terminal logs from GORM)
 	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
@@ -147,4 +151,34 @@ func openBrowser(url string) error {
 	default:
 		return exec.Command("xdg-open", url).Start()
 	}
+}
+
+// initHWAccel probes for hardware-accelerated encoders and adjusts the
+// transcode concurrency limit accordingly. Called once at startup.
+func initHWAccel(s *server.Server) {
+	cfg := s.Config()
+
+	mode := media.HWAccelAuto
+	maxJobs := 0
+	if enc := cfg.Playback.Video.Encoding; enc != nil {
+		if enc.HWAccel != "" {
+			mode = media.HWAccelMode(enc.HWAccel)
+		}
+		maxJobs = enc.MaxJobs
+	}
+
+	result := media.DetectHWAccel(mode)
+
+	// Determine concurrency limit
+	if maxJobs <= 0 {
+		if result != nil && result.Available {
+			maxJobs = 4 // hardware default
+		} else {
+			maxJobs = 2 // software default
+		}
+	}
+	media.SetTranscodeLimit(maxJobs)
+
+	log.Printf("转码引擎: %s (并发上限: %d)", media.FormatHWAccelStatus(), maxJobs)
+	fmt.Printf("转码引擎: %s (并发上限: %d)\n", media.FormatHWAccelStatus(), maxJobs)
 }

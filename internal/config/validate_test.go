@@ -91,8 +91,8 @@ func TestValidatePIN(t *testing.T) {
 
 func TestIsValidIP(t *testing.T) {
 	tests := []struct {
-		ip      string
-		want    bool
+		ip   string
+		want bool
 	}{
 		{"192.168.1.1", true},
 		{"10.0.0.1", true},
@@ -115,8 +115,8 @@ func TestIsValidIP(t *testing.T) {
 
 func TestIsValidIPOrCIDR(t *testing.T) {
 	tests := []struct {
-		s       string
-		want    bool
+		s    string
+		want bool
 	}{
 		{"192.168.1.1", true},
 		{"10.0.0.0/8", true},
@@ -139,15 +139,15 @@ func TestIsValidIPOrCIDR(t *testing.T) {
 
 func TestIsValidExtension(t *testing.T) {
 	tests := []struct {
-		ext     string
-		want    bool
+		ext  string
+		want bool
 	}{
 		{".mp4", true},
 		{".MP4", true},
 		{".tar.gz", true},
 		{"mp4", false},
 		{"", false},
-		{".", true},  // 单个点也是有效的扩展名（虽然不太常见）
+		{".", true}, // 单个点也是有效的扩展名（虽然不太常见）
 	}
 
 	for _, tt := range tests {
@@ -318,5 +318,62 @@ func TestIsValid(t *testing.T) {
 
 	t.Run("nil 配置", func(t *testing.T) {
 		assert.False(t, IsValid(nil))
+	})
+}
+
+func TestValidateTranscodeConfig(t *testing.T) {
+	t.Run("有效 auto", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "auto", MaxJobs: 0}
+		assert.Empty(t, validateTranscodeConfig(tc))
+	})
+
+	t.Run("有效 nvenc", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "nvenc", MaxJobs: 4}
+		assert.Empty(t, validateTranscodeConfig(tc))
+	})
+
+	t.Run("有效 none", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "none", MaxJobs: 2}
+		assert.Empty(t, validateTranscodeConfig(tc))
+	})
+
+	t.Run("空 HWAccel 视为有效", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "", MaxJobs: 0}
+		assert.Empty(t, validateTranscodeConfig(tc))
+	})
+
+	t.Run("无效 HWAccel", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "bogus", MaxJobs: 0}
+		errs := validateTranscodeConfig(tc)
+		assert.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Error(), "hwAccel")
+	})
+
+	t.Run("负 MaxJobs", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "auto", MaxJobs: -1}
+		errs := validateTranscodeConfig(tc)
+		assert.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Error(), "maxJobs")
+	})
+
+	t.Run("双重错误", func(t *testing.T) {
+		tc := &TranscodeConfig{HWAccel: "invalid", MaxJobs: -5}
+		errs := validateTranscodeConfig(tc)
+		assert.Len(t, errs, 2)
+	})
+}
+
+func TestValidate_WithEncoding(t *testing.T) {
+	t.Run("默认配置含 Encoding 有效", func(t *testing.T) {
+		cfg := Default()
+		assert.True(t, IsValid(&cfg))
+		assert.NotNil(t, cfg.Playback.Video.Encoding)
+	})
+
+	t.Run("无效 Encoding 被检出", func(t *testing.T) {
+		cfg := Default()
+		cfg.Playback.Video.Encoding = &TranscodeConfig{HWAccel: "xyz", MaxJobs: -1}
+		errs := Validate(&cfg)
+		assert.GreaterOrEqual(t, len(errs), 2)
 	})
 }
