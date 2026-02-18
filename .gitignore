@@ -134,7 +134,11 @@ temp/
 # Local project tooling / private configs
 # ------------------------------------------------------------
 .trae/
-.qoder/
+.qoder/*
+!.qoder/repowiki/
+!.qoder/repowiki/zh/
+!.qoder/repowiki/zh/content/
+!.qoder/repowiki/zh/content/**/*
 vercel.json
 .vercel/
 netlify.toml
