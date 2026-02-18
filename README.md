@@ -81,7 +81,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 
 ## Build from Source
 
-Requirements: `Go 1.24+`, `Node.js 18+` (frontend build)
+Requirements: `Go 1.25+`, `Node.js 18+` (frontend build)
 
 ```bash
 git clone https://github.com/blycr/msp.git

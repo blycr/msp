@@ -6,7 +6,7 @@ Thank you for your interest in contributing to MSP! We welcome contributions fro
 
 To contribute to this project, you will need:
 
-*   **Go**: Version 1.24 or higher.
+*   **Go**: Version 1.25 or higher.
 *   **Node.js**: Version 20 or higher.
 *   **pnpm**: Enabled via `corepack enable`.
 
