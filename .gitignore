@@ -5,6 +5,14 @@
 *.dll
 *.so
 *.dylib
+*.a
+*.lib
+
+# Go build artifacts
+__debug_bin
+main.exe
+msp.exe
+msp
 
 # ------------------------------------------------------------
 # Logs
@@ -18,6 +26,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 msp.log
+logs/
+logs.*.log
 
 # ------------------------------------------------------------
 # OS / Editor junk
@@ -35,6 +45,9 @@ desktop.ini
 .vscode/
 .vs/
 .history/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
 
 # ------------------------------------------------------------
 # Build outputs
@@ -47,6 +60,9 @@ release_out/
 scripts/build.log
 web/dist/
 web/.vite/
+target/
+out/
+build/
 
 # ------------------------------------------------------------
 # Go test / profiling artifacts
@@ -58,6 +74,8 @@ coverage.out
 *.coverprofile
 *.pprof
 *.trace
+go.work
+go.work.sum
 
 # ------------------------------------------------------------
 # Runtime data (local machine specific)
@@ -68,14 +86,20 @@ config.local.json
 config.*.local.json
 .env
 .env.local
+.env.development
+.env.production
 
 *.media_cache.json
 *.media_cache.json.tmp
+*.media_cache.json.bak
 
 msp.db
 msp.db-shm
 msp.db-wal
 *.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # ------------------------------------------------------------
 # Frontend dependencies / cache
@@ -87,6 +111,8 @@ web/node_modules/
 .pnpm/
 web/.cache/
 web/.eslintcache
+yarn-error.log
+pnpm-debug.log*
 
 # Lock files (keep pnpm lock; ignore npm/yarn locks)
 package-lock.json
@@ -98,13 +124,20 @@ yarn.lock
 *.tmp
 *.bak
 tmp/
+temp/
+*.temp
+*.swp
+*.swo
+*~
 
 # ------------------------------------------------------------
 # Local project tooling / private configs
 # ------------------------------------------------------------
 .trae/
+.qoder/
 vercel.json
 .vercel/
+netlify.toml
 
 # Shared local folders
 .shared/
@@ -127,5 +160,48 @@ test.json
 
 # Optional Go vendor dir (if not vendoring dependencies)
 vendor/
-docs/CODEX_35_HIGH_VALUE_WORK_CN.md
-docs/v0.7.0_RELEASE_SUMMARY.md
+
+# Documentation drafts
+docs/*.draft.md
+docs/*.tmp.md
+
+# Secret files
+*.pem
+*.key
+*.cert
+*.p12
+secrets.json
+credentials.json
+
+# ------------------------------------------------------------
+# CI/CD
+# ------------------------------------------------------------
+.github/workflows/*.local.yml
+.circleci/
+.travis.yml
+.gitlab-ci.yml
+Jenkinsfile
+
+# ------------------------------------------------------------
+# Docker
+# ------------------------------------------------------------
+docker-compose.override.yml
+*.tar
+*.tar.gz
+
+# ------------------------------------------------------------
+# Profiling / Debugging
+# ------------------------------------------------------------
+*.prof
+*.tracepile
+pprof.*.bin
+trace.*.out
+
+# ------------------------------------------------------------
+# Miscellaneous
+# ------------------------------------------------------------
+*.orig
+*.rej
+PATCHES
+MERGE_MSG
+FETCH_HEAD
