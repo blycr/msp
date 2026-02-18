@@ -28,11 +28,25 @@ type PlaybackAudioConfig struct {
 	Transcode *bool   `json:"transcode"`
 }
 
+// TranscodeConfig controls video transcoding behaviour.
+type TranscodeConfig struct {
+	// HWAccel selects the hardware acceleration mode.
+	// Accepted values: "auto", "nvenc", "qsv", "amf", "vaapi", "videotoolbox", "none".
+	// Default: "auto" (probe at startup and use the best available).
+	HWAccel string `json:"hwAccel"`
+
+	// MaxJobs is the maximum number of concurrent transcode sessions.
+	// With hardware acceleration this can be raised (e.g. 4–8).
+	// Default: 0 (auto: 2 for software, 4 for hardware).
+	MaxJobs int `json:"maxJobs"`
+}
+
 type PlaybackVideoConfig struct {
-	Enabled   *bool   `json:"enabled"`
-	Scope     *string `json:"scope"`
-	Transcode *bool   `json:"transcode"`
-	Resume    *bool   `json:"resume"`
+	Enabled   *bool            `json:"enabled"`
+	Scope     *string          `json:"scope"`
+	Transcode *bool            `json:"transcode"`
+	Resume    *bool            `json:"resume"`
+	Encoding  *TranscodeConfig `json:"encoding,omitempty"`
 }
 
 type PlaybackImageConfig struct {
@@ -121,6 +135,7 @@ func Default() Config {
 				Scope:     stringPtr("folder"),
 				Transcode: boolPtr(false),
 				Resume:    boolPtr(true),
+				Encoding:  &TranscodeConfig{HWAccel: "auto", MaxJobs: 0},
 			},
 			Image: PlaybackImageConfig{
 				Enabled: boolPtr(true),
@@ -227,6 +242,10 @@ func applyPlaybackDefaults(cfg *Config) bool {
 	changed = setDefaultString(&cfg.Playback.Video.Scope, "folder") || changed
 	changed = setDefaultBool(&cfg.Playback.Video.Transcode, false) || changed
 	changed = setDefaultBool(&cfg.Playback.Video.Resume, true) || changed
+	if cfg.Playback.Video.Encoding == nil {
+		cfg.Playback.Video.Encoding = &TranscodeConfig{HWAccel: "auto", MaxJobs: 0}
+		changed = true
+	}
 
 	changed = setDefaultBool(&cfg.Playback.Image.Enabled, true) || changed
 	changed = setDefaultString(&cfg.Playback.Image.Scope, "folder") || changed

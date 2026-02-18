@@ -21,7 +21,20 @@
     "config": {
       "port": 8099,
       "shares": [...],
-      "playback": { ... }
+      "playback": {
+        "video": {
+          "enabled": true,
+          "scope": "folder",
+          "transcode": true,
+          "resume": true,
+          "encoding": {
+            "hwAccel": "auto",
+            "maxJobs": 0
+          }
+        },
+        "audio": { ... },
+        "image": { ... }
+      }
     },
     "lanIPs": ["192.168.1.5"],
     "urls": ["http://192.168.1.5:8099/"],

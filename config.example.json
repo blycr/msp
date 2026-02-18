@@ -34,7 +34,11 @@
       "enabled": true,
       "scope": "folder",
       "transcode": true,
-      "resume": true
+      "resume": true,
+      "encoding": {
+        "hwAccel": "auto",
+        "maxJobs": 0
+      }
     },
     "image": {
       "enabled": true,

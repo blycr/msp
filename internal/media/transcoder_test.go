@@ -264,6 +264,23 @@ func TestLimitReleaser(t *testing.T) {
 	_ = pw.Close()
 }
 
+func TestSetTranscodeLimit(t *testing.T) {
+	// Save and restore original
+	origLimit := transcodeLimit
+	defer func() { transcodeLimit = origLimit }()
+
+	SetTranscodeLimit(6)
+	assert.Equal(t, 6, cap(transcodeLimit))
+
+	// Zero should default to 2
+	SetTranscodeLimit(0)
+	assert.Equal(t, 2, cap(transcodeLimit))
+
+	// Negative should default to 2
+	SetTranscodeLimit(-1)
+	assert.Equal(t, 2, cap(transcodeLimit))
+}
+
 // 辅助函数
 
 func createTestVideo(outputPath string) *exec.Cmd {

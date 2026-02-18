@@ -16,6 +16,16 @@ import (
 // Limit to 2 concurrent sessions to prevent CPU starvation
 var transcodeLimit = make(chan struct{}, 2)
 
+// SetTranscodeLimit replaces the global semaphore with one of the given size.
+// Must be called before any transcode requests (typically at startup).
+func SetTranscodeLimit(n int) {
+	if n <= 0 {
+		n = 2
+	}
+	transcodeLimit = make(chan struct{}, n)
+	log.Printf("[INFO] Transcode concurrency limit set to %d", n)
+}
+
 // TranscodeOptions 定义转码参数
 type TranscodeOptions struct {
 	Bitrate string  // 目标码率，如 "2M"
@@ -42,7 +52,7 @@ func (opts *TranscodeOptions) Validate() error {
 	if !allowedFormats[opts.Format] {
 		return fmt.Errorf("不支持的格式: %s", opts.Format)
 	}
-	
+
 	// 验证码率（如果提供）
 	if opts.Bitrate != "" {
 		// 只允许数字和特定后缀
@@ -60,12 +70,12 @@ func (opts *TranscodeOptions) Validate() error {
 		}
 		opts.Bitrate = bitrate
 	}
-	
+
 	// 验证偏移量
 	if opts.Offset < 0 {
 		opts.Offset = 0
 	}
-	
+
 	return nil
 }
 
@@ -150,7 +160,7 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	if info.IsDir() {
 		return nil, fmt.Errorf("input path is a directory, not a file")
 	}
-	
+
 	// 验证是常规文件（不是符号链接、设备等）
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("input path is not a regular file")
@@ -176,14 +186,15 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	codec, _ := GetCodecInfo(ctx, inputPath)
 
 	args := []string{"-hide_banner", "-loglevel", "error"}
-	if opts.Offset > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%f", opts.Offset))
-	}
-	args = append(args, "-i", inputPath)
 
 	// 2. 智能决定参数
 	if opts.Format == "mp3" || opts.Format == "aac" {
-		// 音频模式
+		// 音频模式 — no hardware acceleration needed
+		if opts.Offset > 0 {
+			args = append(args, "-ss", fmt.Sprintf("%f", opts.Offset))
+		}
+		args = append(args, "-i", inputPath)
+
 		if codec.AudioCodec == opts.Format {
 			args = append(args, "-acodec", "copy")
 		} else {
@@ -196,13 +207,22 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 		// 视频模式 (目标 MP4)
 		// 视频流策略：如果是 h264 则 copy，否则转码
 		if codec.VideoCodec == "h264" {
+			// H.264 source → stream copy, no re-encode needed
+			if opts.Offset > 0 {
+				args = append(args, "-ss", fmt.Sprintf("%f", opts.Offset))
+			}
+			args = append(args, "-i", inputPath)
 			args = append(args, "-vcodec", "copy")
 		} else {
-			// 使用 fast 预设平衡速度和质量，限制线程数避免阻塞
-			args = append(args, "-vcodec", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-threads", "2")
-			if opts.Bitrate != "" {
-				args = append(args, "-b:v", opts.Bitrate)
+			// Needs re-encode: delegate encoder selection to BuildVideoArgs
+			// which transparently handles hardware / software fallback.
+			initArgs, codecArgs := BuildVideoArgs(opts.Bitrate)
+			args = append(args, initArgs...)
+			if opts.Offset > 0 {
+				args = append(args, "-ss", fmt.Sprintf("%f", opts.Offset))
 			}
+			args = append(args, "-i", inputPath)
+			args = append(args, codecArgs...)
 		}
 
 		// 音频流策略：如果是 aac/mp3 则 copy，否则转 aac
