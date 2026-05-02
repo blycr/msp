@@ -8,6 +8,7 @@
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
 ![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
+[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/blycr/msp)
 
 <h3>打造你的家庭局域网影院。</h3>
 <p>面向家庭局域网的轻量媒体服务器。</p>
