@@ -28,7 +28,7 @@
       "shuffle": false,
       "remember": true,
       "scope": "all",
-      "transcode": false
+      "transcode": true
     },
     "video": {
       "enabled": true,

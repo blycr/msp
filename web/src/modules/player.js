@@ -1014,6 +1014,10 @@ export function playItem(item, opts) {
     requestAnimationFrame(() => {
       meta.style.transition = "opacity 0.25s ease";
       meta.style.opacity = "1";
+      // Firefox 兼容性：强制重绘以避免 opacity transition 导致的黑块
+      if (typeof navigator !== "undefined" && navigator.userAgent.includes("Firefox")) {
+        meta.style.transform = "translateZ(0)";
+      }
     });
 
     if (rememberEnabled("audio")) {

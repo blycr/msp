@@ -75,47 +75,65 @@ export function mimeFor(kind, ext) {
     if (e === ".mp4" || e === ".m4v") return "video/mp4";
     if (e === ".webm") return "video/webm";
     if (e === ".ogg" || e === ".ogv") return "video/ogg";
-    if (e === ".mov") return "video/quicktime";
+    if (e === ".mov" || e === ".qt") return "video/quicktime";
     if (e === ".mkv") return "video/x-matroska";
     if (e === ".avi") return "video/x-msvideo";
     if (e === ".wmv") return "video/x-ms-wmv";
+    if (e === ".flv") return "video/x-flv";
+    if (e === ".ts" || e === ".m2ts" || e === ".mts") return "video/mp2t";
+    if (e === ".mpg" || e === ".mpeg") return "video/mpeg";
+    if (e === ".3gp" || e === ".3g2") return "video/3gpp";
   }
   if (kind === "audio") {
     if (e === ".mp3") return "audio/mpeg";
-    if (e === ".m4a") return "audio/mp4";
+    if (e === ".m4a" || e === ".f4a") return "audio/mp4";
     if (e === ".aac") return "audio/aac";
-    if (e === ".wav") return "audio/wav";
+    if (e === ".wav" || e === ".wave") return "audio/wav";
     if (e === ".flac") return "audio/flac";
-    if (e === ".ogg") return "audio/ogg";
+    if (e === ".ogg" || e === ".oga" || e === ".spx") return "audio/ogg";
     if (e === ".opus") return "audio/ogg; codecs=opus";
+    if (e === ".wma") return "audio/x-ms-wma";
+    if (e === ".ape") return "audio/ape";
+    if (e === ".mka") return "audio/x-matroska";
+    if (e === ".weba") return "audio/webm";
+    if (e === ".mid" || e === ".midi") return "audio/midi";
   }
   return "";
 }
 
 export function canPlayMedia(kind, ext, name, mediaEl) {
   const e = (ext || "").toLowerCase();
-  
+
   // 只要配置中允许转码，前端就放行，让后端去决定是否需要真正的转码
   if (kind === "video" && getCfg("playback.video.transcode", false)) {
-    return true; 
+    return true;
   }
   if (kind === "audio" && getCfg("playback.audio.transcode", false)) {
     return true;
   }
 
+  // 对未知/未识别格式也允许尝试直接播放，让浏览器的错误处理机制去兜底
+  const knownAudioExts = new Set([".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".oga", ".spx", ".wma", ".ape", ".mka"]);
+  const knownVideoExts = new Set([".mp4", ".m4v", ".webm", ".ogg", ".ogv", ".mov", ".mkv", ".avi", ".wmv", ".flv", ".ts", ".m2ts", ".mts", ".mpg", ".mpeg"]);
+
   if (kind === "audio") {
+    // 对已知音频格式进行 canPlayType 检测；对未知格式允许尝试播放
+    if (!knownAudioExts.has(e)) return true;
     const mime = mimeFor("audio", e);
     if (mime && mediaEl && typeof mediaEl.canPlayType === "function") {
       const res = mediaEl.canPlayType(mime);
-      if (!res) return false;
+      // Firefox 对某些格式返回空字符串，但可能仍支持容器内的解码；
+      // 只要没有明确返回空字符串，就允许尝试。对明确不支持的再拦截。
+      if (res === "") return false;
     }
     return true;
   }
   if (kind === "video") {
+    if (!knownVideoExts.has(e)) return true;
     const mime = mimeFor("video", e);
     if (mime && mediaEl && typeof mediaEl.canPlayType === "function") {
       const res = mediaEl.canPlayType(mime);
-      if (!res && e !== ".mkv" && e !== ".avi") return false;
+      if (res === "" && e !== ".mkv" && e !== ".avi") return false;
     }
     return true;
   }

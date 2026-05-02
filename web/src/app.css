@@ -267,6 +267,13 @@ p {
   transition: opacity 0.25s ease;
 }
 
+/* Firefox 兼容性：避免 audioMeta 在 opacity transition 时出现黑块 */
+@supports (-moz-appearance: none) {
+  #audioMeta {
+    transform: translateZ(0);
+  }
+}
+
 .topbar {
   position: sticky;
   top: 0;

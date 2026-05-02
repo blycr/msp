@@ -128,7 +128,7 @@ func Default() Config {
 				Shuffle:   boolPtr(false),
 				Remember:  boolPtr(true),
 				Scope:     stringPtr("all"),
-				Transcode: boolPtr(false),
+				Transcode: boolPtr(true),
 			},
 			Video: PlaybackVideoConfig{
 				Enabled:   boolPtr(true),
@@ -236,7 +236,7 @@ func applyPlaybackDefaults(cfg *Config) bool {
 	changed = setDefaultBool(&cfg.Playback.Audio.Shuffle, false) || changed
 	changed = setDefaultBool(&cfg.Playback.Audio.Remember, true) || changed
 	changed = setDefaultString(&cfg.Playback.Audio.Scope, "all") || changed
-	changed = setDefaultBool(&cfg.Playback.Audio.Transcode, false) || changed
+	changed = setDefaultBool(&cfg.Playback.Audio.Transcode, true) || changed
 
 	changed = setDefaultBool(&cfg.Playback.Video.Enabled, true) || changed
 	changed = setDefaultString(&cfg.Playback.Video.Scope, "folder") || changed
