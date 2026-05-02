@@ -30,6 +30,8 @@ Run it on your PC, share local folders, and play media from any modern browser i
 - Browser client: desktop and mobile modern browsers.
 - Local-first: no cloud account, no tracking.
 
+> **Note for Firefox users:** The audio metadata panel (`audioMeta`) may occasionally render as a black block. For the best experience, a Chromium-based browser is recommended.
+
 ## Playback Behavior
 
 - Direct play is preferred by default.
