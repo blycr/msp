@@ -149,7 +149,7 @@ jobs:
             files="$(printf "%s\n%s" "$files" "$more")"
           fi
           files="$(printf "%s\n" "$files" | sed '/^$/d' \
-            | grep -E '^(bin/(windows|linux|darwin|arm)/.+|checksums/.+\.sha256)$' || true)"
+            | grep -E '^(bin/.+|checksums/.+\.sha256)$' || true)"
           if [ -z "$files" ]; then
             echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
             echo "UPLOAD_FILES=" >> "$GITHUB_ENV"
