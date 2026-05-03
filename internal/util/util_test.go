@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"msp/internal/config"
+	"msp/internal/domain"
 )
 
 func TestEncodeDecodeID(t *testing.T) {
@@ -128,7 +128,7 @@ func TestItoa(t *testing.T) {
 }
 
 func TestDedupeShares(t *testing.T) {
-	shares := []config.Share{
+	shares := []domain.Share{
 		{Label: "A", Path: "/path/a"},
 		{Label: "B", Path: "/path/b"},
 		{Label: "A2", Path: "/PATH/A"}, // duplicate case-insensitive
@@ -141,7 +141,7 @@ func TestDedupeShares(t *testing.T) {
 }
 
 func TestNormalizeShares(t *testing.T) {
-	shares := []config.Share{
+	shares := []domain.Share{
 		{Label: "", Path: "/valid/path"},
 		{Label: "Custom", Path: "/another/path"},
 		{Label: "Empty", Path: ""},

@@ -48,13 +48,13 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 ### 视频模式
 
 <kbd>
-  <img src="docs/images/preview-video-cn.png" alt="视频模式预览" width="100%" />
+  <img src="images/preview-video-cn.png" alt="视频模式预览" width="100%" />
 </kbd>
 
 ### 音频模式
 
 <kbd>
-  <img src="docs/images/preview-audio-cn.png" alt="音频模式预览" width="100%" />
+  <img src="images/preview-audio-cn.png" alt="音频模式预览" width="100%" />
 </kbd>
 
 </div>

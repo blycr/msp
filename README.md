@@ -13,7 +13,7 @@
 <h3>Your Personal LAN Cinema.</h3>
 <p>A lightweight media server for home LAN streaming.</p>
 
-[中文文档](README_CN.md) | [Wiki](https://github.com/blycr/msp/wiki) | [Report Bug](https://github.com/blycr/msp/issues)
+[中文文档](docs/README_CN.md) | [Wiki](https://github.com/blycr/msp/wiki) | [Report Bug](https://github.com/blycr/msp/issues)
 
 </div>
 

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"msp/internal/config"
 	"msp/internal/constants"
+	"msp/internal/domain"
 )
 
 // EncodeID 将绝对路径编码为 Base64 URL 安全的字符串。
@@ -99,8 +99,8 @@ func Itoa(i int) string {
 }
 
 // DedupeShares 去除共享目录列表中的重复项（不区分大小写）。
-func DedupeShares(in []config.Share) []config.Share {
-	out := make([]config.Share, 0, len(in))
+func DedupeShares(in []domain.Share) []domain.Share {
+	out := make([]domain.Share, 0, len(in))
 	seen := map[string]bool{}
 	for _, sh := range in {
 		key := strings.ToLower(sh.Path)
@@ -123,8 +123,8 @@ func MustExeDir() string {
 }
 
 // NormalizeShares 规范化共享目录列表，清理路径并为空标签生成默认标签。
-func NormalizeShares(in []config.Share) []config.Share {
-	out := make([]config.Share, 0, len(in))
+func NormalizeShares(in []domain.Share) []domain.Share {
+	out := make([]domain.Share, 0, len(in))
 	for _, sh := range in {
 		p := NormalizePath(sh.Path)
 		if p == "" {
@@ -134,7 +134,7 @@ func NormalizeShares(in []config.Share) []config.Share {
 		if lbl == "" {
 			lbl = filepath.Base(p)
 		}
-		out = append(out, config.Share{Label: lbl, Path: p})
+		out = append(out, domain.Share{Label: lbl, Path: p})
 	}
 	return out
 }
@@ -147,7 +147,7 @@ func IsExistingDir(p string) bool {
 
 // IsAllowedFile 检查文件是否在允许的共享目录内且存在。
 // 安全特性：解析符号链接，防止通过符号链接绕过目录限制。
-func IsAllowedFile(fileAbs string, shares []config.Share) bool {
+func IsAllowedFile(fileAbs string, shares []domain.Share) bool {
 	if fileAbs == "" {
 		return false
 	}

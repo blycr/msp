@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"msp/internal/constants"
-	"msp/internal/server"
 )
 
 type gzipResponseWriter struct {
@@ -42,12 +41,12 @@ func WithGzip(next http.Handler) http.Handler {
 	})
 }
 
-func WithLog(s *server.Server, next http.Handler) http.Handler {
+func WithLog(logger Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w}
 		next.ServeHTTP(sw, r)
-		s.LogRequest(r, sw.status, start)
+		logger.LogRequest(r, sw.status, start)
 	})
 }
 
@@ -75,9 +74,9 @@ func (w *statusWriter) Flush() {
 }
 
 // WithSecurity applies IP filtering and PIN authentication
-func WithSecurity(s *server.Server, next http.Handler) http.Handler {
+func WithSecurity(config ConfigProvider, session SessionProvider, logger Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg := s.Config()
+		cfg := config.Config()
 
 		// Apply security headers to all responses
 		applySecurityHeaders(w)
@@ -87,7 +86,7 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 
 		// Check IP whitelist/blacklist
 		if !isIPAllowed(clientIP, cfg.Security.IPWhitelist, cfg.Security.IPBlacklist) {
-			s.Log("info", fmt.Sprintf("Access denied for IP: %s", clientIP))
+			logger.Log("info", fmt.Sprintf("Access denied for IP: %s", clientIP))
 			http.Error(w, constants.ErrMsgAccessDenied, http.StatusForbidden)
 			return
 		}
@@ -109,7 +108,7 @@ func WithSecurity(s *server.Server, next http.Handler) http.Handler {
 				}
 			}
 
-			if !s.ValidateSession(sessionToken) {
+			if !session.ValidateSession(sessionToken) {
 				http.Error(w, constants.ErrMsgUnauthorized, http.StatusUnauthorized)
 				return
 			}

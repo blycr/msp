@@ -11,7 +11,7 @@ COPY web/ ./
 RUN pnpm run build
 
 # Stage 2: Build Backend
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 WORKDIR /app
 # Install build tools (gcc needed for cgo/sqlite)
 RUN apk add --no-cache gcc musl-dev

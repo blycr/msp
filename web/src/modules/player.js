@@ -1,72 +1,66 @@
 import { state, el, LS } from './state.js';
 import { t } from './i18n.js';
-import { gpGet, gpSet, logRemote, probeItem, probePeek, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
+import { gpGet, gpSet, logRemote, probeItem, probeText, probeWarnText, rememberEnabled, reportProgress, getProgress } from './api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from './lyrics.js';
 import { setPlaylist, updateNavLabels, updateNavButtons, playAtIndex, playNext, buildPlaylist, generatePlayOrder } from './playlist.js';
+import { bus } from './eventbus.js';
+import {
+  destroyPlyr,
+  resetMediaEl,
+  hideAllMedia,
+  showPreviewError,
+  setFitBtnVisible,
+  updateFitBtnFromVideo,
+  setTracks,
+  getActivePlyr,
+  applyPlyr,
+  needsCompatibilityVideoTranscode,
+  switchToTranscodeSource,
+  setupErrorHandler,
+  getActiveMedia,
+  saveProgress,
+  hasResumeCandidate,
+  updateResumeButton,
+  restorePlaybackTime,
+  setupAudioTrackHandling,
+  switchAudioTrack,
+  getAudioTracks
+} from './player/index.js';
 
-export function getActiveMedia() {
-  const kind = state.current?.kind;
-  if (kind === "video") return { el: el("videoEl"), kind: "video" };
-  if (kind === "audio") return { el: el("audioEl"), kind: "audio" };
-  return { el: null, kind: "" };
-}
+export {
+  destroyPlyr,
+  resetMediaEl,
+  hideAllMedia,
+  showPreviewError,
+  setFitBtnVisible,
+  updateFitBtnFromVideo,
+  setTracks,
+  getActiveMedia,
+  saveProgress,
+  hasResumeCandidate,
+  updateResumeButton,
+  switchAudioTrack,
+  getAudioTracks
+};
 
-export function saveProgress(kind, id, t) {
-  gpSet(LS.lastActiveKind, kind);
-  if (kind === "audio") {
-    gpSet(LS.audioLastID, id);
-    if (t !== undefined) {
-      gpSet(LS.audioLastTime, String(t));
-      reportProgress(id, t);
-    }
-  } else if (kind === "video") {
-    gpSet(LS.videoLastID, id);
-    if (t !== undefined) {
-      gpSet(LS.videoLastTime, String(t));
-      reportProgress(id, t);
-    }
-  } else if (kind === "image") {
-    gpSet(LS.imageLastID, id);
-  }
+bus.on('play:request', (item, opts) => playItem(item, opts));
 
-  // Save full playlist state
-  if (state.playlist && state.playlist.items && state.playlist.items.length > 0) {
-    const plData = {
-      kind: state.playlist.kind,
-      index: state.playlist.index,
-      ids: state.playlist.items.map(x => x.id),
-    };
-    gpSet(LS.playlist, JSON.stringify(plData));
-  }
+let lastMediaEndedAt = 0;
 
-  // Save volume
-  const act = getActiveMedia();
-  if (act && act.el && act.el.volume !== undefined) {
-    gpSet(LS.volume, String(act.el.volume));
-  }
+function onMediaEnded() {
+  const now = Date.now();
+  if (now - lastMediaEndedAt < 500) return;
+  if (state.isSwitchingMedia) return;
+  lastMediaEndedAt = now;
 
-  logRemote("info", `Playback progress saved: kind=${kind} id=${id} time=${t}`);
-}
+  if (!state.current) return;
+  const k = state.current.kind;
+  if (k !== "audio" && k !== "video") return;
+  if (state.playlist.kind !== k) return;
 
-export function hasResumeCandidate() {
-  const kind = gpGet(LS.lastActiveKind);
-  if (!kind) return false;
-  if (kind === "audio" && !rememberEnabled("audio")) return false;
-  if (kind === "video" && !rememberEnabled("video")) return false;
-  if (kind === "image" && !rememberEnabled("image")) return false;
-  if (kind === "audio") return !!gpGet(LS.audioLastID);
-  if (kind === "video") return !!gpGet(LS.videoLastID);
-  if (kind === "image") return !!gpGet(LS.imageLastID);
-  return false;
-}
-
-export function updateResumeButton() {
-  const btn = el("btnResume");
-  if (!btn) return;
-  const show = !state.current && hasResumeCandidate();
-  btn.hidden = !show;
-  btn.disabled = !show;
+  if (state.playlist.playIndex < 0) return;
+  playNext(true);
 }
 
 export async function resumeLast() {
@@ -88,7 +82,6 @@ export async function resumeLast() {
 
   state.tab = kind;
 
-  // Restore playlist if available
   if (getCfg("features.playlist", true)) {
     let restored = false;
     const savedPlRaw = gpGet(LS.playlist);
@@ -98,7 +91,6 @@ export async function resumeLast() {
         if (plData.kind === kind && Array.isArray(plData.ids)) {
           const items = plData.ids.map(id => pool.find(x => x.id === id)).filter(Boolean);
           if (items.length > 0) {
-            // Rebuild playOrder based on current shuffle state and restored index
             const index = Math.max(0, Math.min(plData.index || 0, items.length - 1));
             const playOrder = generatePlayOrder(items.length, index, state.playlist.shuffle);
             const playIndex = playOrder.findIndex(idx => idx === index);
@@ -119,7 +111,6 @@ export async function resumeLast() {
 
   if (kind === "image") return;
 
-  // Restore volume
   const savedVol = gpGet(LS.volume);
   const elId = kind === "audio" ? "audioEl" : "videoEl";
   if (savedVol) {
@@ -127,703 +118,10 @@ export async function resumeLast() {
     if (mediaEl) mediaEl.volume = Number(savedVol);
   }
 
-  // Per-file time has priority over global last time in the Resume Last flow
-  // Refactored to use API
-  let timeVal = 0;
-  try {
-    const apiTime = await getProgress(id);
-    if (apiTime > 0) {
-      timeVal = apiTime;
-    } else {
-      // Fallback to local storage global last time
-      timeVal = Number((kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
-    }
-  } catch {
-    timeVal = Number((kind === "audio" ? gpGet(LS.audioLastTime) : gpGet(LS.videoLastTime)) || "0") || 0;
-  }
-
-  if (timeVal <= 0) return;
   const mediaEl = el(elId);
-  if (!mediaEl) return;
-  const seek = () => { try { mediaEl.currentTime = timeVal; } catch { } };
-  if (mediaEl.readyState >= 1) {
-    queueMicrotask(seek);
-  } else {
-    const onLoaded = () => { seek(); mediaEl.removeEventListener("loadedmetadata", onLoaded); };
-    mediaEl.addEventListener("loadedmetadata", onLoaded);
+  if (mediaEl) {
+    await restorePlaybackTime(kind, id, mediaEl);
   }
-}
-
-export function destroyPlyr() {
-  if (state.plyr) {
-    try { state.plyr.destroy(); } catch { }
-    state.plyr = null;
-  }
-  try {
-    if (state.plyrPersistTimer) {
-      clearInterval(state.plyrPersistTimer);
-      state.plyrPersistTimer = 0;
-    }
-  } catch { }
-}
-
-export function resetMediaEl(mediaEl) {
-  if (!mediaEl) return;
-  try { mediaEl.pause(); } catch { }
-  try { mediaEl.currentTime = 0; } catch { }
-  try { mediaEl.srcObject = null; } catch { }
-  try { mediaEl.removeAttribute("src"); } catch { }
-  try {
-    const sources = Array.from(mediaEl.querySelectorAll("source"));
-    for (const s of sources) s.remove();
-  } catch { }
-  try { mediaEl.load(); } catch { }
-}
-
-export function hideAllMedia() {
-  destroyPlyr();
-  const box = el("playerBox");
-  if (box) {
-    const plyrs = Array.from(box.querySelectorAll(".plyr"));
-    for (const p of plyrs) p.style.display = "none";
-  }
-  resetMediaEl(el("videoEl"));
-  resetMediaEl(el("audioEl"));
-  try { el("imgEl").removeAttribute("src"); } catch { }
-  try { el("audioCover").removeAttribute("src"); } catch { }
-  el("videoEl").style.display = "none";
-  el("audioEl").style.display = "none";
-  el("audioMeta").style.display = "none";
-  el("imgEl").style.display = "none";
-  el("emptyEl").style.display = "none";
-}
-
-export function showPreviewError(text) {
-  destroyPlyr();
-  el("videoEl").style.display = "none";
-  el("audioEl").style.display = "none";
-  el("audioMeta").style.display = "none";
-  el("imgEl").style.display = "none";
-  el("emptyEl").textContent = text;
-  el("emptyEl").style.display = "block";
-}
-
-export function setFitBtnVisible(visible) {
-  const btn = el("btnToggleFit");
-  if (!btn) return;
-  btn.hidden = !visible;
-  if (!visible) btn.disabled = true;
-}
-
-export function updateFitBtnFromVideo(videoEl) {
-  const btn = el("btnToggleFit");
-  if (!btn || !videoEl) return;
-  btn.hidden = false;
-  btn.disabled = false;
-  let fit = videoEl.dataset.fit || gpGet("msp.video.fit") || "contain";
-  try { videoEl.dataset.fit = fit; } catch { }
-  btn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
-}
-
-function setTracks(videoEl, subtitles) {
-  const tracks = Array.from(videoEl.querySelectorAll("track"));
-  for (const t of tracks) t.remove();
-
-  if (!Array.isArray(subtitles) || subtitles.length === 0) return;
-
-  const features = state.config?.features || {};
-  if (!features.captions) return;
-
-  for (const s of subtitles) {
-    const tr = document.createElement("track");
-    tr.kind = "subtitles";
-    tr.label = s.label || "字幕";
-    tr.srclang = s.lang || "zh";
-    tr.src = s.src || streamUrl(s.id);
-    if (s.default) tr.default = true;
-    videoEl.appendChild(tr);
-  }
-
-  queueMicrotask(() => {
-    try {
-      const tt = videoEl.textTracks;
-      if (!tt || tt.length === 0) return;
-      for (let i = 0; i < tt.length; i++) tt[i].mode = "disabled";
-      tt[0].mode = "showing";
-    } catch { }
-  });
-}
-
-export function canStorage() {
-  try {
-    const k = "__msp__probe__";
-    localStorage.setItem(k, "1");
-    localStorage.removeItem(k);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-let lastMediaEndedAt = 0;
-
-const preemptiveTranscodeVideoExts = new Set([".avi", ".wmv"]);
-
-function needsCompatibilityVideoTranscode(item) {
-  const ext = String(item?.ext || "").toLowerCase();
-  if (preemptiveTranscodeVideoExts.has(ext)) return true;
-
-  const p = probePeek(item?.id);
-  if (!p) return false;
-
-  const container = String(p.container || "").toLowerCase();
-  return container === "avi" || container === "wmv";
-}
-
-function getActivePlyr() {
-  const p = state.plyr;
-  if (!p || typeof p !== "object") return null;
-  if (typeof p.play !== "function") return null;
-  return p;
-}
-
-function switchToTranscodeSource(element, isVideo, url, currentTime) {
-  const player = getActivePlyr();
-  if (!player) {
-    try { element.src = url; } catch { return false; }
-    try { element.load(); } catch { }
-    try { element.currentTime = currentTime; } catch { }
-    try { element.play().catch(() => { }); } catch { }
-    return true;
-  }
-
-  const newSource = {
-    type: isVideo ? "video" : "audio",
-    title: state.current?.name || "",
-    sources: [{ src: url, type: isVideo ? "video/mp4" : "audio/mpeg" }],
-  };
-
-  if (isVideo) {
-    newSource.poster = state.current?.coverId ? streamUrl(state.current.coverId) : undefined;
-    newSource.tracks = (state.current?.subtitles || []).map(s => ({
-      kind: "subtitles",
-      label: s.label || "字幕",
-      srclang: s.lang || "zh",
-      src: s.src || streamUrl(s.id),
-      default: !!s.default
-    }));
-  }
-
-  try {
-    player.source = newSource;
-    if (typeof player.once === "function") {
-      player.once("ready", () => {
-        try { element.currentTime = currentTime; } catch { }
-        player.play().catch(() => { });
-      });
-    } else {
-      setTimeout(() => {
-        try { element.currentTime = currentTime; } catch { }
-        player.play().catch(() => { });
-      }, 120);
-    }
-    return true;
-  } catch (err) {
-    console.error("Failed to switch source via player, fallback to native element", err);
-    try { element.src = url; } catch { return false; }
-    try { element.load(); } catch { }
-    try { element.currentTime = currentTime; } catch { }
-    try { element.play().catch(() => { }); } catch { }
-    return true;
-  }
-}
-
-function onMediaEnded() {
-  const now = Date.now();
-  if (now - lastMediaEndedAt < 500) return;
-  if (state.isSwitchingMedia) return;
-  lastMediaEndedAt = now;
-
-  if (!state.current) return;
-  const k = state.current.kind;
-  if (k !== "audio" && k !== "video") return;
-  if (state.playlist.kind !== k) return;
-
-  if (state.playlist.playIndex < 0) return;
-  playNext(true);
-}
-
-export function applyPlyr(element) {
-  destroyPlyr();
-  const isVideoElement = String(element?.tagName || "").toUpperCase() === "VIDEO";
-
-  // Smart Error Interceptor:
-  // If a decoding error occurs near the end of the file, we treat it as "ended" 
-  // to skip over corrupt tail data (common in some FLACs or incomplete downloads).
-  if (!element._errBound) {
-    element._errBound = true;
-    element.addEventListener("error", (e) => {
-      try {
-        const err = element.error;
-        const d = element.duration;
-        const currentTime = element.currentTime;
-        const currentSrc = element.currentSrc || element.src || "";
-
-        // Ignore transient errors during source teardown/switch.
-        // Empty source is common when resetting media elements.
-        if (!currentSrc) return;
-
-        // MEDIA_ERR_DECODE (3) or MEDIA_ERR_SRC_NOT_SUPPORTED (4)
-        if (err && (err.code === 3 || err.code === 4)) {
-          // Condition: We are playing and either:
-          // 1. > 90% progress
-          // 2. < 10s remaining
-          // 3. We have played something (t > 5) but duration is NaN (stream)
-          const isNearEnd = (d > 0 && currentTime / d > 0.9) ||
-            (d > 0 && d - currentTime < 10) ||
-            (Number.isNaN(d) && currentTime > 5);
-
-          if (isNearEnd) {
-            console.warn("Media decoding error near end - suppressing error and skipping to next", err);
-            e.preventDefault();
-            e.stopPropagation();
-            onMediaEnded(); // Treat as successful end
-            return;
-          }
-
-          // --- Auto-Transcode Fallback ---
-          // If decoding failed midway, and we haven't tried transcoding yet, try it now.
-          const isAlreadyTranscoding = currentSrc.includes("transcode=1");
-
-          // Check config permissions
-          const isVideo = state.current?.kind === "video";
-          const isAudio = state.current?.kind === "audio";
-          const allowVideo = isVideo && getCfg("playback.video.transcode", false);
-          const allowAudio = isAudio && getCfg("playback.audio.transcode", false);
-          const allowFallback = allowVideo || allowAudio;
-
-          // One-shot direct retry for transient source failures (code=4).
-          // This helps with occasional stale/broken range requests on some browsers.
-          if (err.code === 4 && !isAlreadyTranscoding && element.dataset.mspDirectRetryDone !== "1") {
-            element.dataset.mspDirectRetryDone = "1";
-            const retryURL = currentSrc.includes("ts=")
-              ? currentSrc.replace(/([?&])ts=\d+/, `$1ts=${Date.now()}`)
-              : `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}ts=${Date.now()}`;
-            console.warn("Playback source error, retrying once with refreshed URL", retryURL);
-            try { element.src = retryURL; } catch { }
-            try { element.load(); } catch { }
-            const activePlayer = getActivePlyr();
-            if (activePlayer) activePlayer.play().catch(() => { });
-            else try { element.play().catch(() => { }); } catch { }
-            return;
-          }
-
-          if (!isAlreadyTranscoding && allowFallback && state.current?.id) {
-            console.warn("Playback failed, attempting fallback to transcode...", err);
-            e.preventDefault();
-            e.stopPropagation();
-
-            const url = streamUrl(state.current.id, currentTime) + "&transcode=1"; // Use current time as start offset
-            logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
-            if (switchToTranscodeSource(element, isVideo, url, currentTime)) return;
-          }
-
-          // If we reached here, it means either:
-          // 1. We already tried transcoding and it failed again (isAlreadyTranscoding = true)
-          // 2. Transcoding is disabled in config (!allowVideo)
-          // In either case, we must show a visible error to the user.
-          console.error("Playback failed permanently. Transcode enabled:", allowFallback);
-          showPreviewError(t("err_unsupported") + (isAlreadyTranscoding ? " (Transcode Failed)" : " (Transcode Disabled)"));
-        }
-        console.error("Critical Media Error:", err);
-      } catch (handlerErr) {
-        console.error("Media error handler crashed:", handlerErr);
-      }
-    }, true); // Capture phase to intercept early
-  }
-
-  const isTouch = (() => {
-    try {
-      if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
-      if (window.matchMedia && window.matchMedia("(max-width: 980px)").matches) return true;
-    } catch { }
-    return false;
-  })();
-
-  if (isTouch) {
-    try { element.controls = true; } catch { }
-    try {
-      if (String(element?.tagName || "").toUpperCase() === "VIDEO") element.playsInline = true;
-    } catch { }
-    try {
-      element.removeEventListener("ended", onMediaEnded);
-      element.addEventListener("ended", onMediaEnded);
-    } catch { }
-    try {
-      const wrap = element.closest?.(".plyr");
-      if (wrap) wrap.style.display = "block";
-    } catch { }
-    return;
-  }
-
-  const features = state.config?.features || {};
-  try {
-    const vol = Number(gpGet("msp.volume") || "");
-    if (!Number.isNaN(vol) && vol >= 0 && vol <= 1) element.volume = vol;
-    const muted = gpGet("msp.muted");
-    if (muted === "1") element.muted = true;
-    const rate = Number(gpGet("msp.rate") || "");
-    const opts = Array.isArray((state.config?.features || {}).speedOptions) ? state.config.features.speedOptions : null;
-    if (!Number.isNaN(rate) && rate > 0.1 && rate <= 4) {
-      if (opts && opts.length) {
-        const has = opts.some(x => Number(x) === rate);
-        if (has) element.playbackRate = rate;
-      } else {
-        element.playbackRate = rate;
-      }
-    }
-  } catch { }
-  const opts = {};
-
-  // 配置控件，确保字幕按钮显示
-  // Plyr 会自动从 video.textTracks 读取内封字幕
-  opts.controls = [
-    'play-large',
-    'play',
-    'progress',
-    'current-time',
-    'duration',
-    'mute',
-    'volume',
-    'captions',  // 字幕切换按钮
-    'settings',  // 设置菜单（包含字幕语言选择）
-    'fullscreen'
-  ];
-
-  if (features.speed) {
-    opts.speed = { selected: 1, options: Array.isArray(features.speedOptions) && features.speedOptions.length ? features.speedOptions : [0.5, 0.75, 1, 1.25, 1.5, 2] };
-  }
-
-  // 视频始终启用字幕功能（只要有字幕轨道就会显示按钮）
-  if (isVideoElement) {
-    opts.captions = { active: true, update: true, language: "auto" };
-  }
-
-  // 启用设置菜单，包含字幕、质量、速度和循环选项
-  opts.settings = ['captions', 'quality', 'speed', 'loop'];
-
-  opts.fullscreen = { enabled: true, fallback: true };
-  opts.storage = { enabled: !!canStorage() };
-  opts.tooltips = { controls: true, seek: true };
-  try { opts.keyboard = { focused: true, global: true }; } catch { }
-  state.plyr = new Plyr(element, opts);
-  state.plyr.on("ended", onMediaEnded);
-
-  // Watchdog: Detect if playback stalls near the end (browser failed to fire 'ended')
-  let lastProgressTime = Date.now();
-  state.plyr.on("timeupdate", (event) => {
-    const instance = event.detail.plyr;
-    if (!instance.paused && !instance.seeking) {
-      lastProgressTime = Date.now();
-    }
-  });
-
-  // Heartbeat Watchdog:
-  // Detect if playback has frozen (decoder stall, network end, or metadata mismatch).
-  // We DO NOT rely on duration because backend doesn't provide it reliably.
-  // Logic: If playing, and currentTime hasn't moved for 15 seconds -> End it.
-  const stallCheckTimer = setInterval(() => {
-    if (!state.plyr || state.plyr.media !== element) {
-      clearInterval(stallCheckTimer);
-      return;
-    }
-
-    // Only run check if we claim to be playing AND have enough data to play
-    // readyState >= 3 (HAVE_FUTURE_DATA) means we should be moving.
-    // Increased timeout to 15s to allow for slow FFmpeg startup time.
-    if (!element.paused && !element.seeking && element.readyState >= 3) {
-      const now = Date.now();
-      // If no progress for 15 seconds
-      if (now - lastProgressTime > 15000) {
-        console.warn(`Playback heartbeat stopped for 15s (Time: ${element.currentTime.toFixed(2)}) - forcing end state`);
-        onMediaEnded();
-      }
-    } else {
-      // Reset heartbeat if paused/seeking/buffering to prevent false positives
-      lastProgressTime = Date.now();
-    }
-  }, 1000);
-
-  // Smart Seeking for Transcoded Streams
-  // ENABLED: Required for seeking in non-native formats (MKV, AVI, etc.) when transcoding is active.
-  // The backend uses FFmpeg to generate a new stream from the requested offset.
-
-  // Logic updated: Check if we are CURRENTLY transcoding
-  // We determine this by checking the current source URL for "transcode=1"
-  // OR if we are about to switch to a known hostile format (fallback for initial load)
-
-  // Actually, since we now try Direct Play first for EVERYTHING,
-  // we only need Smart Seeking if the CURRENT active stream is a transcode stream.
-  // We can attach the listener dynamically, or check inside the listener.
-  // Let's check inside.
-
-  {
-    let lastSeekTime = 0;
-    state.plyr.on("seeking", () => {
-      // 1. Check if current source is a transcode stream
-      const currentSrc = element.currentSrc || element.src || "";
-      if (!currentSrc.includes("transcode=1")) return;
-
-      const now = Date.now();
-      if (now - lastSeekTime < 1000) return; // Debounce
-      const targetTime = element.currentTime;
-      if (targetTime < 0.1) return; // Ignore reset to 0
-
-      // Only trigger smart seeking if the player supports it (avoid infinite loops)
-      // Check if we are already near the target (standard seeking works?)
-      // Actually, for transcoding streams, standard seeking usually fails or resets.
-
-      logRemote("info", `Transcode seek detected: target=${targetTime}`);
-      lastSeekTime = now;
-
-      // Reload source with start parameter AND transcode flag
-      const url = streamUrl(state.current.id, targetTime) + "&transcode=1";
-
-      // We need to pause, change src, and resume.
-      const isPaused = element.paused;
-
-      // Update source based on kind
-      const newSource = {
-        type: isVideoElement ? "video" : "audio",
-        title: state.current.name || "",
-        sources: [{ src: url, type: isVideoElement ? "video/mp4" : "audio/mpeg" }],
-      };
-
-      if (isVideoElement) {
-        newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
-        newSource.tracks = (state.current.subtitles || []).map(s => ({
-          kind: "subtitles",
-          label: s.label || "字幕",
-          srclang: s.lang || "zh",
-          src: s.src || streamUrl(s.id),
-          default: !!s.default
-        }));
-      }
-
-      state.plyr.source = newSource;
-
-      state.plyr.once("ready", () => {
-        // Important: set currentTime to target to keep UI consistent, 
-        // though the stream itself starts from 'start' param (0 in stream time, but effective offset)
-        // Note: FFmpeg -ss output usually resets timestamps unless -copyts is used.
-        // Backend currently uses -copyts (checked in transcoder.go), so setting currentTime is correct.
-        element.currentTime = targetTime;
-        if (!isPaused) state.plyr.play().catch(() => { });
-      });
-    });
-  }
-
-  try {
-    const wrap = element.closest?.(".plyr");
-    if (wrap) wrap.style.display = "block";
-  } catch { }
-  try {
-    if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
-      state.plyr.on("enterfullscreen", () => {
-        try { element.dataset.fit = "cover"; } catch { }
-        try {
-          const fitBtn = el("btnToggleFit");
-          fitBtn.textContent = t("fit_cover");
-        } catch { }
-      });
-      state.plyr.on("exitfullscreen", () => {
-        try { element.dataset.fit = "contain"; } catch { }
-        try {
-          const fitBtn = el("btnToggleFit");
-          fitBtn.textContent = t("fit_contain");
-        } catch { }
-      });
-    }
-  } catch { }
-  window.plyrPlayer = state.plyr;
-  window.callPlyr = (method, ...args) => {
-    if (!state.plyr) throw new Error("Plyr 未初始化");
-    const fn = state.plyr[method];
-    if (typeof fn !== "function") throw new Error("不支持的 Plyr 方法: " + method);
-    return fn.apply(state.plyr, args);
-  };
-  try {
-    element.addEventListener("volumechange", () => {
-      gpSet("msp.volume", String(element.volume || 1), 500); // Debounce volume
-      gpSet("msp.muted", element.muted ? "1" : "0", 500);
-    });
-  } catch { }
-  try {
-    element.addEventListener("ratechange", () => {
-      try { gpSet("msp.rate", String(element.playbackRate || 1)); } catch { }
-    });
-  } catch { }
-  try {
-    if (String(element?.tagName || "").toUpperCase() === "VIDEO") {
-      const applyCaptionPref = () => {
-        try {
-          const tt = element.textTracks;
-          const n = tt ? tt.length : 0;
-          const mid = String(state.current?.id || "");
-          const idxPref = Number(gpGet(mid ? ("msp.subTrack." + mid) : "msp.subTrack") || "");
-          const activePref = gpGet(mid ? ("msp.subActive." + mid) : "msp.subActive");
-          const idx = (!Number.isNaN(idxPref) && idxPref >= 0 && idxPref < n) ? idxPref : 0;
-          if (state.plyr && typeof state.plyr.currentTrack === "number") state.plyr.currentTrack = idx;
-          if (tt && n > 0) {
-            for (let i = 0; i < n; i++) tt[i].mode = "disabled";
-            tt[idx].mode = (activePref === "0") ? "disabled" : "showing";
-            if (state.plyr && state.plyr.captions) state.plyr.captions.active = activePref !== "0";
-          }
-        } catch { }
-      };
-      setTimeout(applyCaptionPref, 150);
-      let lastIdx = -1;
-      let lastActive = "";
-      state.plyrPersistTimer = setInterval(() => {
-        try {
-          let idx = -1;
-          let active = "";
-          if (state.plyr && typeof state.plyr.currentTrack === "number") idx = Number(state.plyr.currentTrack);
-          if (state.plyr && state.plyr.captions) active = state.plyr.captions.active ? "1" : "0";
-          const mid = String(state.current?.id || "");
-          const tKey = mid ? ("msp.subTrack." + mid) : "msp.subTrack";
-          const aKey = mid ? ("msp.subActive." + mid) : "msp.subActive";
-          if (idx !== lastIdx && idx >= 0) { gpSet(tKey, String(idx)); lastIdx = idx; }
-          if (active !== lastActive && active) { gpSet(aKey, active); lastActive = active; }
-        } catch { }
-      }, 2000);
-    }
-  } catch { }
-
-  // 音轨检测和切换功能
-  // 使用原生 HTML5 audioTracks API（如果浏览器支持）
-  setupAudioTrackHandling(element);
-}
-
-// 设置音轨和字幕处理
-// 使用原生 HTML5 API，因为 Plyr 对音轨和内封字幕的支持有限
-function setupAudioTrackHandling(videoEl) {
-  if (!videoEl || videoEl.tagName !== "VIDEO") return;
-
-  // 在 loadedmetadata 时检测音轨和内封字幕
-  videoEl.addEventListener("loadedmetadata", () => {
-    // 检测音轨
-    if (videoEl.audioTracks) {
-      const audioTracks = videoEl.audioTracks;
-      if (audioTracks && audioTracks.length > 1) {
-        console.log(`检测到 ${audioTracks.length} 个音轨:`);
-        for (let i = 0; i < audioTracks.length; i++) {
-          const track = audioTracks[i];
-          console.log(`  [${i}] ${track.label || "未命名"} (${track.language || "未知语言"})${track.enabled ? " [当前]" : ""}`);
-        }
-
-        // 尝试恢复用户上次选择的音轨
-        const mid = String(state.current?.id || "");
-        const savedTrackIdx = gpGet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack");
-        if (savedTrackIdx !== null && savedTrackIdx !== undefined) {
-          const idx = Number(savedTrackIdx);
-          if (!Number.isNaN(idx) && idx >= 0 && idx < audioTracks.length) {
-            for (let i = 0; i < audioTracks.length; i++) {
-              audioTracks[i].enabled = (i === idx);
-            }
-          }
-        }
-      }
-    }
-
-    // 检测内封字幕
-    const textTracks = videoEl.textTracks;
-    console.log(`字幕轨道检测: 找到 ${textTracks?.length || 0} 个轨道`);
-    if (textTracks && textTracks.length > 0) {
-      for (let i = 0; i < textTracks.length; i++) {
-        const track = textTracks[i];
-        console.log(`  [${i}] ${track.label || "未命名"} (${track.language || "未知语言"}) kind=${track.kind} mode=${track.mode}`);
-      }
-
-      // 尝试通过 Plyr API 刷新字幕菜单
-      if (state.plyr) {
-        try {
-          // 触发 captions 更新事件
-          state.plyr.emit('captionsenabled');
-        } catch (e) {
-          console.log("Plyr 字幕刷新失败:", e);
-        }
-      }
-    } else {
-      console.log("未检测到内封字幕轨道。注意: 浏览器对 MKV 内封字幕的支持有限，可能需要外挂字幕。");
-    }
-  });
-
-  // 监听音轨变化
-  if (videoEl.audioTracks) {
-    videoEl.audioTracks.addEventListener("change", () => {
-      const tracks = Array.from(videoEl.audioTracks);
-      const enabledTrack = tracks.find(t => t.enabled);
-      if (enabledTrack) {
-        console.log(`音轨切换至: ${enabledTrack.label || enabledTrack.language || "未知"}`);
-      }
-    });
-  }
-
-  // 定期保存当前音轨选择
-  let lastAudioTrackIdx = -1;
-  setInterval(() => {
-    try {
-      const tracks = videoEl.audioTracks;
-      if (!tracks || tracks.length <= 1) return;
-
-      let currentIdx = -1;
-      for (let i = 0; i < tracks.length; i++) {
-        if (tracks[i].enabled) {
-          currentIdx = i;
-          break;
-        }
-      }
-
-      if (currentIdx !== lastAudioTrackIdx && currentIdx >= 0) {
-        const mid = String(state.current?.id || "");
-        gpSet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack", String(currentIdx));
-        lastAudioTrackIdx = currentIdx;
-      }
-    } catch { }
-  }, 3000);
-}
-
-// 手动切换音轨的 API（供外部调用）
-export function switchAudioTrack(trackIndex) {
-  const videoEl = el("videoEl");
-  if (!videoEl || !videoEl.audioTracks) return false;
-
-  const tracks = videoEl.audioTracks;
-  if (trackIndex < 0 || trackIndex >= tracks.length) return false;
-
-  for (let i = 0; i < tracks.length; i++) {
-    tracks[i].enabled = (i === trackIndex);
-  }
-
-  // 保存选择
-  const mid = String(state.current?.id || "");
-  gpSet(mid ? (`msp.audioTrack.${mid}`) : "msp.audioTrack", String(trackIndex));
-
-  return true;
-}
-
-// 获取当前音轨信息
-export function getAudioTracks() {
-  const videoEl = el("videoEl");
-  if (!videoEl || !videoEl.audioTracks) return [];
-
-  return Array.from(videoEl.audioTracks).map((track, index) => ({
-    index,
-    label: track.label || "未命名",
-    language: track.language || "未知",
-    enabled: track.enabled
-  }));
 }
 
 export function playItem(item, opts) {
@@ -836,7 +134,6 @@ export function playItem(item, opts) {
   state.tab = item.kind;
   logRemote("info", `Playing item: ${item.name} (${item.id})`);
 
-  // Restore volume
   const savedVol = gpGet(LS.volume);
   if (savedVol && (item.kind === "audio" || item.kind === "video")) {
     const mediaEl = el(item.kind === "audio" ? "audioEl" : "videoEl");
@@ -908,7 +205,6 @@ export function playItem(item, opts) {
     } catch { }
   }
 
-  // ONLY build a new playlist if the user clicked from the main list (not from playlist panel/nav)
   if (options.user && !options.fromPlaylist && getCfg("features.playlist", true)) {
     const pl = buildPlaylist(item, item.kind);
     if (pl.items.length) {
@@ -956,8 +252,10 @@ export function playItem(item, opts) {
 
     audio.removeEventListener("ended", onMediaEnded);
     audio.addEventListener("ended", onMediaEnded);
+    setupErrorHandler(audio, onMediaEnded);
 
-    applyPlyr(audio);
+    applyPlyr(audio, onMediaEnded);
+    setupAudioTrackHandling(audio);
     try { audio.load(); } catch { }
 
     if (options.autoplay) {
@@ -981,8 +279,6 @@ export function playItem(item, opts) {
     const onTimeUpdate = (ev) => {
       if (!state.current || state.current.kind !== "audio") return;
 
-      // Fix for audio stopping early: if within 0.5s of end and playing, force end
-      // This helps when browser/decoder misses the 'ended' event or duration is slightly off
       const t = audio.currentTime || 0;
       const d = audio.duration || 0;
       if (d > 0 && d - t < 0.5 && !audio.paused) {
@@ -1014,7 +310,6 @@ export function playItem(item, opts) {
     requestAnimationFrame(() => {
       meta.style.transition = "opacity 0.25s ease";
       meta.style.opacity = "1";
-      // Firefox 兼容性：强制重绘以避免 opacity transition 导致的黑块
       if (typeof navigator !== "undefined" && navigator.userAgent.includes("Firefox")) {
         meta.style.transform = "translateZ(0)";
       }
@@ -1043,12 +338,9 @@ export function playItem(item, opts) {
   }
 
   if (item.kind === "video") {
-    // In video switch scenario with Plyr active, use Plyr's media element
-    // Otherwise, get the original DOM element
     let video = el("videoEl");
 
     if (isVideoSwitch && state.plyr && state.plyr.media) {
-      // Plyr wraps/replaces the original video element, so use its managed media
       video = state.plyr.media;
     }
 
@@ -1069,9 +361,6 @@ export function playItem(item, opts) {
         state.plyr.off("ended", onMediaEnded);
 
         try {
-          // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
-          // Only AVI needs pre-emptive transcode because browsers will show download dialog.
-          // Other formats should try direct play first, let error handler fallback to transcode.
           const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
 
           let src = streamUrl(item.id);
@@ -1152,9 +441,6 @@ export function playItem(item, opts) {
 
     resetMediaEl(video);
 
-    // Smart Playback Strategy (v0.8.4+): Try-First, Fallback-Next
-    // Only AVI needs pre-emptive transcode because browsers will show download dialog.
-    // Other formats should try direct play first, let error handler fallback to transcode.
     const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
 
     let src = streamUrl(item.id);
@@ -1167,7 +453,9 @@ export function playItem(item, opts) {
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
     updateFitBtnFromVideo(video);
-    applyPlyr(video);
+    setupErrorHandler(video, onMediaEnded);
+    applyPlyr(video, onMediaEnded);
+    setupAudioTrackHandling(video);
     try { video.load(); } catch { }
 
     if (options.autoplay) {
@@ -1195,7 +483,7 @@ export function playItem(item, opts) {
 }
 
 export function bindGlobalHotkeys() {
-  const onKey = (ev) => {
+  const onKey = async (ev) => {
     const active = document.activeElement;
     if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
     if (!state.current) return;
@@ -1223,7 +511,6 @@ export function bindGlobalHotkeys() {
       return;
     }
 
-    // Seek -/+ 10s
     if (k === "ArrowLeft" || k === "ArrowRight") {
       if (media && (act.kind === "video" || act.kind === "audio")) {
         handled();
@@ -1235,7 +522,6 @@ export function bindGlobalHotkeys() {
       return;
     }
 
-    // Volume Up/Down
     if (k === "ArrowUp" || k === "ArrowDown") {
       if (media && (act.kind === "video" || act.kind === "audio")) {
         handled();
@@ -1250,7 +536,6 @@ export function bindGlobalHotkeys() {
       return;
     }
 
-    // Mute toggle
     if (k.toLowerCase() === "m") {
       if (media && (act.kind === "video" || act.kind === "audio")) {
         handled();

@@ -6,21 +6,21 @@ import (
 	"strings"
 
 	"msp/internal/config"
-	"msp/internal/types"
+	"msp/internal/domain"
+	"msp/internal/scanner"
 )
 
-// BuildMediaResponse 扫描共享目录并构建媒体列表响应。
-func BuildMediaResponse(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) types.MediaResponse {
-	resp := types.MediaResponse{
-		Shares: make([]config.Share, len(shares)),
-		Videos: []types.MediaItem{},
-		Audios: []types.MediaItem{},
-		Images: []types.MediaItem{},
-		Others: []types.MediaItem{},
+func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) domain.MediaResponse {
+	resp := domain.MediaResponse{
+		Shares: make([]domain.Share, len(shares)),
+		Videos: []domain.MediaItem{},
+		Audios: []domain.MediaItem{},
+		Images: []domain.MediaItem{},
+		Others: []domain.MediaItem{},
 	}
 	copy(resp.Shares, shares)
 
-	cb := func(item types.MediaItem, _, _ string) error {
+	cb := func(item domain.MediaItem, _, _ string) error {
 		switch item.Kind {
 		case "video":
 			resp.Videos = append(resp.Videos, item)
@@ -34,9 +34,9 @@ func BuildMediaResponse(ctx context.Context, shares []config.Share, blacklist co
 		return nil
 	}
 
-	_ = WalkShares(ctx, shares, blacklist, maxItems, cb)
+	_ = scanner.WalkShares(ctx, shares, blacklist, maxItems, cb)
 
-	sortItems := func(items []types.MediaItem) {
+	sortItems := func(items []domain.MediaItem) {
 		sort.Slice(items, func(i, j int) bool {
 			if items[i].ShareLabel != items[j].ShareLabel {
 				return items[i].ShareLabel < items[j].ShareLabel

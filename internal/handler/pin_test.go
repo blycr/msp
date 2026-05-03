@@ -9,24 +9,21 @@ import (
 	"testing"
 
 	"msp/internal/config"
-	"msp/internal/db"
 	"msp/internal/server"
+	"msp/internal/storage"
 )
 
 func TestPINAuthentication(t *testing.T) {
-	// Create a temporary directory for the test config
 	tmpDir, err := os.MkdirTemp("", "msp-test-")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
-		db.Close() // Close DB before removing temp dir
 		_ = os.RemoveAll(tmpDir)
 	}()
 
 	configPath := tmpDir + "/test_config.json"
 
-	// Create a test server with PIN enabled
 	s := server.New(configPath)
 	err = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.PINEnabled = true
@@ -36,22 +33,19 @@ func TestPINAuthentication(t *testing.T) {
 		t.Fatalf("Failed to update config: %v", err)
 	}
 
-	h := New(s)
+	store := storage.NewStore(nil)
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 
-	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/config", h.HandleConfig)
 	mux.HandleFunc("/api/media", h.HandleMedia)
 	mux.HandleFunc("/api/pin", h.HandlePIN)
 
-	// Wrap with security middleware
-	secureHandler := WithSecurity(s, mux)
+	secureHandler := WithSecurity(s, s, s, mux)
 
-	// Create a test server
-	server := httptest.NewServer(secureHandler)
-	defer server.Close()
+	srv := httptest.NewServer(secureHandler)
+	defer srv.Close()
 
-	// Create HTTP client with cookie jar
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		t.Fatalf("Failed to create cookie jar: %v", err)
@@ -61,7 +55,7 @@ func TestPINAuthentication(t *testing.T) {
 	}
 
 	t.Run("Access config without auth", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/api/config")
+		resp, err := client.Get(srv.URL + "/api/config")
 		if err != nil {
 			t.Fatalf("Failed to get config: %v", err)
 		}
@@ -73,7 +67,7 @@ func TestPINAuthentication(t *testing.T) {
 	})
 
 	t.Run("Access media without auth", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/api/media")
+		resp, err := client.Get(srv.URL + "/api/media")
 		if err != nil {
 			t.Fatalf("Failed to get media: %v", err)
 		}
@@ -85,7 +79,7 @@ func TestPINAuthentication(t *testing.T) {
 	})
 
 	t.Run("Login with wrong PIN", func(t *testing.T) {
-		resp, err := client.Post(server.URL+"/api/pin", "application/json", strings.NewReader(`{"pin":"wrong"}`))
+		resp, err := client.Post(srv.URL+"/api/pin", "application/json", strings.NewReader(`{"pin":"wrong"}`))
 		if err != nil {
 			t.Fatalf("Failed to post PIN: %v", err)
 		}
@@ -97,7 +91,7 @@ func TestPINAuthentication(t *testing.T) {
 	})
 
 	t.Run("Login with correct PIN", func(t *testing.T) {
-		resp, err := client.Post(server.URL+"/api/pin", "application/json", strings.NewReader(`{"pin":"1234"}`))
+		resp, err := client.Post(srv.URL+"/api/pin", "application/json", strings.NewReader(`{"pin":"1234"}`))
 		if err != nil {
 			t.Fatalf("Failed to post PIN: %v", err)
 		}
@@ -107,7 +101,6 @@ func TestPINAuthentication(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		// Check if cookie was set
 		cookies := jar.Cookies(resp.Request.URL)
 		found := false
 		for _, c := range cookies {
@@ -117,12 +110,12 @@ func TestPINAuthentication(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Error("Session cookie not set")
+			t.Error("Session cookie not found")
 		}
 	})
 
 	t.Run("Access media with auth", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/api/media")
+		resp, err := client.Get(srv.URL + "/api/media")
 		if err != nil {
 			t.Fatalf("Failed to get media: %v", err)
 		}

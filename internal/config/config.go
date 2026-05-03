@@ -1,6 +1,18 @@
 package config
 
-import "msp/internal/constants"
+import (
+	"time"
+
+	"msp/internal/constants"
+	"msp/internal/domain"
+)
+
+// Default configuration constants
+const (
+	DefaultPort                = 8099
+	DefaultMediaCacheTTL       = 2 * time.Minute
+	DefaultConfigCheckInterval = 2 * time.Second
+)
 
 type Features struct {
 	Speed        bool      `json:"speed"`
@@ -8,11 +20,6 @@ type Features struct {
 	Quality      bool      `json:"quality"`
 	Captions     bool      `json:"captions"`
 	Playlist     bool      `json:"playlist"`
-}
-
-type Share struct {
-	Label string `json:"label"`
-	Path  string `json:"path"`
 }
 
 type UIConfig struct {
@@ -90,7 +97,7 @@ type SecurityConfig struct {
 
 type Config struct {
 	Port      int             `json:"port"`
-	Shares    []Share         `json:"shares"`
+	Shares    []domain.Share  `json:"shares"`
 	Features  Features        `json:"features"`
 	UI        UIConfig        `json:"ui"`
 	Playback  PlaybackConfig  `json:"playback"`
@@ -110,7 +117,7 @@ func Default() Config {
 	return Config{
 		Port:     constants.DefaultPort,
 		MaxItems: 0, // 0 means unlimited (full scan), ideal for SQLite-backed incremental scanning
-		Shares:   []Share{},
+		Shares:   []domain.Share{},
 		Features: Features{
 			Speed:        true,
 			SpeedOptions: []float64{0.5, 0.75, 1, 1.25, 1.5, 2},
@@ -183,7 +190,7 @@ func applyBaseDefaults(cfg *Config) bool {
 		changed = true
 	}
 	if cfg.Shares == nil {
-		cfg.Shares = []Share{}
+		cfg.Shares = []domain.Share{}
 		changed = true
 	}
 	if cfg.LogLevel == "" {

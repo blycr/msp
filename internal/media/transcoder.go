@@ -16,6 +16,12 @@ import (
 // Limit to 2 concurrent sessions to prevent CPU starvation
 var transcodeLimit = make(chan struct{}, 2)
 
+// activeProcesses tracks running ffmpeg processes for graceful shutdown
+var (
+	activeProcesses   = make(map[*exec.Cmd]struct{})
+	activeProcessesMu sync.Mutex
+)
+
 // SetTranscodeLimit replaces the global semaphore with one of the given size.
 // Must be called before any transcode requests (typically at startup).
 func SetTranscodeLimit(n int) {
@@ -24,6 +30,19 @@ func SetTranscodeLimit(n int) {
 	}
 	transcodeLimit = make(chan struct{}, n)
 	log.Printf("[INFO] Transcode concurrency limit set to %d", n)
+}
+
+// KillAllTranscodeProcesses kills all active ffmpeg processes for graceful shutdown
+func KillAllTranscodeProcesses() {
+	activeProcessesMu.Lock()
+	defer activeProcessesMu.Unlock()
+
+	for cmd := range activeProcesses {
+		if cmd.Process != nil {
+			log.Printf("[INFO] Killing ffmpeg process %d", cmd.Process.Pid)
+			_ = cmd.Process.Kill()
+		}
+	}
 }
 
 // TranscodeOptions 定义转码参数
@@ -90,59 +109,6 @@ func (l *limitReleaser) Close() error {
 		<-transcodeLimit
 	})
 	return l.ReadCloser.Close()
-}
-
-// CodecInfo 存储媒体编码信息
-type CodecInfo struct {
-	VideoCodec string
-	AudioCodec string
-}
-
-// CheckFFmpeg 探测 ffmpeg 是否安装
-func CheckFFmpeg() bool {
-	_, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		log.Printf("[WARN] FFmpeg not found in PATH")
-	}
-	return err == nil
-}
-
-// CheckFFprobe 探测 ffprobe 是否安装
-func CheckFFprobe() bool {
-	_, err := exec.LookPath("ffprobe")
-	return err == nil
-}
-
-// GetCodecInfo 使用 ffprobe 获取文件的编码信息
-func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
-	args := []string{
-		"-v", "error",
-		"-select_streams", "v:0",
-		"-show_entries", "stream=codec_name",
-		"-of", "default=noprint_wrappers=1:nokey=1",
-		inputPath,
-	}
-
-	var info CodecInfo
-
-	// 获取视频编码
-	//nolint:gosec // Safe subprocess args
-	cmdV := exec.CommandContext(ctx, "ffprobe", args...)
-	outV, err := cmdV.Output()
-	if err == nil {
-		info.VideoCodec = strings.TrimSpace(string(outV))
-	}
-
-	// 获取音频编码
-	args[2] = "a:0"
-	//nolint:gosec // Safe subprocess args
-	cmdA := exec.CommandContext(ctx, "ffprobe", args...)
-	outA, err := cmdA.Output()
-	if err == nil {
-		info.AudioCodec = strings.TrimSpace(string(outA))
-	}
-
-	return info, nil
 }
 
 // TranscodeStream 执行智能转码输出
@@ -246,23 +212,37 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	//nolint:gosec // Safe subprocess args
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
+	// Track process for graceful shutdown
+	activeProcessesMu.Lock()
+	activeProcesses[cmd] = struct{}{}
+	activeProcessesMu.Unlock()
+
 	// 捕获 stderr 用于调试
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		removeProcess(cmd)
 		return nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
+		removeProcess(cmd)
 		return nil, fmt.Errorf("ffmpeg start error: %w (stderr: %s)", err, stderr.String())
 	}
 
 	go func() {
 		_ = cmd.Wait()
+		removeProcess(cmd)
 	}()
 
 	success = true
 	return &limitReleaser{ReadCloser: stdout}, nil
+}
+
+func removeProcess(cmd *exec.Cmd) {
+	activeProcessesMu.Lock()
+	delete(activeProcesses, cmd)
+	activeProcessesMu.Unlock()
 }

@@ -1,15 +1,13 @@
-package media
+package scanner
 
 import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"msp/internal/config"
-	"msp/internal/types"
-	"msp/internal/util"
+	"msp/internal/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -325,7 +323,7 @@ func TestWalkShares(t *testing.T) {
 	require.NoError(t, os.MkdirAll(hiddenDir, 0750))
 	require.NoError(t, os.WriteFile(filepath.Join(hiddenDir, "secret.mp4"), []byte("secret"), 0600))
 
-	shares := []config.Share{
+	shares := []domain.Share{
 		{Path: videoDir, Label: "Videos"},
 		{Path: audioDir, Label: "Music"},
 	}
@@ -333,8 +331,8 @@ func TestWalkShares(t *testing.T) {
 	blacklist := config.BlacklistConfig{}
 
 	t.Run("遍历所有共享目录", func(t *testing.T) {
-		var items []types.MediaItem
-		cb := func(item types.MediaItem, path string, root string) error {
+		var items []domain.MediaItem
+		cb := func(item domain.MediaItem, path string, root string) error {
 			items = append(items, item)
 			return nil
 		}
@@ -352,8 +350,8 @@ func TestWalkShares(t *testing.T) {
 	})
 
 	t.Run("限制数量", func(t *testing.T) {
-		var items []types.MediaItem
-		cb := func(item types.MediaItem, path string, root string) error {
+		var items []domain.MediaItem
+		cb := func(item domain.MediaItem, path string, root string) error {
 			items = append(items, item)
 			return nil
 		}
@@ -369,7 +367,7 @@ func TestWalkShares(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		var count int
-		cb := func(item types.MediaItem, path string, root string) error {
+		cb := func(item domain.MediaItem, path string, root string) error {
 			count++
 			if count >= 1 {
 				cancel() // 取消上下文
@@ -546,82 +544,5 @@ Second subtitle
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = SrtToVtt(srt)
-	}
-}
-
-// 平台特定测试
-
-func TestWithinRoot(t *testing.T) {
-	tests := []struct {
-		name     string
-		root     string
-		target   string
-		expected bool
-	}{
-		{
-			name:     "在根目录内",
-			root:     "/media/videos",
-			target:   "/media/videos/movie.mp4",
-			expected: true,
-		},
-		{
-			name:     "在子目录内",
-			root:     "/media",
-			target:   "/media/videos/movie.mp4",
-			expected: true,
-		},
-		{
-			name:     "在根目录外",
-			root:     "/media/videos",
-			target:   "/media/music/song.mp3",
-			expected: false,
-		},
-		{
-			name:     "目录遍历尝试",
-			root:     "/media/videos",
-			target:   "/media/videos/../music/song.mp3",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := util.WithinRoot(tt.root, tt.target)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// Windows 特定测试
-func TestWithinRootWindows(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("Windows 特定测试")
-	}
-
-	tests := []struct {
-		name     string
-		root     string
-		target   string
-		expected bool
-	}{
-		{
-			name:     "Windows 路径",
-			root:     `C:\media\videos`,
-			target:   `C:\media\videos\movie.mp4`,
-			expected: true,
-		},
-		{
-			name:     "Windows 大小写不敏感",
-			root:     `C:\Media\Videos`,
-			target:   `c:\media\videos\movie.mp4`,
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := util.WithinRoot(tt.root, tt.target)
-			assert.Equal(t, tt.expected, result)
-		})
 	}
 }

@@ -2,74 +2,40 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"hash/fnv"
-	"log"
-	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"runtime/debug"
-	"sort"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"msp/internal/cache"
 	"msp/internal/config"
-	"msp/internal/constants"
-	"msp/internal/db"
-	"msp/internal/media"
-	"msp/internal/types"
-	"msp/internal/util"
+	"msp/internal/domain"
+	"msp/internal/service"
 )
 
 type Server struct {
 	mu         sync.RWMutex
 	cfg        config.Config
 	cfgPath    string
-	cfgModTime time.Time // Last modification time of config file
+	cfgModTime time.Time
 
-	mediaCachePath string
-
-	mediaMu       sync.Mutex
-	mediaCond     *sync.Cond
-	mediaKey      string
-	mediaBuiltAt  time.Time
-	mediaTTL      time.Duration
-	mediaRespJSON []byte
-	mediaETag     string
-	mediaBuilding bool
-
-	seenIPs sync.Map
-	logMu   sync.Mutex
-	logFile *os.File
-	logCnt  int32
-
-	// Session management for PIN authentication
-	sessionMu sync.RWMutex
-	sessions  map[string]time.Time // token -> expiry time
+	MediaSvc *service.MediaService
+	session  *service.SessionService
+	logger   *service.LoggerService
 }
-
-const (
-	LogLevelDebug = "debug"
-	LogLevelInfo  = "info"
-	LogLevelError = "error"
-	LogLevelNone  = "none"
-)
 
 func New(cfgPath string) *Server {
 	s := &Server{
-		cfgPath:        cfgPath,
-		mediaCachePath: cfgPath + ".media_cache.json",
-		sessions:       make(map[string]time.Time),
+		cfgPath: cfgPath,
+		session: service.NewSessionService(),
 	}
-	s.mediaTTL = constants.MediaCacheTTL
-	s.mediaCond = sync.NewCond(&s.mediaMu)
+	s.logger = service.NewLoggerService("", "")
+	s.MediaSvc = service.NewMediaService(
+		cache.NewMediaCache(cache.FormatMediaCachePath(cfgPath), config.DefaultMediaCacheTTL),
+		s,
+	)
 	return s
 }
 
@@ -86,7 +52,6 @@ func (s *Server) LoadOrInitConfig() error {
 		return s.saveConfigLocked()
 	}
 
-	// Get file modification time
 	stat, err := os.Stat(s.cfgPath)
 	if err == nil {
 		s.mu.Lock()
@@ -105,7 +70,7 @@ func (s *Server) LoadOrInitConfig() error {
 	s.cfg = cfg
 	s.mu.Unlock()
 	if changed {
-		s.Log(LogLevelInfo, "Config updated with default values and saved to disk")
+		s.Log("info", "Config updated with default values and saved to disk")
 		return s.saveConfigLocked()
 	}
 	return nil
@@ -137,9 +102,8 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 	return s.saveConfigLocked()
 }
 
-// WatchConfig monitors the config file for changes and reloads it automatically
 func (s *Server) WatchConfig(ctx context.Context) {
-	ticker := time.NewTicker(constants.ConfigCheckInterval)
+	ticker := time.NewTicker(config.DefaultConfigCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -147,480 +111,89 @@ func (s *Server) WatchConfig(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			stat, err := os.Stat(s.cfgPath)
-			if err != nil {
-				continue
-			}
-
-			s.mu.RLock()
-			lastModTime := s.cfgModTime
-			s.mu.RUnlock()
-
-			// Check if file has been modified
-			if stat.ModTime().After(lastModTime) {
-				s.Log("info", "Config file changed, reloading...")
-
-				// Read and parse new config
-				b, err := os.ReadFile(s.cfgPath)
-				if err != nil {
-					s.Log("error", fmt.Sprintf("Failed to read config file: %v", err))
-					continue
-				}
-
-				var cfg config.Config
-				if err := json.Unmarshal(b, &cfg); err != nil {
-					s.Log("error", fmt.Sprintf("Failed to parse config file: %v", err))
-					continue
-				}
-
-				config.ApplyDefaults(&cfg)
-
-				// Update config
-				s.mu.Lock()
-				s.cfg = cfg
-				s.cfgModTime = stat.ModTime()
-				s.mu.Unlock()
-
-				s.Log("info", "Config reloaded successfully")
-			}
+			s.checkAndReloadConfig()
 		}
 	}
+}
+
+func (s *Server) checkAndReloadConfig() {
+	stat, err := os.Stat(s.cfgPath)
+	if err != nil {
+		return
+	}
+
+	s.mu.RLock()
+	lastModTime := s.cfgModTime
+	s.mu.RUnlock()
+
+	if !stat.ModTime().After(lastModTime) {
+		return
+	}
+
+	b, err := os.ReadFile(s.cfgPath)
+	if err != nil {
+		s.Log("error", "Failed to read config file: "+err.Error())
+		return
+	}
+
+	var cfg config.Config
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		s.Log("error", "Failed to parse config file: "+err.Error())
+		return
+	}
+
+	config.ApplyDefaults(&cfg)
+
+	s.mu.Lock()
+	s.cfg = cfg
+	s.cfgModTime = stat.ModTime()
+	s.mu.Unlock()
+
+	s.logger.UpdateConfig(cfg.LogLevel, cfg.LogFile)
+	s.Log("info", "Config reloaded successfully")
 }
 
 func (s *Server) SetupLogger() {
-	s.mu.Lock()
-	if s.cfg.LogFile == "" {
-		s.cfg.LogFile = filepath.Join(util.MustExeDir(), "logs", "msp.log")
-	}
-	logFile := s.cfg.LogFile
-	s.mu.Unlock()
-
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(logFile), 0750); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
-		return
-	}
-
-	s.logMu.Lock()
-	defer s.logMu.Unlock()
-
-	if s.logFile != nil {
-		_ = s.logFile.Close()
-	}
-
-	//nolint:gosec // Log file path is controlled by config/CLI
-	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
-		return
-	}
-	s.logFile = f
-	log.SetOutput(f)
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	s.mu.RLock()
+	cfg := s.cfg
+	s.mu.RUnlock()
+	s.logger.UpdateConfig(cfg.LogLevel, cfg.LogFile)
+	s.logger.SetupLogger()
 }
 
 func (s *Server) Log(level string, msg string) {
-	s.mu.RLock()
-	cfgLevel := strings.ToLower(s.cfg.LogLevel)
-	s.mu.RUnlock()
-
-	// Level priority: error > info > debug
-	shouldLog := false
-	switch strings.ToLower(level) {
-	case LogLevelError:
-		shouldLog = cfgLevel != LogLevelNone
-	case LogLevelInfo:
-		shouldLog = cfgLevel == LogLevelInfo || cfgLevel == LogLevelDebug
-	case LogLevelDebug:
-		shouldLog = cfgLevel == LogLevelDebug
-	}
-
-	if shouldLog {
-		ts := time.Now().Format(constants.LogTimeFormat)
-		line := fmt.Sprintf("%s [%s] %s", ts, strings.ToUpper(level), msg)
-		log.Println(line)
-
-		// Rotate only every N logs or so to reduce Stat overhead
-		if cnt := atomic.AddInt32(&s.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
-			s.RotateLogIfNeeded()
-		}
-	}
-}
-
-func (s *Server) RotateLogIfNeeded() {
-	s.logMu.Lock()
-	defer s.logMu.Unlock()
-
-	if s.logFile == nil {
-		return
-	}
-
-	st, err := s.logFile.Stat()
-	if err != nil {
-		return
-	}
-
-	if st.Size() < constants.LogRotateSize {
-		return
-	}
-
-	_ = s.logFile.Close()
-	s.logFile = nil
-
-	s.mu.RLock()
-	path := s.cfg.LogFile
-	s.mu.RUnlock()
-
-	oldPath := path + ".1"
-	_ = os.Remove(oldPath)
-	_ = os.Rename(path, oldPath)
-
-	//nolint:gosec // Path already verified
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
-	if err == nil {
-		s.logFile = f
-		log.SetOutput(f)
-	}
+	s.logger.Log(level, msg)
 }
 
 func (s *Server) LogRequest(r *http.Request, status int, start time.Time) {
-	if status == 0 {
-		status = http.StatusOK
-	}
-	ua := strings.TrimSpace(r.UserAgent())
-	duration := time.Since(start).Milliseconds()
-
-	msg := fmt.Sprintf("%s %s status=%d ua=%s ms=%d", r.Method, r.URL.Path, status, ua, duration)
-
-	level := LogLevelInfo
-	if status >= 500 {
-		level = LogLevelError
-	}
-	s.Log(level, msg)
-
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if ip == "" {
-		ip = r.RemoteAddr
-	}
-	if ip != "" && ip != constants.LocalhostIPv4 && ip != constants.LocalhostIPv6 {
-		if _, seen := s.seenIPs.Load(ip); !seen {
-			s.seenIPs.Store(ip, true)
-			s.Log(LogLevelInfo, fmt.Sprintf("[NEW DEVICE] %s %s", ip, msg))
-		}
-	}
+	s.logger.LogRequest(r, status, start)
 }
 
 func (s *Server) GetPort() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.cfg.Port <= 0 {
-		return constants.DefaultPort
+		return config.DefaultPort
 	}
 	return s.cfg.Port
 }
 
+func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool) (domain.MediaResponse, string) {
+	return s.MediaSvc.GetOrBuildMediaCache(ctx, shares, blacklist, refresh)
+}
+
 func (s *Server) InvalidateMediaCache() {
-	s.mediaMu.Lock()
-	s.mediaKey = ""
-	s.mediaETag = ""
-	s.mediaBuiltAt = time.Time{}
-	s.mediaRespJSON = nil
-	s.mediaMu.Unlock()
-	_ = os.Remove(s.mediaCachePath)
+	s.MediaSvc.InvalidateMediaCache()
 }
 
-func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []config.Share, blacklist config.BlacklistConfig, refresh bool) (types.MediaResponse, string) {
-	key := mediaCacheKey(shares, blacklist)
-
-	s.mediaMu.Lock()
-	// 1. Check if we have valid memory cache
-	if s.mediaKey == key && !s.mediaBuiltAt.IsZero() && !refresh {
-		if time.Since(s.mediaBuiltAt) >= s.mediaTTL && !s.mediaBuilding {
-			s.mediaBuilding = true
-			s.mediaMu.Unlock()
-			// 在锁外启动重建，避免持有锁期间阻塞其他请求
-			go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
-			s.mediaMu.Lock()
-		}
-		var r types.MediaResponse
-		_ = json.Unmarshal(s.mediaRespJSON, &r)
-		etag := s.mediaETag
-		s.mediaMu.Unlock()
-		return r, etag
-	}
-
-	// 2. If already building, return current (partial/old) data
-	if s.mediaBuilding {
-		var r types.MediaResponse
-		_ = json.Unmarshal(s.mediaRespJSON, &r)
-		r.Scanning = true
-		etag := s.mediaETag
-		s.mediaMu.Unlock()
-		return r, etag
-	}
-
-	// 3. If refresh requested, trigger in background and return what we have
-	if refresh {
-		s.mediaBuilding = true
-		go s.rebuildMediaCache(context.Background(), key, shares, blacklist, s.cfg.MaxItems)
-		var r types.MediaResponse
-		_ = json.Unmarshal(s.mediaRespJSON, &r)
-		r.Scanning = true
-		etag := s.mediaETag
-		s.mediaMu.Unlock()
-		return r, etag
-	}
-
-	// 4. Try DB if not building and key changed or expired
-	if s.mediaKey != key {
-		s.mediaMu.Unlock()
-		if resp, builtAt, ok, _ := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
-			etag := weakETag(key, builtAt)
-			s.mediaMu.Lock()
-			s.mediaRespJSON, _ = json.Marshal(resp)
-			s.mediaKey = key
-			s.mediaBuiltAt = builtAt
-			s.mediaETag = etag
-			s.mediaMu.Unlock()
-			return resp, etag
-		}
-		s.mediaMu.Lock()
-	}
-
-	// 4. Need to build
-	s.mediaBuilding = true
-	s.mediaMu.Unlock()
-
-	resp, etag := s.buildMediaCacheAndUpdate(ctx, key, shares, blacklist, s.cfg.MaxItems)
-	return resp, etag
-}
-
-// buildMediaCacheAndUpdate 构建媒体缓存并更新内存状态。
-// 返回构建的响应和 ETag。
-func (s *Server) buildMediaCacheAndUpdate(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) (types.MediaResponse, string) {
-	var resp types.MediaResponse
-	builtAt := time.Now()
-	if db.DB != nil {
-		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
-		if err == nil && !bt.IsZero() {
-			resp = r
-			builtAt = bt
-		} else {
-			resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
-			builtAt = time.Now()
-		}
-	} else {
-		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
-	}
-	etag := weakETag(key, builtAt)
-
-	// Serialize to JSON bytes to save memory and serve faster
-	b, _ := json.Marshal(resp)
-
-	s.mediaMu.Lock()
-	s.mediaRespJSON = b
-	s.mediaKey = key
-	s.mediaBuiltAt = builtAt
-	s.mediaETag = etag
-	s.mediaBuilding = false
-	s.mediaCond.Broadcast()
-	s.mediaMu.Unlock()
-
-	if db.DB == nil {
-		go s.saveMediaCacheToDisk(key, builtAt, etag, resp)
-	}
-
-	// Trigger GC after heavy indexing
-	go debug.FreeOSMemory()
-
-	return resp, etag
-}
-
-func (s *Server) rebuildMediaCache(ctx context.Context, key string, shares []config.Share, blacklist config.BlacklistConfig, maxItems int) {
-	s.buildMediaCacheAndUpdate(ctx, key, shares, blacklist, maxItems)
-}
-
-func mediaCacheKey(shares []config.Share, blacklist config.BlacklistConfig) string {
-	var b strings.Builder
-	b.WriteString(sharesCacheKey(shares))
-
-	exts := normRuleList(blacklist.Extensions)
-	files := normRuleList(blacklist.Filenames)
-	folders := normRuleList(blacklist.Folders)
-
-	b.WriteString("blExt=")
-	b.WriteString(strings.Join(exts, ","))
-	b.WriteByte('\n')
-	b.WriteString("blFile=")
-	b.WriteString(strings.Join(files, ","))
-	b.WriteByte('\n')
-	b.WriteString("blFolder=")
-	b.WriteString(strings.Join(folders, ","))
-	b.WriteByte('\n')
-	b.WriteString("blSize=")
-	b.WriteString(strings.TrimSpace(strings.ToLower(blacklist.SizeRule)))
-	b.WriteByte('\n')
-
-	return b.String()
-}
-
-func normRuleList(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		v := strings.TrimSpace(s)
-		if v == "" {
-			continue
-		}
-		out = append(out, strings.ToLower(v))
-	}
-	sort.Strings(out)
-	return out
-}
-
-type mediaCacheOnDisk struct {
-	Key     string              `json:"key"`
-	BuiltAt int64               `json:"builtAt"`
-	ETag    string              `json:"etag"`
-	Resp    types.MediaResponse `json:"resp"`
-}
-
-func (s *Server) LoadMediaCacheFromDisk(key string) bool {
-	if db.DB != nil {
-		return false
-	}
-	s.mediaMu.Lock()
-	already := s.mediaKey == key && !s.mediaBuiltAt.IsZero()
-	need := s.mediaKey != key || s.mediaBuiltAt.IsZero()
-	s.mediaMu.Unlock()
-	if already || !need {
-		return already
-	}
-
-	b, err := os.ReadFile(s.mediaCachePath)
-	if err != nil || len(b) == 0 {
-		return false
-	}
-	var v mediaCacheOnDisk
-	if err := json.Unmarshal(b, &v); err != nil {
-		return false
-	}
-	if v.Key != key || v.BuiltAt <= 0 {
-		return false
-	}
-
-	s.mediaMu.Lock()
-	s.mediaKey = v.Key
-	s.mediaBuiltAt = time.Unix(0, v.BuiltAt)
-	s.mediaETag = v.ETag
-	s.mediaRespJSON, _ = json.Marshal(v.Resp)
-	s.mediaMu.Unlock()
-	return true
-}
-
-func (s *Server) saveMediaCacheToDisk(key string, builtAt time.Time, etag string, resp types.MediaResponse) {
-	v := mediaCacheOnDisk{
-		Key:     key,
-		BuiltAt: builtAt.UnixNano(),
-		ETag:    etag,
-		Resp:    resp,
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return
-	}
-	tmp := s.mediaCachePath + ".tmp"
-	if err := os.WriteFile(tmp, b, constants.FilePerm); err != nil {
-		return
-	}
-	_ = os.Rename(tmp, s.mediaCachePath)
-}
-
-func sharesCacheKey(shares []config.Share) string {
-	s := append([]config.Share(nil), shares...)
-	for i := range s {
-		s[i].Path = util.NormalizePath(s[i].Path)
-	}
-	sort.Slice(s, func(i, j int) bool {
-		return strings.ToLower(s[i].Path) < strings.ToLower(s[j].Path)
-	})
-	var b strings.Builder
-	for _, sh := range s {
-		b.WriteString(strings.ToLower(sh.Path))
-		b.WriteByte('|')
-		b.WriteString(strings.TrimSpace(sh.Label))
-		b.WriteByte('\n')
-	}
-	return b.String()
-}
-
-func weakETag(key string, builtAt time.Time) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(key))
-	var t [8]byte
-	//nolint:gosec // int64 timestamp to uint64 hash input is safe for build time
-	n := uint64(builtAt.UnixNano())
-	for i := 0; i < 8; i++ {
-		t[i] = byte(n)
-		n >>= 8
-	}
-	_, _ = h.Write(t[:])
-	return `W/` + util.U64Base36(h.Sum64()) + ``
-}
-
-// Session management for PIN authentication
-
-// CreateSession creates a new session token for authenticated users
 func (s *Server) CreateSession() (string, error) {
-	token := make([]byte, constants.SessionTokenLength)
-	if _, err := rand.Read(token); err != nil {
-		return "", err
-	}
-	tokenStr := hex.EncodeToString(token)
-
-	s.sessionMu.Lock()
-	defer s.sessionMu.Unlock()
-
-	// Store session with expiry time (7 days)
-	s.sessions[tokenStr] = time.Now().Add(time.Duration(constants.CookieMaxAge) * time.Second)
-
-	// Clean up expired sessions periodically
-	s.cleanupExpiredSessionsLocked()
-
-	return tokenStr, nil
+	return s.session.CreateSession()
 }
 
-// ValidateSession checks if a session token is valid
 func (s *Server) ValidateSession(token string) bool {
-	if token == "" {
-		return false
-	}
-
-	s.sessionMu.RLock()
-	expiry, exists := s.sessions[token]
-	s.sessionMu.RUnlock()
-
-	if !exists {
-		return false
-	}
-
-	if time.Now().After(expiry) {
-		// Session expired, remove it
-		s.sessionMu.Lock()
-		delete(s.sessions, token)
-		s.sessionMu.Unlock()
-		return false
-	}
-
-	return true
+	return s.session.ValidateSession(token)
 }
 
-// cleanupExpiredSessionsLocked removes expired sessions
-// Must be called with sessionMu held
-func (s *Server) cleanupExpiredSessionsLocked() {
-	now := time.Now()
-	for token, expiry := range s.sessions {
-		if now.After(expiry) {
-			delete(s.sessions, token)
-		}
-	}
+func (s *Server) Logger() *service.LoggerService {
+	return s.logger
 }

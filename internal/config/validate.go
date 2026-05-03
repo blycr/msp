@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"msp/internal/domain"
 	"strconv"
 	"strings"
 )
@@ -88,7 +89,7 @@ func validateLogLevel(level string) error {
 }
 
 // validateShares 验证共享目录配置
-func validateShares(shares []Share) []error {
+func validateShares(shares []domain.Share) []error {
 	var errors []error
 	seenPaths := make(map[string]bool)
 	seenLabels := make(map[string]bool)

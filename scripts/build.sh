@@ -3,6 +3,8 @@ set -euo pipefail
 
 PLATFORMS="windows"
 ARCHITECTURES="x64"
+SKIP_TESTS="false"
+SKIP_LINT="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -14,29 +16,48 @@ while [[ $# -gt 0 ]]; do
       ARCHITECTURES="$2"
       shift 2
       ;;
-    *)
+    -SkipTests|--skip-tests)
+      SKIP_TESTS="true"
       shift
+      ;;
+    -SkipLint|--skip-lint)
+      SKIP_LINT="true"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
       ;;
   esac
 done
-
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 logFile="$(cd "$(dirname "$0")" && pwd)/build.log"
 
 log() {
+  local level="$2"
+  local ts
   ts="$(date '+%Y-%m-%d %H:%M:%S')"
-  line="[$ts][$2] $1"
-  echo "$line"
+  local line="[$ts][$level] $1"
+  case "$level" in
+    "ERROR") echo -e "\033[0;31m$line\033[0m" ;;
+    "WARN")  echo -e "\033[0;33m$line\033[0m" ;;
+    "SUCCESS") echo -e "\033[0;32m$line\033[0m" ;;
+    *) echo "$line" ;;
+  esac
   printf "%s\n" "$line" >> "$logFile" || true
 }
 
 invoke_step() {
-  name="$1"
+  local name="$1"
   shift
   log "$name" "INFO"
-  "$@"
-  log "$name done." "INFO"
+  if "$@"; then
+    log "$name done." "SUCCESS"
+  else
+    log "$name failed." "ERROR"
+    exit 1
+  fi
 }
 
 new_dir() {
@@ -61,10 +82,9 @@ build_go() {
     fi
     new_dir "$(dirname "$out")"
     go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/msp
-    log "Built: $out" "INFO"
+    log "Built: $out" "SUCCESS"
   )
 }
-
 
 write_checksum() {
   file="$1"
@@ -80,24 +100,16 @@ write_checksum() {
   log "Checksum: $out" "INFO"
 }
 
-write_debug_copy() {
-  file="$1"
-  out="$2"
-  new_dir "$(dirname "$out")"
-  cp -f "$file" "$out"
-  log "Debug copy: $out" "INFO"
-}
-
 should_build() {
   platform="$1"
   arch_or_variant="$2"
   IFS=',' read -r -a p_arr <<< "$PLATFORMS"
   IFS=',' read -r -a a_arr <<< "$ARCHITECTURES"
-  
+
   normalize_arch() {
     local a="$1"
     a="${a,,}" # lowercase
-    if [[ "$a" == "x64" ]]; then echo "amd64"; 
+    if [[ "$a" == "x64" ]]; then echo "amd64";
     elif [[ "$a" == "x86" ]]; then echo "386";
     else echo "$a"; fi
   }
@@ -123,83 +135,93 @@ should_build() {
   return 1
 }
 
-log "Build Frontend" "INFO"
-# Check if pnpm is installed
-if ! command -v pnpm >/dev/null 2>&1; then
-  log "pnpm not found. Enabling corepack..." "INFO"
-  corepack enable || {
-    log "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm" "ERROR"
-    exit 1
-  }
+# 检查依赖
+if ! command -v go >/dev/null 2>&1; then
+  log "Go not found. Please install Go." "ERROR"
+  exit 1
 fi
 
-cd "$root/web"
-if [[ ! -d node_modules ]]; then
-  log "Installing pnpm dependencies..." "INFO"
-  pnpm install
-fi
-log "Building frontend..." "INFO"
-pnpm run build
-log "Build Frontend done." "INFO"
+invoke_step "Build Frontend" bash -c "
+  if ! command -v pnpm >/dev/null 2>&1; then
+    log 'pnpm not found. Enabling corepack...' 'WARN'
+    corepack enable || {
+      log 'pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm' 'ERROR'
+      exit 1
+    }
+  fi
+  cd '$root/web'
+  if [[ ! -d node_modules ]]; then
+    log 'Installing pnpm dependencies...' 'INFO'
+    pnpm install
+  fi
+  log 'Building frontend...' 'INFO'
+  pnpm run build
+"
 
-log "go test ./..." "INFO"
-cd "$root"
-go test ./...
-log "go test ./... done." "INFO"
-
-log "Cross Build Artifacts" "INFO"
-binRoot="$root/bin"
-chkRoot="$root/checksums"
-dbgRoot="$root/debug"
-
-if should_build linux amd64; then
-  build_go linux amd64 "$binRoot/linux/amd64/msp-linux-amd64"
-  write_checksum "$binRoot/linux/amd64/msp-linux-amd64" "$chkRoot/msp-linux-amd64.sha256"
-  write_debug_copy "$binRoot/linux/amd64/msp-linux-amd64" "$dbgRoot/linux/amd64/msp-linux-amd64.debug"
-fi
-
-if should_build linux arm64; then
-  build_go linux arm64 "$binRoot/linux/arm64/msp-linux-arm64"
-  write_checksum "$binRoot/linux/arm64/msp-linux-arm64" "$chkRoot/msp-linux-arm64.sha256"
-  write_debug_copy "$binRoot/linux/arm64/msp-linux-arm64" "$dbgRoot/linux/arm64/msp-linux-arm64.debug"
+if [[ "$SKIP_TESTS" != "true" ]]; then
+  invoke_step "Run Go Tests" bash -c "
+    cd '$root'
+    go test -v ./...
+  "
 fi
 
-if should_build arm v7; then
-  build_go linux arm "$binRoot/arm/v7/msp-arm-v7" "7"
-  write_checksum "$binRoot/arm/v7/msp-arm-v7" "$chkRoot/msp-arm-v7.sha256"
-  write_debug_copy "$binRoot/arm/v7/msp-arm-v7" "$dbgRoot/arm/v7/msp-arm-v7.debug"
+if [[ "$SKIP_LINT" != "true" ]]; then
+  invoke_step "Run Go Vet" bash -c "
+    cd '$root'
+    go vet ./...
+  "
+
+  if command -v golangci-lint >/dev/null 2>&1; then
+    invoke_step "Run golangci-lint" bash -c "
+      cd '$root'
+      golangci-lint run ./...
+    "
+  else
+    log "golangci-lint not found, skipping lint check. Install from https://golangci-lint.run/" "WARN"
+  fi
 fi
 
-if should_build arm v8; then
-  build_go linux arm64 "$binRoot/arm/v8/msp-arm-v8"
-  write_checksum "$binRoot/arm/v8/msp-arm-v8" "$chkRoot/msp-arm-v8.sha256"
-  write_debug_copy "$binRoot/arm/v8/msp-arm-v8" "$dbgRoot/arm/v8/msp-arm-v8.debug"
-fi
+invoke_step "Cross Build Artifacts" bash -c "
+  binRoot='$root/bin'
+  chkRoot='$root/checksums'
 
-if should_build macos amd64; then
-  build_go darwin amd64 "$binRoot/macos/msp-macos-amd64"
-  write_checksum "$binRoot/macos/msp-macos-amd64" "$chkRoot/msp-macos-amd64.sha256"
-  write_debug_copy "$binRoot/macos/msp-macos-amd64" "$dbgRoot/macos/msp-macos-amd64.debug"
-fi
+  build_configs=(
+    'linux:amd64:msp-linux-amd64:'
+    'linux:arm64:msp-linux-arm64:'
+    'linux:arm:msp-linux-armv7:7'
+    'darwin:amd64:msp-darwin-amd64:'
+    'darwin:arm64:msp-darwin-arm64:'
+    'windows:amd64:msp-windows-amd64.exe:'
+    'windows:386:msp-windows-386.exe:'
+  )
 
-if should_build macos arm64; then
-  build_go darwin arm64 "$binRoot/macos/msp-macos-arm64"
-  write_checksum "$binRoot/macos/msp-macos-arm64" "$chkRoot/msp-macos-arm64.sha256"
-  write_debug_copy "$binRoot/macos/msp-macos-arm64" "$dbgRoot/macos/msp-macos-arm64.debug"
-fi
+  for cfg in \"\${build_configs[@]}\"; do
+    IFS=':' read -r platform arch outName goarm <<< \"\$cfg\"
 
-if should_build windows x64; then
-  build_go windows amd64 "$binRoot/windows/x64/msp-windows-amd64.exe"
-  write_checksum "$binRoot/windows/x64/msp-windows-amd64.exe" "$chkRoot/msp-windows-amd64.sha256"
-  write_debug_copy "$binRoot/windows/x64/msp-windows-amd64.exe" "$dbgRoot/windows/x64/msp-windows-amd64.debug"
-fi
+    should_build_flag=false
+    if [[ \"\$platform\" == 'linux' && \"\$arch\" == 'amd64' ]]; then
+      should_build 'linux' 'amd64' || should_build 'linux' 'x64' && should_build_flag=true
+    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'arm64' ]]; then
+      should_build 'linux' 'arm64' && should_build_flag=true
+    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'arm' ]]; then
+      should_build 'arm' 'v7' && should_build_flag=true
+    elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'amd64' ]]; then
+      should_build 'macos' 'amd64' || should_build 'macos' 'x64' && should_build_flag=true
+    elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'arm64' ]]; then
+      should_build 'macos' 'arm64' && should_build_flag=true
+    elif [[ \"\$platform\" == 'windows' && \"\$arch\" == 'amd64' ]]; then
+      should_build 'windows' 'amd64' || should_build 'windows' 'x64' && should_build_flag=true
+    elif [[ \"\$platform\" == 'windows' && \"\$arch\" == '386' ]]; then
+      should_build 'windows' '386' || should_build 'windows' 'x86' && should_build_flag=true
+    fi
 
-if should_build windows x86; then
-  build_go windows 386 "$binRoot/windows/x86/msp-windows-386.exe"
-  write_checksum "$binRoot/windows/x86/msp-windows-386.exe" "$chkRoot/msp-windows-386.sha256"
-  write_debug_copy "$binRoot/windows/x86/msp-windows-386.exe" "$dbgRoot/windows/x86/msp-windows-386.debug"
-fi
+    if [[ \"\$should_build_flag\" == 'true' ]]; then
+      outPath=\"\$binRoot/\$platform/\$arch/\$outName\"
+      build_go \"\$platform\" \"\$arch\" \"\$outPath\" \"\$goarm\"
+      chkPath=\"\$chkRoot/\$outName.sha256\"
+      write_checksum \"\$outPath\" \"\$chkPath\"
+    fi
+  done
+"
 
-log "Cross Build Artifacts done." "INFO"
-
-log "Build completed." "INFO"
+log "Build completed." "SUCCESS"

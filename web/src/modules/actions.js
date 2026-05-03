@@ -2,36 +2,23 @@ import { registerSW } from 'virtual:pwa-register';
 import { state, el, lsSet, LS, lsGet } from './state.js';
 import { t, initLang } from './i18n.js';
 import { apiGet, apiRetry, loadPrefs, gpGet } from './api.js';
-import { applyConfigToUI, renderList, renderShares, bindUI, updateUIForLang, setMeta, showDlg } from './ui.js';
 import { updateResumeButton, hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
+import { bus } from './eventbus.js';
 
 export async function loadConfig() {
   try {
     const data = await apiGet("/api/config");
     state.config = data.config;
     const urls = (data.urls || []).slice(0, 3).join("  ");
-    setMeta(urls ? t("meta_urls", urls) : t("meta_noip"));
-    applyConfigToUI();
-    renderShares();
-
-    const bl = state.config.blacklist || {};
-    const blExts = el("blExts");
-    const blFiles = el("blFiles");
-    const blFolders = el("blFolders");
-    const blMinSize = el("blMinSize");
-    
-    if (blExts) blExts.value = (bl.extensions || []).join(", ");
-    if (blFiles) blFiles.value = (bl.filenames || []).join(", ");
-    if (blFolders) blFolders.value = (bl.folders || []).join(", ");
-    if (blMinSize) blMinSize.value = bl.sizeRule || "";
+    bus.emit('meta:update', urls ? t("meta_urls", urls) : t("meta_noip"));
+    bus.emit('config:loaded');
   } catch (e) {
     console.error("Failed to load config:", e);
-    setMeta(t("meta_fail"));
+    bus.emit('meta:update', t("meta_fail"));
     state.config = {};
-    applyConfigToUI();
-    renderShares();
+    bus.emit('config:loaded');
   }
 }
 
@@ -56,15 +43,15 @@ export async function loadMedia(refresh, limit) {
   if (res.status === 304) {
     const hadLimited = !!state.media?.limited;
     if (state.config && state.media && !hadLimited) {
-      applyConfigToUI();
+      bus.emit('config:loaded');
       const lastKind = gpGet(LS.lastActiveKind);
       if (lastKind && ["video", "audio", "image"].includes(lastKind)) {
         state.tab = lastKind;
       } else {
         state.tab = "video";
       }
-      renderList();
-      resumeLast();
+      bus.emit('media:loaded');
+      bus.emit('media:resume');
       return;
     }
     return loadMedia(true, 0);
@@ -82,11 +69,11 @@ export async function loadMedia(refresh, limit) {
   const data = await res.json();
   state.media = data;
   state.scanning = !!data.scanning;
-  renderList();
+  bus.emit('media:loaded');
   updateResumeButton();
 
   if (!refresh && !isLimitedRequest) {
-    resumeLast();
+    bus.emit('media:resume');
   }
 }
 
@@ -100,12 +87,9 @@ export async function boot() {
   initTheme();
   
   // Setup UI bindings
-  bindUI();
   bindGlobalHotkeys();
   bindPinDialog();
-  
-  // Initial UI Update for Lang (since initLang only sets state)
-  updateUIForLang();
+  bus.emit('boot:init');
 
   // Reset UI state
   hideAllMedia();
@@ -136,10 +120,6 @@ export async function boot() {
     // Initial fast load (limited items)
     await loadMedia(false, 200).catch(() => { });
 
-    // Call resume logic after we have at least partial media info
-    // (Note: loadMedia already calls resumeLast, but we do it here explicitly if needed or if logic differed)
-    // loadMedia handles it.
-
     // Full load in background
     setTimeout(async () => {
       await loadMedia(false).catch(() => { }); // Use non-refresh first to get what's in DB
@@ -153,11 +133,11 @@ export async function boot() {
           return;
         }
         await loadMedia(false).catch(() => { });
-        renderList();
+        bus.emit('media:loaded');
       }, 2000);
     }, 50);
   } catch (e) {
-    setMeta(t("meta_fail"));
+    bus.emit('meta:update', t("meta_fail"));
     alert(String(e?.message || e));
   }
 }

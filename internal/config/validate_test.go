@@ -3,6 +3,8 @@ package config
 import (
 	"testing"
 
+	"msp/internal/domain"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -270,7 +272,7 @@ func TestValidate(t *testing.T) {
 
 	t.Run("重复共享目录", func(t *testing.T) {
 		cfg := Default()
-		cfg.Shares = []Share{
+		cfg.Shares = []domain.Share{
 			{Path: "/media/videos", Label: "Videos"},
 			{Path: "/media/videos", Label: "Videos2"},
 		}

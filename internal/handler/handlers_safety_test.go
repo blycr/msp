@@ -9,14 +9,15 @@ import (
 	"testing"
 
 	"msp/internal/config"
+	"msp/internal/domain"
 	"msp/internal/server"
-	"msp/internal/types"
+	"msp/internal/storage"
 )
 
 func TestApplyLimitOnlyWhenTruncated(t *testing.T) {
-	resp := types.MediaResponse{
-		Videos: []types.MediaItem{{Name: "v1"}},
-		Audios: []types.MediaItem{{Name: "a1"}},
+	resp := domain.MediaResponse{
+		Videos: []domain.MediaItem{{Name: "v1"}},
+		Audios: []domain.MediaItem{{Name: "a1"}},
 	}
 	if applyLimit(&resp, 10) {
 		t.Fatal("applyLimit should be false when nothing is truncated")
@@ -25,8 +26,8 @@ func TestApplyLimitOnlyWhenTruncated(t *testing.T) {
 		t.Fatal("resp.Limited should be false when nothing is truncated")
 	}
 
-	resp2 := types.MediaResponse{
-		Videos: []types.MediaItem{{Name: "v1"}, {Name: "v2"}},
+	resp2 := domain.MediaResponse{
+		Videos: []domain.MediaItem{{Name: "v1"}, {Name: "v2"}},
 	}
 	if !applyLimit(&resp2, 1) {
 		t.Fatal("applyLimit should be true when truncation happens")
@@ -51,7 +52,8 @@ func TestHandlePINRejectsLargePayload(t *testing.T) {
 		t.Fatalf("failed to setup server config: %v", err)
 	}
 
-	h := New(s)
+	store := storage.NewStore(nil)
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 	tooLargePIN := strings.Repeat("1", int(defaultJSONBodyLimit)+1)
 	body := `{"pin":"` + tooLargePIN + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(body))
@@ -76,7 +78,8 @@ func TestHandlePINCookieSecureAlwaysDisabled(t *testing.T) {
 		t.Fatalf("failed to setup server config: %v", err)
 	}
 
-	h := New(s)
+	store := storage.NewStore(nil)
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 	req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(`{"pin":"1234"}`))
 	req.Header.Set("X-Forwarded-Proto", "https")
 	w := httptest.NewRecorder()

@@ -7,14 +7,14 @@ import (
 )
 
 func TestHandlerNew(t *testing.T) {
-	h := New(nil)
+	h := New(Deps{})
 	if h == nil {
 		t.Fatal("Expected New handler to not be nil")
 	}
 }
 
 func TestHandleIP(t *testing.T) {
-	h := New(nil)
+	h := New(Deps{})
 	req := httptest.NewRequest("GET", "/api/ip", nil)
 	w := httptest.NewRecorder()
 	h.HandleIP(w, req)

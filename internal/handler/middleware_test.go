@@ -258,14 +258,11 @@ func TestRequiresPIN(t *testing.T) {
 }
 
 func TestWithSecurityMiddleware(t *testing.T) {
-	// Create a temporary directory for the test config
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test_config.json")
 
-	// Create a test server
 	s := server.New(configPath)
 
-	// Update config with security settings
 	_ = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.IPWhitelist = []string{"192.168.1.0/24"}
 		cfg.Security.PINEnabled = false
@@ -276,7 +273,7 @@ func TestWithSecurityMiddleware(t *testing.T) {
 		_, _ = w.Write([]byte("OK"))
 	})
 
-	secureHandler := WithSecurity(s, handler)
+	secureHandler := WithSecurity(s, s, s, handler)
 
 	tests := []struct {
 		name           string

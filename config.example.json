@@ -1,8 +1,5 @@
 {
-  "logLevel": "info",
-  "logFile": "msp.log",
   "port": 8099,
-  "maxItems": 0,
   "shares": [],
   "features": {
     "speed": true,
@@ -54,7 +51,11 @@
   "security": {
     "ipWhitelist": [],
     "ipBlacklist": [],
+    "trustProxy": false,
     "pinEnabled": false,
     "pin": "0000"
-  }
+  },
+  "logLevel": "info",
+  "logFile": "",
+  "maxItems": 0
 }

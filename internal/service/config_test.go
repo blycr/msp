@@ -3,27 +3,46 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"msp/internal/config"
-	"msp/internal/server"
+	"msp/internal/domain"
 )
 
+type mockConfigProvider struct {
+	mu  sync.RWMutex
+	cfg config.Config
+}
+
+func (m *mockConfigProvider) Config() config.Config {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg
+}
+
+func (m *mockConfigProvider) UpdateConfig(fn func(*config.Config)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	fn(&m.cfg)
+	return nil
+}
+
+func (m *mockConfigProvider) GetPort() int {
+	return m.cfg.Port
+}
+
+type mockCacheInvalidator struct{}
+
+func (m *mockCacheInvalidator) InvalidateMediaCache() {}
+
 func TestConfigService_GetConfigView(t *testing.T) {
-	// Setup temporary directory for config
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config_test.json")
+	cfg := config.Default()
+	cfg.Port = 8099
 
-	// Create Server
-	srv := server.New(cfgPath)
-	if err := srv.LoadOrInitConfig(); err != nil {
-		t.Fatalf("Failed to init config: %v", err)
-	}
+	mock := &mockConfigProvider{cfg: cfg}
+	svc := NewConfigService(mock, &mockCacheInvalidator{})
 
-	// Create Service
-	svc := NewConfigService(srv)
-
-	// Test GetConfigView
 	view := svc.GetConfigView()
 
 	if view.Config.Port != 8099 {
@@ -34,7 +53,6 @@ func TestConfigService_GetConfigView(t *testing.T) {
 		t.Error("Expected at least one URL (localhost)")
 	}
 
-	// Verify localhost URL is present
 	foundLocal := false
 	for _, u := range view.URLs {
 		if u == "http://127.0.0.1:8099/" {
@@ -48,34 +66,28 @@ func TestConfigService_GetConfigView(t *testing.T) {
 }
 
 func TestConfigService_UpdateConfig(t *testing.T) {
-	// Setup
 	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config_test.json")
-	srv := server.New(cfgPath)
-	_ = srv.LoadOrInitConfig()
-	svc := NewConfigService(srv)
-
-	// Create a dummy directory for share test
 	shareDir := filepath.Join(tmpDir, "My Videos")
 	if err := os.MkdirAll(shareDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	// Prepare new config
-	newCfg := srv.Config()
+	cfg := config.Default()
+	mock := &mockConfigProvider{cfg: cfg}
+	svc := NewConfigService(mock, &mockCacheInvalidator{})
+
+	newCfg := mock.Config()
 	newCfg.Port = 9000
-	newCfg.Shares = []config.Share{
+	newCfg.Shares = []domain.Share{
 		{Label: "Test Share", Path: shareDir},
-		{Label: "Bad Share", Path: "/path/to/nowhere"}, // Should be filtered out
+		{Label: "Bad Share", Path: "/path/to/nowhere"},
 	}
 
-	// Test Update
 	updated, err := svc.UpdateConfig(newCfg)
 	if err != nil {
 		t.Fatalf("UpdateConfig failed: %v", err)
 	}
 
-	// Verify return value
 	if updated.Port != 9000 {
 		t.Errorf("Expected port 9000, got %d", updated.Port)
 	}
@@ -86,9 +98,8 @@ func TestConfigService_UpdateConfig(t *testing.T) {
 		t.Errorf("Expected share label 'Test Share', got %s", updated.Shares[0].Label)
 	}
 
-	// Verify persistence in Server
-	current := srv.Config()
+	current := mock.Config()
 	if current.Port != 9000 {
-		t.Errorf("Server config not updated, port is %d", current.Port)
+		t.Errorf("Config not updated, port is %d", current.Port)
 	}
 }

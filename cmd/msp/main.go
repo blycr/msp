@@ -10,23 +10,40 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"syscall"
 	"time"
 
-	"msp/internal/db"
 	"msp/internal/handler"
 	"msp/internal/media"
 	"msp/internal/server"
+	"msp/internal/service"
+	"msp/internal/storage"
 	"msp/internal/util"
 	"msp/internal/web"
 	webassets "msp/web"
 )
 
+// Compile-time interface assertions
+var (
+	_ handler.ConfigProvider     = (*server.Server)(nil)
+	_ handler.MediaCacheProvider = (*service.MediaService)(nil)
+	_ handler.SessionProvider    = (*server.Server)(nil)
+	_ handler.SessionProvider    = (*service.SessionService)(nil)
+	_ handler.Logger             = (*server.Server)(nil)
+	_ storage.ProgressStore      = (*storage.SQLite)(nil)
+	_ storage.PrefsStore         = (*storage.SQLite)(nil)
+)
+
 func main() {
-	debug.SetGCPercent(50) // Aggressive GC to keep memory low
+	debug.SetGCPercent(50)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	cfgPath := filepath.Join(util.MustExeDir(), "config.json")
 
@@ -38,59 +55,94 @@ func main() {
 
 	s.SetupLogger()
 
-	// Detect hardware-accelerated transcoding and adjust concurrency
 	initHWAccel(s)
 
-	// Init DB (after logger setup to avoid noisy terminal logs from GORM)
 	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
-	if err := db.Init(dbPath); err != nil {
+	sq, err := storage.InitSQLite(dbPath)
+	if err != nil {
 		log.Printf("Warning: Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	if sq != nil {
+		media.SetDB(sq)
+	}
 
-	// Start config file watcher for hot reload
-	go s.WatchConfig(context.Background())
+	go s.WatchConfig(ctx)
 
-	// Trigger first scan in background early
-	go s.GetOrBuildMediaCache(context.Background(), s.Config().Shares, s.Config().Blacklist, false)
+	go s.MediaSvc.GetOrBuildMediaCache(context.Background(), s.Config().Shares, s.Config().Blacklist, false)
 
 	webRoot, err := fs.Sub(webassets.FS, "dist")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	mux := registerRoutes(s, webRoot)
+	store := storage.NewStore(sq)
+
+	mux := registerRoutes(s, store, webRoot)
 
 	port := s.GetPort()
 	addr := ":" + util.Itoa(port)
 
 	printStartupBanner(cfgPath, port)
 
-	finalHandler := handler.WithLog(s, handler.WithSecurity(s, handler.WithGzip(mux)))
+	finalHandler := handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithGzip(mux)))
 
-	server := &http.Server{
+	srv := &http.Server{
 		Addr:              addr,
 		Handler:           finalHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		IdleTimeout:       60 * time.Second,
-		// WriteTimeout is intentionally omitted to support long-running media streams
 	}
 
 	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {
 		go tryAutoOpenBrowser(port)
 	}
 
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	go func() {
+		<-ctx.Done()
+		shutdownGracefully(srv, s, sq)
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
 
-func registerRoutes(s *server.Server, webRoot fs.FS) *http.ServeMux {
+func shutdownGracefully(srv *http.Server, s *server.Server, sq *storage.SQLite) {
+	log.Println("Shutting down gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	media.KillAllTranscodeProcesses()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	}
+
+	if sq != nil {
+		sq.Close()
+	}
+
+	if s.Logger() != nil {
+		s.Logger().Close()
+	}
+
+	log.Println("Shutdown complete")
+}
+
+func registerRoutes(s *server.Server, store *storage.Store, webRoot fs.FS) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/favicon.ico", http.NotFoundHandler())
 
-	h := handler.New(s)
+	h := handler.New(handler.Deps{
+		Config:   s,
+		Media:    s.MediaSvc,
+		Session:  s,
+		Logger:   s,
+		Progress: store,
+		Prefs:    store,
+	})
 
 	mux.Handle("/api/config", http.HandlerFunc(h.HandleConfig))
 	mux.Handle("/api/shares", http.HandlerFunc(h.HandleShares))
@@ -153,8 +205,6 @@ func openBrowser(url string) error {
 	}
 }
 
-// initHWAccel probes for hardware-accelerated encoders and adjusts the
-// transcode concurrency limit accordingly. Called once at startup.
 func initHWAccel(s *server.Server) {
 	cfg := s.Config()
 
@@ -169,12 +219,11 @@ func initHWAccel(s *server.Server) {
 
 	result := media.DetectHWAccel(mode)
 
-	// Determine concurrency limit
 	if maxJobs <= 0 {
 		if result != nil && result.Available {
-			maxJobs = 4 // hardware default
+			maxJobs = 4
 		} else {
-			maxJobs = 2 // software default
+			maxJobs = 2
 		}
 	}
 	media.SetTranscodeLimit(maxJobs)

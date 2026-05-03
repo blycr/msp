@@ -6,24 +6,29 @@ import { formatName, formatBytes, formatTime, getCfg } from './utils.js';
 import { createArrowDownIcon, createArrowUpIcon } from './icons.js';
 import { apiPost, gpSet, gpGet, logRemote } from './api.js';
 import { loadConfig, loadMedia } from './actions.js';
+import { bus } from './eventbus.js';
+import {
+  setMeta,
+  showDlg,
+  updateUIForLang as _updateUIForLang,
+  renderList as _renderList,
+  renderShares as _renderShares,
+  updateBlacklistUI as _updateBlacklistUI,
+  applyConfigToUI as _applyConfigToUI,
+  bindUI as _bindUI
+} from './ui/index.js';
 
-export function setMeta(text) {
-  el("meta").textContent = text;
-}
-
-export function showDlg(show) {
-  el("dlgBackdrop").hidden = !show;
-  el("dlg").hidden = !show;
-}
+export {
+  setMeta,
+  showDlg
+};
 
 export function updateUIForLang() {
-  // Update button text
   const btn = el("langBtn");
   if (btn) btn.textContent = state.lang === "en" ? "CN" : "EN";
 
   document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
 
-  // Update static elements
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const k = el.getAttribute("data-i18n");
     if (k === "preview_none" && state.current) return;
@@ -38,7 +43,6 @@ export function updateUIForLang() {
     if (k) el.title = t(k);
   });
 
-  // Platform-specific placeholder for share path
   const sharePathEl = el("sharePath");
   if (sharePathEl) {
     const plat = (navigator.platform || navigator.userAgent || "").toLowerCase();
@@ -53,21 +57,17 @@ export function updateUIForLang() {
     sharePathEl.placeholder = ph;
   }
 
-  // Update HTML content
   const blHint = el("blHint");
   if (blHint) blHint.innerHTML = t("bl_hint");
 
   renderList();
-  
-  // Re-render playlist if loaded
   renderPlaylist();
   updateNavLabels();
 
-  // Update previewSub
   if (state.current) {
     const item = state.current;
     state.currentMetaBase = `${item.shareLabel || ""} · ${(item.ext || "").toUpperCase()} · ${formatBytes(item.size)} · ${formatTime(item.modTime)}`;
-    el("previewSub").textContent = state.currentMetaBase; // Simplified, probe text async update skipped for simplicity here
+    el("previewSub").textContent = state.currentMetaBase;
   }
 }
 
@@ -256,8 +256,8 @@ export function applyConfigToUI() {
     else shuffle = !!getCfg("playback.audio.shuffle", false);
   }
   state.playlist.shuffle = shuffle;
-  const t = el("toggleShuffle");
-  if (t) t.checked = shuffle;
+  const toggleShuffle = el("toggleShuffle");
+  if (toggleShuffle) toggleShuffle.checked = shuffle;
 
   let loop = false;
   {
@@ -265,8 +265,8 @@ export function applyConfigToUI() {
     loop = saved === "1";
   }
   state.playlist.loop = loop;
-  const tl = el("toggleLoop");
-  if (tl) tl.checked = loop;
+  const toggleLoop = el("toggleLoop");
+  if (toggleLoop) toggleLoop.checked = loop;
 
   const tabs = Array.from(document.querySelectorAll(".tab"));
   for (const x of tabs) x.classList.toggle("tab--active", x.getAttribute("data-tab") === state.tab);
@@ -332,7 +332,6 @@ export function bindUI() {
     renderList();
   });
 
-  // Restore sort field UI
   if (state.sort.field) {
     try { el("sortField").value = state.sort.field; } catch {}
   }
@@ -353,11 +352,11 @@ export function bindUI() {
   });
 
   const tabs = Array.from(document.querySelectorAll(".tab"));
-  for (const t of tabs) {
-    t.addEventListener("click", () => {
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
       for (const x of tabs) x.classList.remove("tab--active");
-      t.classList.add("tab--active");
-      state.tab = t.getAttribute("data-tab");
+      tab.classList.add("tab--active");
+      state.tab = tab.getAttribute("data-tab");
       renderList();
       setFitBtnVisible(state.tab === "video" && state.current?.kind === "video");
       if (state.tab === "video" && state.current?.kind === "video") {
@@ -410,7 +409,37 @@ export function bindUI() {
     btnResume.addEventListener("click", () => resumeLast());
     updateResumeButton();
   } catch { }
-  
+
   el("btnPrev").addEventListener("click", () => playPrev(true));
   el("btnNext").addEventListener("click", () => playNext(true));
 }
+
+export function updateBlacklistUI() {
+  const bl = state.config?.blacklist || {};
+  const blExts = el("blExts");
+  const blFiles = el("blFiles");
+  const blFolders = el("blFolders");
+  const blMinSize = el("blMinSize");
+  if (blExts) blExts.value = (bl.extensions || []).join(", ");
+  if (blFiles) blFiles.value = (bl.filenames || []).join(", ");
+  if (blFolders) blFolders.value = (bl.folders || []).join(", ");
+  if (blMinSize) blMinSize.value = bl.sizeRule || "";
+}
+
+bus.on('meta:update', (text) => setMeta(text));
+bus.on('config:loaded', () => {
+  applyConfigToUI();
+  renderShares();
+  updateBlacklistUI();
+});
+bus.on('media:loaded', () => {
+  renderList();
+  updateResumeButton();
+});
+bus.on('media:resume', () => {
+  resumeLast();
+});
+bus.on('boot:init', () => {
+  bindUI();
+  updateUIForLang();
+});

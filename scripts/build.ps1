@@ -1,10 +1,16 @@
+#requires -Version 5.1
 param(
   [string[]]$Platforms = @('windows'),
-  [string[]]$Architectures = @('x64')
+  [string[]]$Architectures = @('x64'),
+  [switch]$SkipTests = $false,
+  [switch]$SkipLint = $false
 )
 
-
 $ErrorActionPreference = 'Stop'
+
+# 设置 UTF-8 编码以减少乱码
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logFile = Join-Path $PSScriptRoot 'build.log'
@@ -12,11 +18,12 @@ $logFile = Join-Path $PSScriptRoot 'build.log'
 function Write-Log {
   param(
     [Parameter(Mandatory = $true)][string]$Message,
-    [ValidateSet('INFO', 'WARN', 'ERROR')][string]$Level = 'INFO'
+    [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS')][string]$Level = 'INFO'
   )
   $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
   $line = "[$ts][$Level] $Message"
-  Write-Host $line
+  $colorMap = @{ 'INFO' = 'White'; 'WARN' = 'Yellow'; 'ERROR' = 'Red'; 'SUCCESS' = 'Green' }
+  Write-Host $line -ForegroundColor $colorMap[$Level]
   try { $line | Out-File -FilePath $logFile -Append -Encoding utf8 } catch {}
 }
 
@@ -28,56 +35,95 @@ function Invoke-Step {
   Write-Log $Name 'INFO'
   try {
     & $Action
-    Write-Log ($Name + ' done.') 'INFO'
+    Write-Log "$Name done." 'SUCCESS'
   }
   catch {
-    Write-Log ($Name + ' failed: ' + $_.Exception.Message) 'ERROR'
+    Write-Log "$Name failed: $($_.Exception.Message)" 'ERROR'
     throw
   }
 }
 
+# 检查依赖
+function Test-Dependency {
+  param([string]$Name, [string]$Command)
+  if (-not (Get-Command $Command -ErrorAction SilentlyContinue)) {
+    Write-Log "$Name not found. Please install $Name." 'ERROR'
+    exit 1
+  }
+}
+
+Test-Dependency 'Go' 'go'
 
 Invoke-Step 'Build Frontend' {
-  # Check if pnpm is installed
   if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-    Write-Log 'pnpm not found. Installing pnpm via corepack...' 'INFO'
+    Write-Log 'pnpm not found. Installing pnpm via corepack...' 'WARN'
     corepack enable
     if ($LASTEXITCODE -ne 0) {
       throw "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm"
     }
   }
-  
+
   Push-Location (Join-Path $root 'web')
   try {
     if (-not (Test-Path 'node_modules')) {
       Write-Log 'Installing pnpm dependencies...' 'INFO'
       pnpm install
-      if ($LASTEXITCODE -ne 0) { throw ("pnpm install failed. exitCode=" + $LASTEXITCODE) }
+      if ($LASTEXITCODE -ne 0) { throw "pnpm install failed. exitCode=$LASTEXITCODE" }
     }
     Write-Log 'Building frontend...' 'INFO'
     pnpm run build
-    if ($LASTEXITCODE -ne 0) { throw ("pnpm run build failed. exitCode=" + $LASTEXITCODE) }
+    if ($LASTEXITCODE -ne 0) { throw "pnpm run build failed. exitCode=$LASTEXITCODE" }
   }
   finally {
     Pop-Location
   }
 }
 
-Invoke-Step 'go test ./...' {
-  Push-Location $root
-  try {
-    Remove-Item Env:GOOS -ErrorAction SilentlyContinue
-    Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
-    Remove-Item Env:GOARM -ErrorAction SilentlyContinue
-    Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
-    & go test ./...
-    if ($LASTEXITCODE -ne 0) { throw ("go test failed. exitCode=" + $LASTEXITCODE) }
-  }
-  finally {
-    Pop-Location
+if (-not $SkipTests) {
+  Invoke-Step 'Run Go Tests' {
+    Push-Location $root
+    try {
+      Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+      Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+      Remove-Item Env:GOARM -ErrorAction SilentlyContinue
+      Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
+      & go test -v ./...
+      if ($LASTEXITCODE -ne 0) { throw "go test failed. exitCode=$LASTEXITCODE" }
+    }
+    finally {
+      Pop-Location
+    }
   }
 }
 
+if (-not $SkipLint) {
+  Invoke-Step 'Run Go Vet' {
+    Push-Location $root
+    try {
+      & go vet ./...
+      if ($LASTEXITCODE -ne 0) { throw "go vet failed. exitCode=$LASTEXITCODE" }
+    }
+    finally {
+      Pop-Location
+    }
+  }
+
+  # 检查 golangci-lint 是否可用
+  if (Get-Command golangci-lint -ErrorAction SilentlyContinue) {
+    Invoke-Step 'Run golangci-lint' {
+      Push-Location $root
+      try {
+        & golangci-lint run ./...
+        if ($LASTEXITCODE -ne 0) { throw "golangci-lint failed. exitCode=$LASTEXITCODE" }
+      }
+      finally {
+        Pop-Location
+      }
+    }
+  } else {
+    Write-Log 'golangci-lint not found, skipping lint check. Install from https://golangci-lint.run/' 'WARN'
+  }
+}
 
 function New-Dir {
   param([string]$Path)
@@ -96,14 +142,13 @@ function Build-Go {
     if ($GOARM) { $env:GOARM = $GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
     New-Dir ([System.IO.Path]::GetDirectoryName($OutPath))
     & go build -trimpath -ldflags="-s -w" -o $OutPath ./cmd/msp
-    if ($LASTEXITCODE -ne 0) { throw ("go build failed. exitCode=" + $LASTEXITCODE) }
-    Write-Log ("Built: " + $OutPath) 'INFO'
+    if ($LASTEXITCODE -ne 0) { throw "go build failed. exitCode=$LASTEXITCODE" }
+    Write-Log "Built: $OutPath" 'SUCCESS'
   }
   finally {
     Pop-Location
   }
 }
-
 
 function Write-Checksum {
   param([string]$FilePath, [string]$ChecksumPath)
@@ -111,20 +156,12 @@ function Write-Checksum {
   $line = ($hash.Hash + "  " + [System.IO.Path]::GetFileName($FilePath))
   New-Dir ([System.IO.Path]::GetDirectoryName($ChecksumPath))
   $line | Out-File -FilePath $ChecksumPath -Encoding ascii
-  Write-Log ("Checksum: " + $ChecksumPath) 'INFO'
-}
-
-function Write-DebugCopy {
-  param([string]$FilePath, [string]$DebugPath)
-  New-Dir ([System.IO.Path]::GetDirectoryName($DebugPath))
-  Copy-Item -LiteralPath $FilePath -Destination $DebugPath -Force
-  Write-Log ("Debug copy: " + $DebugPath) 'INFO'
+  Write-Log "Checksum: $ChecksumPath" 'INFO'
 }
 
 function ShouldBuild {
   param([string]$Platform, [string]$ArchOrVariant)
-  
-  # Internal standards for Go
+
   $norm = @{ 'x64' = 'amd64'; 'x86' = '386' }
   $target = $ArchOrVariant.ToLower()
   if ($norm.ContainsKey($target)) { $target = $norm[$target] }
@@ -146,99 +183,47 @@ function ShouldBuild {
 Invoke-Step 'Cross Build Artifacts' {
   $binRoot = Join-Path $root 'bin'
   $chkRoot = Join-Path $root 'checksums'
-  $dbgRoot = Join-Path $root 'debug'
 
-  if (ShouldBuild 'linux' 'amd64') {
-    Build-Go 'linux' 'amd64' (Join-Path $binRoot 'linux/amd64/msp-linux-amd64')
-    Write-Checksum (Join-Path $binRoot 'linux/amd64/msp-linux-amd64') (Join-Path $chkRoot 'msp-linux-amd64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'linux/amd64/msp-linux-amd64') (Join-Path $dbgRoot 'linux/amd64/msp-linux-amd64.debug')
-  }
+  $buildConfigs = @(
+    @{ Platform = 'linux';   Arch = 'amd64'; OutName = 'msp-linux-amd64' },
+    @{ Platform = 'linux';   Arch = 'arm64'; OutName = 'msp-linux-arm64' },
+    @{ Platform = 'linux';   Arch = 'arm';   GOARM = '7'; OutName = 'msp-linux-armv7' },
+    @{ Platform = 'darwin';  Arch = 'amd64'; OutName = 'msp-darwin-amd64' },
+    @{ Platform = 'darwin';  Arch = 'arm64'; OutName = 'msp-darwin-arm64' },
+    @{ Platform = 'windows'; Arch = 'amd64'; OutName = 'msp-windows-amd64.exe' },
+    @{ Platform = 'windows'; Arch = '386';   OutName = 'msp-windows-386.exe' }
+  )
 
-  if (ShouldBuild 'linux' 'arm64') {
-    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'linux/arm64/msp-linux-arm64')
-    Write-Checksum (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $chkRoot 'msp-linux-arm64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $dbgRoot 'linux/arm64/msp-linux-arm64.debug')
-  }
+  foreach ($cfg in $buildConfigs) {
+    $platform = $cfg.Platform
+    $arch = $cfg.Arch
+    $outName = $cfg.OutName
+    $goarm = $cfg.GOARM
 
-  if (ShouldBuild 'arm' 'v7') {
-    Build-Go 'linux' 'arm' (Join-Path $binRoot 'arm/v7/msp-arm-v7') '7'
-    Write-Checksum (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $chkRoot 'msp-arm-v7.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $dbgRoot 'arm/v7/msp-arm-v7.debug')
-  }
+    $shouldBuild = $false
+    if ($platform -eq 'linux' -and $arch -eq 'amd64') {
+      $shouldBuild = (ShouldBuild 'linux' 'amd64') -or (ShouldBuild 'linux' 'x64')
+    } elseif ($platform -eq 'linux' -and $arch -eq 'arm64') {
+      $shouldBuild = (ShouldBuild 'linux' 'arm64')
+    } elseif ($platform -eq 'linux' -and $arch -eq 'arm') {
+      $shouldBuild = (ShouldBuild 'arm' 'v7')
+    } elseif ($platform -eq 'darwin' -and $arch -eq 'amd64') {
+      $shouldBuild = (ShouldBuild 'macos' 'amd64') -or (ShouldBuild 'macos' 'x64')
+    } elseif ($platform -eq 'darwin' -and $arch -eq 'arm64') {
+      $shouldBuild = (ShouldBuild 'macos' 'arm64')
+    } elseif ($platform -eq 'windows' -and $arch -eq 'amd64') {
+      $shouldBuild = (ShouldBuild 'windows' 'amd64') -or (ShouldBuild 'windows' 'x64')
+    } elseif ($platform -eq 'windows' -and $arch -eq '386') {
+      $shouldBuild = (ShouldBuild 'windows' '386') -or (ShouldBuild 'windows' 'x86')
+    }
 
-  if (ShouldBuild 'arm' 'v8') {
-    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'arm/v8/msp-arm-v8')
-    Write-Checksum (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $chkRoot 'msp-arm-v8.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $dbgRoot 'arm/v8/msp-arm-v8.debug')
-  }
-
-  if (ShouldBuild 'macos' 'amd64') {
-    Build-Go 'darwin' 'amd64' (Join-Path $binRoot 'macos/msp-macos-amd64')
-    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $chkRoot 'msp-macos-amd64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $dbgRoot 'macos/msp-macos-amd64.debug')
-  }
-
-  if (ShouldBuild 'macos' 'arm64') {
-    Build-Go 'darwin' 'arm64' (Join-Path $binRoot 'macos/msp-macos-arm64')
-    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $chkRoot 'msp-macos-arm64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $dbgRoot 'macos/msp-macos-arm64.debug')
-  }
-
-  if (ShouldBuild 'windows' 'x64') {
-    Build-Go 'windows' 'amd64' (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe')
-    Write-Checksum (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $chkRoot 'msp-windows-amd64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $dbgRoot 'windows/x64/msp-windows-amd64.debug')
-  }
-
-  if (ShouldBuild 'windows' 'x86') {
-    Build-Go 'windows' '386' (Join-Path $binRoot 'windows/x86/msp-windows-386.exe')
-    Write-Checksum (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $chkRoot 'msp-windows-386.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $dbgRoot 'windows/x86/msp-windows-386.debug')
-  }
-
-
-  if (ShouldBuild 'linux' 'arm64') {
-    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'linux/arm64/msp-linux-arm64')
-    Write-Checksum (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $chkRoot 'msp-linux-arm64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'linux/arm64/msp-linux-arm64') (Join-Path $dbgRoot 'linux/arm64/msp-linux-arm64.debug')
-  }
-
-  if (ShouldBuild 'arm' 'v7') {
-    Build-Go 'linux' 'arm' (Join-Path $binRoot 'arm/v7/msp-arm-v7') '7'
-    Write-Checksum (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $chkRoot 'msp-arm-v7.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'arm/v7/msp-arm-v7') (Join-Path $dbgRoot 'arm/v7/msp-arm-v7.debug')
-  }
-
-  if (ShouldBuild 'arm' 'v8') {
-    Build-Go 'linux' 'arm64' (Join-Path $binRoot 'arm/v8/msp-arm-v8')
-    Write-Checksum (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $chkRoot 'msp-arm-v8.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'arm/v8/msp-arm-v8') (Join-Path $dbgRoot 'arm/v8/msp-arm-v8.debug')
-  }
-
-  if (ShouldBuild 'macos' 'amd64') {
-    Build-Go 'darwin' 'amd64' (Join-Path $binRoot 'macos/msp-macos-amd64')
-    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $chkRoot 'msp-macos-amd64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-amd64') (Join-Path $dbgRoot 'macos/msp-macos-amd64.debug')
-  }
-
-  if (ShouldBuild 'macos' 'arm64') {
-    Build-Go 'darwin' 'arm64' (Join-Path $binRoot 'macos/msp-macos-arm64')
-    Write-Checksum (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $chkRoot 'msp-macos-arm64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'macos/msp-macos-arm64') (Join-Path $dbgRoot 'macos/msp-macos-arm64.debug')
-  }
-
-  if (ShouldBuild 'windows' 'x64') {
-    Build-Go 'windows' 'amd64' (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe')
-    Write-Checksum (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $chkRoot 'msp-windows-amd64.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'windows/x64/msp-windows-amd64.exe') (Join-Path $dbgRoot 'windows/x64/msp-windows-amd64.debug')
-  }
-
-  if (ShouldBuild 'windows' 'x86') {
-    Build-Go 'windows' '386' (Join-Path $binRoot 'windows/x86/msp-windows-386.exe')
-    Write-Checksum (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $chkRoot 'msp-windows-386.sha256')
-    Write-DebugCopy (Join-Path $binRoot 'windows/x86/msp-windows-386.exe') (Join-Path $dbgRoot 'windows/x86/msp-windows-386.debug')
+    if ($shouldBuild) {
+      $outPath = Join-Path $binRoot "$platform/$arch/$outName"
+      Build-Go $platform $arch $outPath $goarm
+      $chkPath = Join-Path $chkRoot "$outName.sha256"
+      Write-Checksum $outPath $chkPath
+    }
   }
 }
 
-Write-Log 'Build completed.' 'INFO'
-
+Write-Log 'Build completed.' 'SUCCESS'
