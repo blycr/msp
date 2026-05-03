@@ -13,7 +13,7 @@
 <h3>打造你的家庭局域网影院。</h3>
 <p>面向家庭局域网的轻量媒体服务器。</p>
 
-[English](README.md) | [Wiki 文档](https://github.com/blycr/msp/wiki) | [提交 Bug](https://github.com/blycr/msp/issues)
+[English](../README.md) | [CodeMap](CodeMap.md) | [Wiki 文档](https://github.com/blycr/msp/wiki) | [提交 Bug](https://github.com/blycr/msp/issues)
 
 </div>
 
