@@ -155,6 +155,7 @@ msp.code-workspace
 prompt.md
 PROJECT_REVIEW.md
 AGENTS.md
+.cursorrules
 
 # Testing helper file
 test.json
