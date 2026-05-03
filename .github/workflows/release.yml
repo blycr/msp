@@ -65,6 +65,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Build web frontend
+        shell: bash
+        run: |
+          cd web
+          pnpm install
+          pnpm run build
+          cd ..
+
       - name: Set release tag
         shell: bash
         run: |
