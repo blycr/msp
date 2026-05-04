@@ -186,6 +186,10 @@ func (s *Server) InvalidateMediaCache() {
 	s.MediaSvc.InvalidateMediaCache()
 }
 
+func (s *Server) WaitForBackgroundMediaOps() {
+	s.MediaSvc.WaitForBackground()
+}
+
 func (s *Server) CreateSession() (string, error) {
 	return s.session.CreateSession()
 }

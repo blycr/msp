@@ -19,6 +19,9 @@ func setupTestHandler(t *testing.T) (*Handler, *server.Server) {
 	s := server.New(configPath)
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	t.Cleanup(func() {
+		s.WaitForBackgroundMediaOps()
+	})
 	return h, s
 }
 

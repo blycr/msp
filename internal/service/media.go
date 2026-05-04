@@ -34,3 +34,7 @@ func (s *MediaService) LoadMediaCacheFromDisk() bool {
 	cfg := s.config.Config()
 	return s.cache.LoadFromDisk(cache.CacheKey(append([]domain.Share(nil), cfg.Shares...), cfg.Blacklist))
 }
+
+func (s *MediaService) WaitForBackground() {
+	s.cache.WaitForBackground()
+}

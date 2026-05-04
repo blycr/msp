@@ -29,6 +29,7 @@ type MediaCache struct {
 	etag          string
 	building      bool
 	cacheFilePath string
+	bg            sync.WaitGroup
 }
 
 func NewMediaCache(cacheFilePath string, ttl time.Duration) *MediaCache {
@@ -38,6 +39,18 @@ func NewMediaCache(cacheFilePath string, ttl time.Duration) *MediaCache {
 	}
 	c.cond = sync.NewCond(&c.mu)
 	return c
+}
+
+func (c *MediaCache) runBg(fn func()) {
+	c.bg.Add(1)
+	go func() {
+		defer c.bg.Done()
+		fn()
+	}()
+}
+
+func (c *MediaCache) WaitForBackground() {
+	c.bg.Wait()
 }
 
 func (c *MediaCache) unmarshalResp() domain.MediaResponse {
@@ -68,7 +81,7 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 		if time.Since(c.builtAt) >= c.ttl && !c.building {
 			c.building = true
 			c.mu.Unlock()
-			go c.rebuild(context.Background(), key, shares, blacklist, maxItems)
+			c.runBg(func() { c.rebuild(context.Background(), key, shares, blacklist, maxItems) })
 			c.mu.Lock()
 		}
 		r := c.unmarshalResp()
@@ -87,7 +100,7 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 
 	if refresh {
 		c.building = true
-		go c.rebuild(context.Background(), key, shares, blacklist, maxItems)
+		c.runBg(func() { c.rebuild(context.Background(), key, shares, blacklist, maxItems) })
 		r := c.unmarshalResp()
 		r.Scanning = true
 		etag := c.etag
@@ -164,7 +177,7 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 	c.mu.Unlock()
 
 	if !media.IsDBAvailable() {
-		go c.saveToDisk(key, builtAt, etag, resp)
+		c.runBg(func() { c.saveToDisk(key, builtAt, etag, resp) })
 	}
 
 	go debug.FreeOSMemory()
@@ -232,9 +245,9 @@ func (c *MediaCache) saveToDisk(key string, builtAt time.Time, etag string, resp
 }
 
 type mediaCacheOnDisk struct {
-	Key     string                `json:"key"`
-	BuiltAt int64                 `json:"builtAt"`
-	ETag    string                `json:"etag"`
+	Key     string               `json:"key"`
+	BuiltAt int64                `json:"builtAt"`
+	ETag    string               `json:"etag"`
 	Resp    domain.MediaResponse `json:"resp"`
 }
 
