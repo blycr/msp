@@ -75,7 +75,8 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 
 ## 源码编译
 
-环境要求：`Go 1.24+`、`Node.js 18+`（用于构建前端）
+环境要求：`Go 1.24+`、`Node.js 18+`（用于构建前端）。  
+详细构建与开发脚本选项，请参阅 [脚本说明](../scripts/README_CN.md)。
 
 ```bash
 git clone https://github.com/blycr/msp.git
