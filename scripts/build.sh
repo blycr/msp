@@ -375,6 +375,9 @@ if [[ "$SKIP_LINT" != "true" ]]; then
   fi
 fi
 
+export -f should_build build_go write_checksum new_dir log
+export PLATFORMS ARCHITECTURES root
+
 invoke_step "Cross Build Artifacts" bash -c "
   binRoot='$root/bin'
   chkRoot='$root/checksums'
