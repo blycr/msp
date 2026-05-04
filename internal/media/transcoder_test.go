@@ -265,20 +265,55 @@ func TestLimitReleaser(t *testing.T) {
 }
 
 func TestSetTranscodeLimit(t *testing.T) {
-	// Save and restore original
 	origLimit := transcodeLimit
 	defer func() { transcodeLimit = origLimit }()
 
 	SetTranscodeLimit(6)
 	assert.Equal(t, 6, cap(transcodeLimit))
 
-	// Zero should default to 2
 	SetTranscodeLimit(0)
 	assert.Equal(t, 2, cap(transcodeLimit))
 
-	// Negative should default to 2
 	SetTranscodeLimit(-1)
 	assert.Equal(t, 2, cap(transcodeLimit))
+}
+
+func TestKillAllTranscodeProcessesNoPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		KillAllTranscodeProcesses()
+	})
+}
+
+func TestKillAllTranscodeProcessesCleanup(t *testing.T) {
+	origProcs := activeProcesses
+	defer func() { activeProcesses = origProcs }()
+
+	activeProcessesMu.Lock()
+	activeProcesses = make(map[*exec.Cmd]struct{})
+	activeProcessesMu.Unlock()
+
+	KillAllTranscodeProcesses()
+
+	activeProcessesMu.Lock()
+	assert.Empty(t, activeProcesses)
+	activeProcessesMu.Unlock()
+}
+
+func TestRemoveProcess(t *testing.T) {
+	origProcs := activeProcesses
+	defer func() { activeProcesses = origProcs }()
+
+	activeProcesses = make(map[*exec.Cmd]struct{})
+
+	cmd := &exec.Cmd{}
+	activeProcesses[cmd] = struct{}{}
+	assert.Len(t, activeProcesses, 1)
+
+	removeProcess(cmd)
+	assert.Empty(t, activeProcesses)
+
+	removeProcess(cmd)
+	assert.Empty(t, activeProcesses)
 }
 
 // 辅助函数
