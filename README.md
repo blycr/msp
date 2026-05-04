@@ -81,6 +81,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 - Playback/Transcode: [Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)
 - Security: [Security Guide](https://github.com/blycr/msp/wiki/Security)
 - Release: [Release Workflow](https://github.com/blycr/msp/wiki/Release)
+- Build & Dev Scripts: [Scripts Guide](scripts/README.md)
 
 ## Build from Source
 
@@ -90,11 +91,15 @@ Requirements: `Go 1.25+`, `Node.js 18+` (frontend build)
 git clone https://github.com/blycr/msp.git
 cd msp
 
-# Windows
-./scripts/build.ps1 -Platforms windows -Architectures x64
+# Windows (PowerShell)
+.\scripts\build.ps1 -P windows              # Windows all architectures
+.\scripts\build.ps1 -P all                  # All platforms and architectures
+.\scripts\build.ps1 -H                      # Show all available options
 
-# Linux/macOS
-./scripts/build.sh --platforms linux --architectures amd64
+# Linux/macOS (Bash)
+./scripts/build.sh -P linux                 # Linux all architectures
+./scripts/build.sh -P all                   # All platforms and architectures
+./scripts/build.sh -h                       # Show all available options
 ```
 
 ## License

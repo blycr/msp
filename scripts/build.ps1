@@ -1,19 +1,22 @@
 #requires -Version 5.1
 param(
-  [string[]]$Platforms = @('windows'),
-  [string[]]$Architectures = @('x64'),
-  [switch]$SkipTests = $false,
-  [switch]$SkipLint = $false
+  [Alias('P')][string]$Preset,
+  [Alias('F')][string[]]$Platforms,
+  [Alias('A')][string[]]$Architectures,
+  [Alias('T')][switch]$SkipTests,
+  [Alias('L')][switch]$SkipLint,
+  [Alias('H')][switch]$Help,
+  [Alias('I')][switch]$ListPresets
 )
 
 $ErrorActionPreference = 'Stop'
 
-# 设置 UTF-8 编码以减少乱码
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logFile = Join-Path $PSScriptRoot 'build.log'
+$profilesFile = Join-Path $PSScriptRoot 'build-profiles.json'
 
 function Write-Log {
   param(
@@ -43,13 +46,219 @@ function Invoke-Step {
   }
 }
 
-# 检查依赖
+function New-Dir {
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) {
+    New-Item -ItemType Directory -Force -Path $Path | Out-Null
+  }
+}
+
+function Load-Profiles {
+  if (-not (Test-Path $profilesFile)) {
+    Write-Log "Profiles config not found: $profilesFile" 'WARN'
+    return $null
+  }
+  try {
+    return Get-Content -LiteralPath $profilesFile -Raw -Encoding UTF8 | ConvertFrom-Json
+  }
+  catch {
+    Write-Log "Failed to parse profiles config: $($_.Exception.Message)" 'ERROR'
+    return $null
+  }
+}
+
+function Split-CommaValues {
+  param([string[]]$Values)
+  $result = @()
+  foreach ($v in $Values) {
+    if ($v -match ',') {
+      $result += ($v -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    }
+    else {
+      $result += $v
+    }
+  }
+  return $result
+}
+
+function Show-Help {
+$lines = @'
+
+  MSP Build Script - Production Build Tool
+
+  Usage:
+    .\scripts\build.ps1 [options]
+
+  Preset Mode (recommended):
+    .\scripts\build.ps1 -P <name>
+
+  Available Presets:
+    all        All platforms and architectures
+    release    Release build (same as all)
+    linux      Linux all architectures (amd64, arm64, armv7)
+    macos      macOS all architectures (amd64, arm64)
+    darwin     macOS all architectures (alias)
+    windows    Windows all architectures (amd64, x86)
+    arm        ARM all architectures (arm64, armv7)
+    server     Server deploy (Linux amd64 + arm64)
+    desktop    Desktop (Windows + macOS)
+    quick      Quick build (skip tests and lint)
+
+  Custom Build:
+    .\scripts\build.ps1 -F linux,windows -A x64,arm64
+
+  Parameters:
+    -P <name>          Preset config (alias: -Preset)
+    -F <list>          Target platforms, comma-separated (alias: -Platforms)
+    -A <list>          Target architectures, comma-separated (alias: -Architectures)
+    -T                 Skip Go tests (alias: -SkipTests)
+    -L                 Skip code checks (alias: -SkipLint)
+    -I                 List all available presets (alias: -ListPresets)
+    -H                 Show this help (alias: -Help)
+
+  Examples:
+    .\scripts\build.ps1 -P all
+    .\scripts\build.ps1 -P windows
+    .\scripts\build.ps1 -P quick
+    .\scripts\build.ps1 -P server -T
+    .\scripts\build.ps1 -F linux -A x64
+
+'@
+  Write-Host $lines
+}
+
+function Show-Presets {
+  $profiles = Load-Profiles
+  if (-not $profiles) { return }
+
+  Write-Host "`n  Available Presets:`n" -ForegroundColor Cyan
+  Write-Host ("  {0,-12} {1,-36} {2}" -f 'Name', 'Description', 'Targets') -ForegroundColor Gray
+  Write-Host ("  {0,-12} {1,-36} {2}" -f '----', '-----------', '-------') -ForegroundColor Gray
+
+  foreach ($name in ($profiles.presets.PSObject.Properties.Name | Sort-Object)) {
+    $p = $profiles.presets.$name
+    $platforms = $p.platforms -join ','
+    $archs = $p.architectures -join ','
+    $desc = if ($p.description) { $p.description } else { '' }
+    $flags = ''
+    if ($p.skipTests) { $flags += ' [skipTests]' }
+    if ($p.skipLint) { $flags += ' [skipLint]' }
+    $target = "$platforms | $archs$flags"
+    Write-Host ("  {0,-12} {1,-36} {2}" -f $name, $desc, $target)
+  }
+  Write-Host ''
+}
+
+function Resolve-Preset {
+  param([string]$Name)
+
+  $profiles = Load-Profiles
+  if (-not $profiles) {
+    Write-Log 'Failed to load profiles config, falling back to defaults' 'WARN'
+    return
+  }
+
+  $lower = $Name.ToLower()
+  if (-not $profiles.presets.PSObject.Properties[$lower]) {
+    Write-Log "Unknown preset: $Name" 'ERROR'
+    Write-Host "`n  Available presets:" -ForegroundColor Yellow
+    foreach ($n in ($profiles.presets.PSObject.Properties.Name | Sort-Object)) {
+      $d = $profiles.presets.$n.description
+      if ($d) { Write-Host "    $n  - $d" } else { Write-Host "    $n" }
+    }
+    Write-Host ''
+    exit 1
+  }
+
+  $p = $profiles.presets.$lower
+  $script:Platforms = $p.platforms
+  $script:Architectures = $p.architectures
+  if ($p.skipTests -and -not $SkipTests) { $script:SkipTests = [switch]$true }
+  if ($p.skipLint -and -not $SkipLint) { $script:SkipLint = [switch]$true }
+
+  Write-Log "Using preset: $lower ($($p.description))" 'INFO'
+  Write-Log "  Platforms: $($p.platforms -join ', ')" 'INFO'
+  Write-Log "  Architectures: $($p.architectures -join ', ')" 'INFO'
+}
+
+if ($Help) { Show-Help; exit 0 }
+if ($ListPresets) { Show-Presets; exit 0 }
+
+if ($Preset) {
+  Resolve-Preset $Preset
+}
+
+if (-not $Platforms) {
+  $Platforms = if ($Preset) { @() } else { @('windows') }
+}
+$Platforms = Split-CommaValues $Platforms
+
+if (-not $Architectures) {
+  $Architectures = if ($Preset) { @() } else { @('x64') }
+}
+$Architectures = Split-CommaValues $Architectures
+
+if ($Platforms.Count -eq 0 -and -not $Preset) {
+  $Platforms = @('windows')
+}
+if ($Architectures.Count -eq 0 -and -not $Preset) {
+  $Architectures = @('x64')
+}
+
 function Test-Dependency {
   param([string]$Name, [string]$Command)
   if (-not (Get-Command $Command -ErrorAction SilentlyContinue)) {
     Write-Log "$Name not found. Please install $Name." 'ERROR'
     exit 1
   }
+}
+
+function Build-Go {
+  param([string]$GOOS, [string]$GOARCH, [string]$OutPath, [string]$GOARM = $null)
+  Push-Location $root
+  try {
+    $env:GOOS = $GOOS
+    $env:GOARCH = $GOARCH
+    $env:CGO_ENABLED = "0"
+    if ($GOARM) { $env:GOARM = $GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
+    New-Dir ([System.IO.Path]::GetDirectoryName($OutPath))
+    & go build -trimpath -ldflags="-s -w" -o $OutPath ./cmd/msp
+    if ($LASTEXITCODE -ne 0) { throw "go build failed. exitCode=$LASTEXITCODE" }
+    Write-Log "Built: $OutPath" 'SUCCESS'
+  }
+  finally {
+    Pop-Location
+  }
+}
+
+function Write-Checksum {
+  param([string]$FilePath, [string]$ChecksumPath)
+  $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $FilePath
+  $line = ($hash.Hash + "  " + [System.IO.Path]::GetFileName($FilePath))
+  New-Dir ([System.IO.Path]::GetDirectoryName($ChecksumPath))
+  $line | Out-File -FilePath $ChecksumPath -Encoding ascii
+  Write-Log "Checksum: $ChecksumPath" 'INFO'
+}
+
+function ShouldBuild {
+  param([string]$Platform, [string]$ArchOrVariant)
+
+  $norm = @{ 'x64' = 'amd64'; 'x86' = '386' }
+  $target = $ArchOrVariant.ToLower()
+  if ($norm.ContainsKey($target)) { $target = $norm[$target] }
+
+  $pMatch = $false
+  foreach ($p in $Platforms) {
+    if ($p.ToLower() -eq $Platform.ToLower()) { $pMatch = $true; break }
+  }
+  if (-not $pMatch) { return $false }
+
+  foreach ($a in $Architectures) {
+    $inputA = $a.ToLower()
+    if ($norm.ContainsKey($inputA)) { $inputA = $norm[$inputA] }
+    if ($inputA -eq $target) { return $true }
+  }
+  return $false
 }
 
 Test-Dependency 'Go' 'go'
@@ -108,7 +317,6 @@ if (-not $SkipLint) {
     }
   }
 
-  # 检查 golangci-lint 是否可用
   if (Get-Command golangci-lint -ErrorAction SilentlyContinue) {
     Invoke-Step 'Run golangci-lint' {
       Push-Location $root
@@ -123,61 +331,6 @@ if (-not $SkipLint) {
   } else {
     Write-Log 'golangci-lint not found, skipping lint check. Install from https://golangci-lint.run/' 'WARN'
   }
-}
-
-function New-Dir {
-  param([string]$Path)
-  if (-not (Test-Path -LiteralPath $Path)) {
-    New-Item -ItemType Directory -Force -Path $Path | Out-Null
-  }
-}
-
-function Build-Go {
-  param([string]$GOOS, [string]$GOARCH, [string]$OutPath, [string]$GOARM = $null)
-  Push-Location $root
-  try {
-    $env:GOOS = $GOOS
-    $env:GOARCH = $GOARCH
-    $env:CGO_ENABLED = "0"
-    if ($GOARM) { $env:GOARM = $GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
-    New-Dir ([System.IO.Path]::GetDirectoryName($OutPath))
-    & go build -trimpath -ldflags="-s -w" -o $OutPath ./cmd/msp
-    if ($LASTEXITCODE -ne 0) { throw "go build failed. exitCode=$LASTEXITCODE" }
-    Write-Log "Built: $OutPath" 'SUCCESS'
-  }
-  finally {
-    Pop-Location
-  }
-}
-
-function Write-Checksum {
-  param([string]$FilePath, [string]$ChecksumPath)
-  $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $FilePath
-  $line = ($hash.Hash + "  " + [System.IO.Path]::GetFileName($FilePath))
-  New-Dir ([System.IO.Path]::GetDirectoryName($ChecksumPath))
-  $line | Out-File -FilePath $ChecksumPath -Encoding ascii
-  Write-Log "Checksum: $ChecksumPath" 'INFO'
-}
-
-function ShouldBuild {
-  param([string]$Platform, [string]$ArchOrVariant)
-
-  $norm = @{ 'x64' = 'amd64'; 'x86' = '386' }
-  $target = $ArchOrVariant.ToLower()
-  if ($norm.ContainsKey($target)) { $target = $norm[$target] }
-
-  $pMatch = $false
-  foreach ($p in $Platforms) {
-    if ($p.ToLower() -eq $Platform.ToLower()) { $pMatch = $true; break }
-  }
-  if (-not $pMatch) { return $false }
-
-  foreach ($a in $Architectures) {
-    $inputA = $a.ToLower()
-    if ($norm.ContainsKey($inputA)) { $inputA = $norm[$inputA] }
-    if ($inputA -eq $target) { return $true }
-  }
-  return $false
 }
 
 Invoke-Step 'Cross Build Artifacts' {

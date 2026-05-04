@@ -33,7 +33,7 @@ func (h *Handler) HandleSubtitle(w http.ResponseWriter, r *http.Request) {
 	case ".ass", ".ssa":
 		h.serveASS(w, r, f, st)
 	default:
-		http.Error(w, constants.ErrMsgUnsupportedFormat, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, constants.ErrMsgUnsupportedFormat)
 	}
 }
 
@@ -45,12 +45,12 @@ func (h *Handler) serveVTT(w http.ResponseWriter, r *http.Request, f *os.File, s
 
 func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
 	if st.Size() > maxSubtitleConvertSize {
-		http.Error(w, "subtitle too large", http.StatusRequestEntityTooLarge)
+		writeError(w, http.StatusRequestEntityTooLarge, "subtitle too large")
 		return
 	}
 	b, err := io.ReadAll(f)
 	if err != nil {
-		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, constants.ErrMsgReadFailed)
 		return
 	}
 	out := scanner.SrtToVtt(b)
@@ -61,12 +61,12 @@ func (h *Handler) serveSRT(w http.ResponseWriter, r *http.Request, f *os.File, s
 
 func (h *Handler) serveASS(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo) {
 	if st.Size() > maxSubtitleConvertSize {
-		http.Error(w, "subtitle too large", http.StatusRequestEntityTooLarge)
+		writeError(w, http.StatusRequestEntityTooLarge, "subtitle too large")
 		return
 	}
 	b, err := io.ReadAll(f)
 	if err != nil {
-		http.Error(w, constants.ErrMsgReadFailed, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, constants.ErrMsgReadFailed)
 		return
 	}
 	out := scanner.AssToVtt(b)

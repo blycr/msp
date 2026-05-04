@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,6 +91,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 	}
 
 	if err != nil {
+		log.Printf("[WARN] walk entry error: %v", err)
 		return nil
 	}
 	if w.seen >= w.limit {
@@ -109,6 +111,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 
 	item, err := buildMediaItem(p, d, shareLabel, w.dirCache)
 	if err != nil {
+		log.Printf("[WARN] build media item error: %v", err)
 		return nil
 	}
 
@@ -147,6 +150,7 @@ func shouldSkipFile(d fs.DirEntry, blacklist config.BlacklistConfig) bool {
 
 	fi, err := d.Info()
 	if err != nil {
+		log.Printf("[WARN] file info error: %v", err)
 		return true
 	}
 
@@ -283,7 +287,9 @@ func readSniffBytes(fileAbs string) ([]byte, error) {
 			tailSize = st.Size()
 		}
 		tail := make([]byte, tailSize)
-		_, _ = f.ReadAt(tail, st.Size()-tailSize)
+		if _, err := f.ReadAt(tail, st.Size()-tailSize); err != nil {
+			log.Printf("[WARN] read tail bytes error: %v", err)
+		}
 		b = append(head, tail...)
 	}
 	return b, nil

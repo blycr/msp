@@ -149,7 +149,10 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	}()
 
 	// 1. 尝试获取编码信息
-	codec, _ := GetCodecInfo(ctx, inputPath)
+	codec, err := GetCodecInfo(ctx, inputPath)
+	if err != nil {
+		log.Printf("[WARN] GetCodecInfo error for %s: %v", inputPath, err)
+	}
 
 	args := []string{"-hide_banner", "-loglevel", "error"}
 

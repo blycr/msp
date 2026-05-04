@@ -119,7 +119,7 @@ func TestFormatMediaCachePath(t *testing.T) {
 func TestInvalidate(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "test_cache.json")
-	_ = os.WriteFile(cachePath, []byte(`{}`), 0644)
+	_ = os.WriteFile(cachePath, []byte(`{}`), 0600)
 
 	c := NewMediaCache(cachePath, 5*time.Minute)
 	c.key = "some-key"
@@ -211,7 +211,7 @@ func TestLoadFromDisk(t *testing.T) {
 	t.Run("returns false for invalid JSON", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		p := filepath.Join(tmpDir, "cache.json")
-		_ = os.WriteFile(p, []byte("not-json"), 0644)
+		_ = os.WriteFile(p, []byte("not-json"), 0600)
 
 		c := NewMediaCache(p, 5*time.Minute)
 		if c.LoadFromDisk("some-key") {
@@ -224,7 +224,7 @@ func TestLoadFromDisk(t *testing.T) {
 		p := filepath.Join(tmpDir, "cache.json")
 		v := mediaCacheOnDisk{Key: "other-key", BuiltAt: time.Now().UnixNano(), ETag: "etag", Resp: domain.MediaResponse{}}
 		b, _ := jsonMarshal(v)
-		_ = os.WriteFile(p, b, 0644)
+		_ = os.WriteFile(p, b, 0600)
 
 		c := NewMediaCache(p, 5*time.Minute)
 		if c.LoadFromDisk("my-key") {
@@ -237,7 +237,7 @@ func TestLoadFromDisk(t *testing.T) {
 		p := filepath.Join(tmpDir, "cache.json")
 		v := mediaCacheOnDisk{Key: "my-key", BuiltAt: time.Now().UnixNano(), ETag: "etag123", Resp: domain.MediaResponse{}}
 		b, _ := jsonMarshal(v)
-		_ = os.WriteFile(p, b, 0644)
+		_ = os.WriteFile(p, b, 0600)
 
 		c := NewMediaCache(p, 5*time.Minute)
 		if !c.LoadFromDisk("my-key") {

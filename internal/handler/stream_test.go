@@ -71,7 +71,7 @@ func TestHandleProbeForbiddenFile(t *testing.T) {
 	h, _ := setupTestHandler(t)
 
 	target := filepath.Join(t.TempDir(), "test.mp4")
-	_ = os.WriteFile(target, []byte("fake"), 0644)
+	_ = os.WriteFile(target, []byte("fake"), 0600)
 	id := util.EncodeID(target)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/probe?id="+id, nil)
@@ -132,7 +132,7 @@ func TestHandleProbeWithValidFile(t *testing.T) {
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
 	videoPath := filepath.Join(tmpDir, "test.mp4")
-	_ = os.WriteFile(videoPath, []byte("fake-mp4-data"), 0644)
+	_ = os.WriteFile(videoPath, []byte("fake-mp4-data"), 0600)
 	id := util.EncodeID(videoPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/probe?id="+id, nil)
@@ -149,7 +149,7 @@ func TestHandleStreamForbiddenFile(t *testing.T) {
 	h, _ := setupTestHandler(t)
 
 	target := filepath.Join(t.TempDir(), "test.mp4")
-	_ = os.WriteFile(target, []byte("fake"), 0644)
+	_ = os.WriteFile(target, []byte("fake"), 0600)
 	id := util.EncodeID(target)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/stream?id="+id, nil)

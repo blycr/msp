@@ -171,7 +171,7 @@ func TestLoggerServiceLogContainsLevelPrefix(t *testing.T) {
 	l.Log(LogLevelInfo, "prefix-test")
 	l.RotateLogIfNeeded()
 
-	data, err := os.ReadFile(logPath)
+	data, err := os.ReadFile(logPath) //nolint:gosec // G304: test reads its own log file
 	if err != nil {
 		t.Fatalf("failed to read log: %v", err)
 	}

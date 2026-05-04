@@ -81,6 +81,7 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 - 编码与转码：[Encoding_CN](https://github.com/blycr/msp/wiki/Encoding_CN)
 - 安全功能：[Security_CN](https://github.com/blycr/msp/wiki/Security_CN)
 - 发布流程：[Release](https://github.com/blycr/msp/wiki/Release)
+- 构建与开发脚本：[脚本说明](../scripts/README_CN.md)
 
 ## 源码编译
 
@@ -90,11 +91,15 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 git clone https://github.com/blycr/msp.git
 cd msp
 
-# Windows
-./scripts/build.ps1 -Platforms windows -Architectures x64
+# Windows (PowerShell)
+.\scripts\build.ps1 -P windows              # Windows 全架构
+.\scripts\build.ps1 -P all                  # 全量编译所有平台和架构
+.\scripts\build.ps1 -H                      # 查看所有可用选项
 
-# Linux/macOS
-./scripts/build.sh --platforms linux --architectures amd64
+# Linux/macOS (Bash)
+./scripts/build.sh -P linux                 # Linux 全架构
+./scripts/build.sh -P all                   # 全量编译所有平台和架构
+./scripts/build.sh -h                       # 查看所有可用选项
 ```
 
 ## 许可证

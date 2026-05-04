@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Subtitle struct {
 	ID      string `json:"id" gorm:"column:id"`
@@ -72,6 +75,27 @@ type ConfigResponse struct {
 
 type ApiError struct {
 	Message string `json:"message"`
+}
+
+type AppError struct {
+	Status  int
+	Message string
+	Err     error
+}
+
+func NewAppError(status int, message string, err error) *AppError {
+	return &AppError{Status: status, Message: message, Err: err}
+}
+
+func (e *AppError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
+	}
+	return e.Message
+}
+
+func (e *AppError) Unwrap() error {
+	return e.Err
 }
 
 type SharesOpRequest struct {

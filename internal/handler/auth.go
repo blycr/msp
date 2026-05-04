@@ -25,17 +25,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		PIN string `json:"pin"`
 	}
 	if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
-		if isPayloadTooLarge(err) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{
-				"valid": false,
-				"error": "payload too large",
-			})
-		} else {
-			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"valid": false,
-				"error": constants.ErrMsgInvalidRequest,
-			})
-		}
+		writeJSONDecodeError(w, err)
 		return
 	}
 
@@ -43,10 +33,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 	if valid {
 		sessionToken, err := h.session.CreateSession()
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{
-				"valid": false,
-				"error": "Failed to create session",
-			})
+			writeError(w, http.StatusInternalServerError, "Failed to create session")
 			return
 		}
 

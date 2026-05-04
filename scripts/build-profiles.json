@@ -1,0 +1,56 @@
+{
+  "presets": {
+    "all": {
+      "platforms": ["linux", "macos", "windows", "arm"],
+      "architectures": ["x64", "arm64", "x86", "v7"],
+      "description": "Compile all platforms and architectures"
+    },
+    "release": {
+      "platforms": ["linux", "macos", "windows", "arm"],
+      "architectures": ["x64", "arm64", "x86", "v7"],
+      "description": "Release build (same as all)"
+    },
+    "linux": {
+      "platforms": ["linux"],
+      "architectures": ["x64", "arm64", "v7"],
+      "description": "Linux all architectures"
+    },
+    "macos": {
+      "platforms": ["macos"],
+      "architectures": ["x64", "arm64"],
+      "description": "macOS all architectures"
+    },
+    "darwin": {
+      "platforms": ["macos"],
+      "architectures": ["x64", "arm64"],
+      "description": "macOS all architectures"
+    },
+    "windows": {
+      "platforms": ["windows"],
+      "architectures": ["x64", "x86"],
+      "description": "Windows all architectures"
+    },
+    "arm": {
+      "platforms": ["arm"],
+      "architectures": ["arm64", "v7"],
+      "description": "ARM all architectures"
+    },
+    "server": {
+      "platforms": ["linux"],
+      "architectures": ["x64", "arm64"],
+      "description": "Server deployment (Linux amd64 + arm64)"
+    },
+    "desktop": {
+      "platforms": ["windows", "macos"],
+      "architectures": ["x64", "arm64"],
+      "description": "Desktop deployment (Windows + macOS)"
+    },
+    "quick": {
+      "platforms": ["windows"],
+      "architectures": ["x64"],
+      "skipTests": true,
+      "skipLint": true,
+      "description": "Quick build (current platform, skip tests and lint)"
+    }
+  }
+}

@@ -44,7 +44,10 @@ func parseLimitParam(r *http.Request) int {
 	if v == "" {
 		return 0
 	}
-	limit, _ := strconv.Atoi(v)
+	limit, err := strconv.Atoi(v)
+	if err != nil || limit < 0 {
+		return 0
+	}
 	return limit
 }
 

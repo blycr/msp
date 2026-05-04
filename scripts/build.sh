@@ -1,38 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PLATFORMS="windows"
-ARCHITECTURES="x64"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROFILES_FILE="$SCRIPT_DIR/build-profiles.json"
+root="$(cd "$SCRIPT_DIR/.." && pwd)"
+logFile="$SCRIPT_DIR/build.log"
+
+PLATFORMS=""
+ARCHITECTURES=""
 SKIP_TESTS="false"
 SKIP_LINT="false"
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -Platforms|--platforms)
-      PLATFORMS="$2"
-      shift 2
-      ;;
-    -Architectures|--architectures)
-      ARCHITECTURES="$2"
-      shift 2
-      ;;
-    -SkipTests|--skip-tests)
-      SKIP_TESTS="true"
-      shift
-      ;;
-    -SkipLint|--skip-lint)
-      SKIP_LINT="true"
-      shift
-      ;;
-    *)
-      echo "Unknown argument: $1"
-      exit 1
-      ;;
-  esac
-done
-
-root="$(cd "$(dirname "$0")/.." && pwd)"
-logFile="$(cd "$(dirname "$0")" && pwd)/build.log"
+PRESET=""
+SHOW_HELP="false"
+LIST_PRESETS="false"
 
 log() {
   local level="$2"
@@ -47,6 +27,221 @@ log() {
   esac
   printf "%s\n" "$line" >> "$logFile" || true
 }
+
+show_help() {
+  cat <<'EOF'
+
+  MSP Build Script - Production Build Tool
+
+  Usage:
+    ./scripts/build.sh [options]
+
+  Preset Mode (recommended):
+    ./scripts/build.sh -P <name>
+
+  Available Presets:
+    all        All platforms and architectures
+    release    Release build (same as all)
+    linux      Linux all architectures (amd64, arm64, armv7)
+    macos      macOS all architectures (amd64, arm64)
+    darwin     macOS all architectures (alias)
+    windows    Windows all architectures (amd64, x86)
+    arm        ARM all architectures (arm64, armv7)
+    server     Server deploy (Linux amd64 + arm64)
+    desktop    Desktop (Windows + macOS)
+    quick      Quick build (skip tests and lint)
+
+  Custom Build:
+    ./scripts/build.sh -p linux,windows -a x64,arm64
+
+  Parameters:
+    -P <name>     Preset config (long: --preset)
+    -p <list>     Target platforms, comma-separated (long: --platforms)
+    -a <list>     Target architectures, comma-separated (long: --architectures)
+    -t            Skip Go tests (long: --skip-tests)
+    -l            Skip code checks (long: --skip-lint)
+    -L            List all available presets (long: --list-presets)
+    -h            Show this help (long: --help)
+
+  Examples:
+    ./scripts/build.sh -P all
+    ./scripts/build.sh -P windows
+    ./scripts/build.sh -P quick
+    ./scripts/build.sh -P server -t
+    ./scripts/build.sh -p linux -a x64
+
+EOF
+}
+
+list_presets() {
+  if [[ ! -f "$PROFILES_FILE" ]]; then
+    echo "  Profiles config not found: $PROFILES_FILE"
+    return 1
+  fi
+
+  printf "\n  Available Presets:\n\n"
+  printf "  %-12s %-36s %s\n" "Name" "Description" "Targets"
+  printf "  %-12s %-36s %s\n" "----" "-----------" "-------"
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.presets | to_entries | sort_by(.key)[] | "\(.key)\t\(.value.description // "")\t\(.value.platforms | join(","))\t\(.value.architectures | join(","))\t\(.value.skipTests // false)\t\(.value.skipLint // false)"' "$PROFILES_FILE" | \
+    while IFS=$'\t' read -r name desc platforms archs skipTests skipLint; do
+      flags=""
+      [[ "$skipTests" == "true" ]] && flags+=" [skipTests]"
+      [[ "$skipLint" == "true" ]] && flags+=" [skipLint]"
+      target="$platforms | $archs$flags"
+      printf "  %-12s %-36s %s\n" "$name" "$desc" "$target"
+    done
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json, sys
+with open('$PROFILES_FILE') as f:
+    data = json.load(f)
+for name in sorted(data['presets']):
+    p = data['presets'][name]
+    desc = p.get('description', '')
+    platforms = ','.join(p['platforms'])
+    archs = ','.join(p['architectures'])
+    flags = ''
+    if p.get('skipTests'): flags += ' [skipTests]'
+    if p.get('skipLint'): flags += ' [skipLint]'
+    target = f'{platforms} | {archs}{flags}'
+    print(f'  {name:<12} {desc:<36} {target}')
+"
+  else
+    echo "  jq or python3 required to parse profiles config"
+    return 1
+  fi
+  echo ''
+}
+
+load_preset() {
+  local name="$1"
+  local lower
+  lower="$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ ! -f "$PROFILES_FILE" ]]; then
+    log "Profiles config not found: $PROFILES_FILE" "WARN"
+    return 1
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq -e ".presets.\"$lower\"" "$PROFILES_FILE" >/dev/null 2>&1; then
+      log "Unknown preset: $name" "ERROR"
+      echo ""
+      echo "  Available presets:"
+      jq -r '.presets | to_entries | sort_by(.key)[] | "    \(.key)  - \(.value.description // "")"' "$PROFILES_FILE"
+      echo ""
+      exit 1
+    fi
+    PLATFORMS="$(jq -r ".presets.\"$lower\".platforms | join(\",\")" "$PROFILES_FILE")"
+    ARCHITECTURES="$(jq -r ".presets.\"$lower\".architectures | join(\",\")" "$PROFILES_FILE")"
+    local preset_skip_tests preset_skip_lint
+    preset_skip_tests="$(jq -r ".presets.\"$lower\".skipTests // false" "$PROFILES_FILE")"
+    preset_skip_lint="$(jq -r ".presets.\"$lower\".skipLint // false" "$PROFILES_FILE")"
+    [[ "$preset_skip_tests" == "true" && "$SKIP_TESTS" != "true" ]] && SKIP_TESTS="true"
+    [[ "$preset_skip_lint" == "true" && "$SKIP_LINT" != "true" ]] && SKIP_LINT="true"
+    local desc
+    desc="$(jq -r ".presets.\"$lower\".description // \"\"" "$PROFILES_FILE")"
+    log "Using preset: $lower ($desc)" "INFO"
+  elif command -v python3 >/dev/null 2>&1; then
+    local result
+    result="$(python3 -c "
+import json, sys
+with open('$PROFILES_FILE') as f:
+    data = json.load(f)
+presets = data.get('presets', {})
+p = presets.get('$lower')
+if not p:
+    print('ERROR:Unknown preset: $name', file=sys.stderr)
+    for n in sorted(presets):
+        d = presets[n].get('description', '')
+        print(f'    {n}  - {d}', file=sys.stderr)
+    sys.exit(1)
+print(','.join(p['platforms']))
+print(','.join(p['architectures']))
+print(str(p.get('skipTests', False)).lower())
+print(str(p.get('skipLint', False)).lower())
+print(p.get('description', ''))
+" 2>&1)" || {
+      log "Unknown preset or parse failed: $name" "ERROR"
+      exit 1
+    }
+    PLATFORMS="$(echo "$result" | sed -n '1p')"
+    ARCHITECTURES="$(echo "$result" | sed -n '2p')"
+    local preset_skip_tests preset_skip_lint desc
+    preset_skip_tests="$(echo "$result" | sed -n '3p')"
+    preset_skip_lint="$(echo "$result" | sed -n '4p')"
+    desc="$(echo "$result" | sed -n '5p')"
+    [[ "$preset_skip_tests" == "true" && "$SKIP_TESTS" != "true" ]] && SKIP_TESTS="true"
+    [[ "$preset_skip_lint" == "true" && "$SKIP_LINT" != "true" ]] && SKIP_LINT="true"
+    log "Using preset: $lower ($desc)" "INFO"
+  else
+    log "jq or python3 required to parse profiles config" "ERROR"
+    exit 1
+  fi
+
+  log "  Platforms: $PLATFORMS" "INFO"
+  log "  Architectures: $ARCHITECTURES" "INFO"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -P|--preset)
+      PRESET="$2"
+      shift 2
+      ;;
+    -p|--platforms)
+      PLATFORMS="$2"
+      shift 2
+      ;;
+    -a|--architectures)
+      ARCHITECTURES="$2"
+      shift 2
+      ;;
+    -t|--skip-tests)
+      SKIP_TESTS="true"
+      shift
+      ;;
+    -l|--skip-lint)
+      SKIP_LINT="true"
+      shift
+      ;;
+    -h|--help)
+      SHOW_HELP="true"
+      shift
+      ;;
+    -L|--list-presets)
+      LIST_PRESETS="true"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$SHOW_HELP" == "true" ]]; then
+  show_help
+  exit 0
+fi
+
+if [[ "$LIST_PRESETS" == "true" ]]; then
+  list_presets
+  exit 0
+fi
+
+if [[ -n "$PRESET" ]]; then
+  load_preset "$PRESET"
+fi
+
+if [[ -z "$PLATFORMS" && -z "$PRESET" ]]; then
+  PLATFORMS="windows"
+fi
+if [[ -z "$ARCHITECTURES" && -z "$PRESET" ]]; then
+  ARCHITECTURES="x64"
+fi
 
 invoke_step() {
   local name="$1"
@@ -108,7 +303,7 @@ should_build() {
 
   normalize_arch() {
     local a="$1"
-    a="${a,,}" # lowercase
+    a="${a,,}"
     if [[ "$a" == "x64" ]]; then echo "amd64";
     elif [[ "$a" == "x86" ]]; then echo "386";
     else echo "$a"; fi
@@ -135,7 +330,6 @@ should_build() {
   return 1
 }
 
-# 检查依赖
 if ! command -v go >/dev/null 2>&1; then
   log "Go not found. Please install Go." "ERROR"
   exit 1

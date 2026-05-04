@@ -10,7 +10,7 @@ import (
 	"msp/internal/scanner"
 )
 
-func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) domain.MediaResponse {
+func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, error) {
 	resp := domain.MediaResponse{
 		Shares: make([]domain.Share, len(shares)),
 		Videos: []domain.MediaItem{},
@@ -34,7 +34,9 @@ func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist co
 		return nil
 	}
 
-	_ = scanner.WalkShares(ctx, shares, blacklist, maxItems, cb)
+	if err := scanner.WalkShares(ctx, shares, blacklist, maxItems, cb); err != nil {
+		return domain.MediaResponse{}, err
+	}
 
 	sortItems := func(items []domain.MediaItem) {
 		sort.Slice(items, func(i, j int) bool {
@@ -48,5 +50,5 @@ func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist co
 	sortItems(resp.Audios)
 	sortItems(resp.Images)
 	sortItems(resp.Others)
-	return resp
+	return resp, nil
 }

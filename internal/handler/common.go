@@ -11,16 +11,26 @@ import (
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		log.Printf("writeJSON marshal error: %v", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"message":"内部错误"}}`))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if w.Header().Get("Cache-Control") == "" {
 		w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
 	}
 	w.WriteHeader(status)
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		log.Printf("writeJSON encode error: %v", err)
-	}
+	_, _ = w.Write(append(data, '\n'))
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]any{
+		"error": &domain.ApiError{Message: msg},
+	})
 }
 
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64) error {

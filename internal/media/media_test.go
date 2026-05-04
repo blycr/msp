@@ -13,7 +13,10 @@ import (
 func TestBuildMediaResponseEmpty(t *testing.T) {
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "Empty", Path: "/nonexistent_path_12345"}}
-	resp := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(resp.Videos) != 0 {
 		t.Errorf("expected 0 videos, got %d", len(resp.Videos))
@@ -37,15 +40,18 @@ func TestBuildMediaResponseWithFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_ = os.WriteFile(filepath.Join(videoDir, "test.mp4"), []byte("fake"), 0644)
-	_ = os.WriteFile(filepath.Join(audioDir, "song.mp3"), []byte("fake"), 0644)
+	_ = os.WriteFile(filepath.Join(videoDir, "test.mp4"), []byte("fake"), 0600)
+	_ = os.WriteFile(filepath.Join(audioDir, "song.mp3"), []byte("fake"), 0600)
 
 	ctx := context.Background()
 	shares := []domain.Share{
 		{Label: "Videos", Path: videoDir},
 		{Label: "Audio", Path: audioDir},
 	}
-	resp := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(resp.Videos) != 1 {
 		t.Errorf("expected 1 video, got %d", len(resp.Videos))
@@ -60,13 +66,16 @@ func TestBuildMediaResponseWithFiles(t *testing.T) {
 
 func TestBuildMediaResponseMaxItems(t *testing.T) {
 	tmpDir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(tmpDir, "a.mp4"), []byte("a"), 0644)
-	_ = os.WriteFile(filepath.Join(tmpDir, "b.mp4"), []byte("b"), 0644)
-	_ = os.WriteFile(filepath.Join(tmpDir, "c.mp4"), []byte("c"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "a.mp4"), []byte("a"), 0600)
+	_ = os.WriteFile(filepath.Join(tmpDir, "b.mp4"), []byte("b"), 0600)
+	_ = os.WriteFile(filepath.Join(tmpDir, "c.mp4"), []byte("c"), 0600)
 
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "V", Path: tmpDir}}
-	resp := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 2)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(resp.Videos) > 2 {
 		t.Errorf("expected at most 2 videos with maxItems=2, got %d", len(resp.Videos))
@@ -75,12 +84,15 @@ func TestBuildMediaResponseMaxItems(t *testing.T) {
 
 func TestBuildMediaResponseSorted(t *testing.T) {
 	tmpDir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(tmpDir, "zeta.mp4"), []byte("z"), 0644)
-	_ = os.WriteFile(filepath.Join(tmpDir, "alpha.mp4"), []byte("a"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "zeta.mp4"), []byte("z"), 0600)
+	_ = os.WriteFile(filepath.Join(tmpDir, "alpha.mp4"), []byte("a"), 0600)
 
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "V", Path: tmpDir}}
-	resp := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(resp.Videos) != 2 {
 		t.Fatalf("expected 2 videos, got %d", len(resp.Videos))

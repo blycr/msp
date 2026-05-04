@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           cd web
-          pnpm install
+          pnpm install --frozen-lockfile
           pnpm run build
           cd ..
 
@@ -104,8 +104,7 @@ jobs:
           rm -rf bin checksums debug || true
           chmod +x scripts/build.sh
           sed -i 's/\r$//' scripts/build.sh
-          # Build specified platforms and architectures
-          bash scripts/build.sh --platforms "windows,linux,macos,arm" --architectures "x64,x86,amd64,arm64,v7,v8"
+          bash scripts/build.sh -P release
 
       - name: Prepare release notes
         shell: bash

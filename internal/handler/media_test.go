@@ -1,29 +1,16 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
-	"msp/internal/config"
 	"msp/internal/domain"
 	"msp/internal/server"
 	"msp/internal/storage"
 )
-
-type mockMediaCacheProvider struct {
-	resp domain.MediaResponse
-	etag string
-}
-
-func (m *mockMediaCacheProvider) GetOrBuildMediaCache(_ context.Context, _ []domain.Share, _ config.BlacklistConfig, _ bool) (domain.MediaResponse, string) {
-	return m.resp, m.etag
-}
-
-func (m *mockMediaCacheProvider) InvalidateMediaCache() {}
 
 func setupTestHandler(t *testing.T) (*Handler, *server.Server) {
 	t.Helper()
@@ -160,7 +147,7 @@ func TestParseLimitParam(t *testing.T) {
 		{"empty", "", 0},
 		{"valid", "limit=5", 5},
 		{"invalid", "limit=abc", 0},
-		{"negative", "limit=-1", -1},
+		{"negative", "limit=-1", 0},
 		{"zero", "limit=0", 0},
 		{"large", "limit=1000", 1000},
 	}

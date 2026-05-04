@@ -1,91 +1,150 @@
-# 构建与开发脚本说明
+# Build & Dev Scripts
 
-本文档详细说明了项目的构建和开发脚本。为了支持跨平台开发，我们提供了 PowerShell (`.ps1`) 和 Bash (`.sh`) 两种版本的构建脚本。
+This document describes the build and development scripts for the project. Both PowerShell (`.ps1`) and Bash (`.sh`) versions are provided for cross-platform support.
+
+[中文版](README_CN.md)
 
 ---
 
-## 1. 生产构建脚本 (`build.ps1` / `build.sh`)
+## 1. Production Build Scripts (`build.ps1` / `build.sh`)
 
-这两个脚本用于执行完整的生产环境构建流程，包括前端构建、后端测试、代码检查、交叉编译以及产物打包。
+These scripts run the full production build pipeline: frontend build, backend tests, code checks, cross-compilation, and artifact packaging.
 
-### 参数说明
+### Parameters
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `Platforms` | 目标平台列表。支持 `windows`, `linux`, `macos`, `arm` | `windows` |
-| `Architectures` | 目标架构列表。支持 `x64`, `x86`, `amd64`, `arm64`, `v7`, `v8` | `x64` |
-| `SkipTests` | 跳过 Go 测试 | `false` |
-| `SkipLint` | 跳过代码检查 (go vet, golangci-lint) | `false` |
+**Windows (PowerShell)**
 
-### 使用示例
+| Short | Long | Description | Default |
+|-------|------|-------------|---------|
+| `-P` | `-Preset` | Use a predefined build profile | — |
+| `-F` | `-Platforms` | Target platforms, comma-separated | `windows` |
+| `-A` | `-Architectures` | Target architectures, comma-separated | `x64` |
+| `-T` | `-SkipTests` | Skip Go tests | `false` |
+| `-L` | `-SkipLint` | Skip code checks | `false` |
+| `-H` | `-Help` | Show help | `false` |
+| `-I` | `-ListPresets` | List all available presets | `false` |
+
+**Linux / macOS (Bash)**
+
+| Short | Long | Description | Default |
+|-------|------|-------------|---------|
+| `-P` | `--preset` | Use a predefined build profile | — |
+| `-p` | `--platforms` | Target platforms, comma-separated | `windows` |
+| `-a` | `--architectures` | Target architectures, comma-separated | `x64` |
+| `-t` | `--skip-tests` | Skip Go tests | `false` |
+| `-l` | `--skip-lint` | Skip code checks | `false` |
+| `-h` | `--help` | Show help | `false` |
+| `-L` | `--list-presets` | List all available presets | `false` |
+
+### Preset System (Recommended)
+
+Presets are predefined platform + architecture combinations managed in `build-profiles.json`. They greatly simplify common build commands.
+
+| Preset | Description | Platforms | Architectures |
+|--------|-------------|-----------|---------------|
+| `all` | All platforms and architectures | linux, macos, windows, arm | x64, arm64, x86, v7 |
+| `release` | Release build (same as all) | linux, macos, windows, arm | x64, arm64, x86, v7 |
+| `linux` | Linux all architectures | linux | x64, arm64, v7 |
+| `macos` | macOS all architectures | macos | x64, arm64 |
+| `darwin` | macOS all architectures (alias) | macos | x64, arm64 |
+| `windows` | Windows all architectures | windows | x64, x86 |
+| `arm` | ARM all architectures | arm | arm64, v7 |
+| `server` | Server deployment (Linux amd64 + arm64) | linux | x64, arm64 |
+| `desktop` | Desktop (Windows + macOS) | windows, macos | x64, arm64 |
+| `quick` | Quick build (skip tests and lint) | windows | x64 |
+
+You can customize presets by editing `build-profiles.json`.
+
+### Usage Examples
 
 #### Windows (PowerShell)
 
 ```powershell
-# 构建默认平台（Windows x64）
-.\scripts\build.ps1
+# Show help
+.\scripts\build.ps1 -H
 
-# 构建所有平台
-.\scripts\build.ps1 -Platforms @('linux', 'macos', 'windows', 'arm') -Architectures @('x64', 'arm64', 'x86', 'v7', 'v8')
+# List all presets
+.\scripts\build.ps1 -I
 
-# 仅构建 Linux 平台
-.\scripts\build.ps1 -Platforms @('linux') -Architectures @('x64', 'arm64')
+# === Preset mode (recommended) ===
+.\scripts\build.ps1 -P all                  # All platforms and architectures
+.\scripts\build.ps1 -P release              # Release build
+.\scripts\build.ps1 -P windows              # Windows only (amd64 + x86)
+.\scripts\build.ps1 -P linux                # Linux only (amd64 + arm64 + armv7)
+.\scripts\build.ps1 -P server               # Server deployment (Linux amd64 + arm64)
+.\scripts\build.ps1 -P desktop              # Desktop (Windows + macOS)
+.\scripts\build.ps1 -P quick                # Quick build, skip tests and lint
+.\scripts\build.ps1 -P server -T            # Server build, skip tests
 
-# 跳过测试和 lint 检查（快速构建）
-.\scripts\build.ps1 -SkipTests -SkipLint
+# === Custom build ===
+.\scripts\build.ps1 -F linux,windows -A x64,arm64   # Comma-separated, no @() needed
+.\scripts\build.ps1 -F linux -A x64                 # Single platform, single arch
+
+# === Default build, skip tests and lint ===
+.\scripts\build.ps1 -T -L
 ```
 
 #### Linux / macOS (Bash)
 
 ```bash
-# 给脚本添加执行权限（首次运行）
+# Make script executable (first run)
 chmod +x ./scripts/build.sh
 
-# 构建默认平台（Windows x64）
-./scripts/build.sh
+# Show help
+./scripts/build.sh -h
 
-# 构建所有平台 (注意：参数使用逗号分隔的字符串)
-./scripts/build.sh --platforms "linux,macos,windows,arm" --architectures "x64,arm64,x86,v7,v8"
+# List all presets
+./scripts/build.sh -L
 
-# 仅构建 Linux 平台
-./scripts/build.sh --platforms "linux" --architectures "x64,arm64"
+# === Preset mode (recommended) ===
+./scripts/build.sh -P all                  # All platforms and architectures
+./scripts/build.sh -P release              # Release build
+./scripts/build.sh -P windows              # Windows only
+./scripts/build.sh -P linux                # Linux only
+./scripts/build.sh -P server               # Server deployment
+./scripts/build.sh -P desktop              # Desktop
+./scripts/build.sh -P quick                # Quick build, skip tests and lint
+./scripts/build.sh -P server -t            # Server build, skip tests
 
-# 跳过测试和 lint 检查（快速构建）
-./scripts/build.sh --skip-tests --skip-lint
+# === Custom build ===
+./scripts/build.sh -p linux,windows -a x64,arm64
+
+# === Default build, skip tests and lint ===
+./scripts/build.sh -t -l
 ```
 
-### 构建详细流程
+### Build Pipeline Details
 
-1.  **依赖检查**
-    - 检查 `go` 是否已安装
+1.  **Dependency Check**
+    - Verifies `go` is installed
 
-2.  **Frontend Build (前端构建)**
-    - 检查 `pnpm` 是否安装，未安装则尝试使用 `corepack enable`
-    - 进入 `web` 目录
-    - 检查 `node_modules`，不存在则执行 `pnpm install`
-    - 执行 `pnpm run build` 生成静态资源
+2.  **Frontend Build**
+    - Checks for `pnpm`, falls back to `corepack enable` if missing
+    - Enters `web/` directory
+    - Runs `pnpm install` if `node_modules` is missing
+    - Runs `pnpm run build` to generate static assets
 
-3.  **Go Test (后端测试)** - 可通过 `-SkipTests` 跳过
-    - 在项目根目录执行 `go test -v ./...` 运行所有 Go 单元测试
+3.  **Go Test** - skippable via `-T`
+    - Runs `go test -v ./...` from project root
 
-4.  **Go Vet (静态分析)** - 可通过 `-SkipLint` 跳过
-    - 执行 `go vet ./...` 进行静态代码分析
+4.  **Go Vet** - skippable via `-L`
+    - Runs `go vet ./...` for static analysis
 
-5.  **golangci-lint (代码检查)** - 可通过 `-SkipLint` 跳过
-    - 如果安装了 `golangci-lint`，执行完整代码检查
-    - 未安装时会发出警告但继续构建
+5.  **golangci-lint** - skippable via `-L`
+    - Runs full lint check if `golangci-lint` is installed
+    - Warns and continues if not installed
 
-6.  **Cross Build Artifacts (跨平台交叉编译)**
-    - 根据指定的 `Platforms` 和 `Architectures` 组合，设置 `GOOS` 和 `GOARCH` 环境变量
-    - 使用 `go build -trimpath -ldflags="-s -w"` 编译优化后的二进制文件
-    - **输出结构**:
-        - `bin/<platform>/<arch>/` : 存放最终的二进制可执行文件
-        - `checksums/` : 存放构建产物的 SHA256 校验和文件
+6.  **Cross Build Artifacts**
+    - Sets `GOOS` and `GOARCH` based on target platform + architecture
+    - Compiles with `go build -trimpath -ldflags="-s -w"` for optimized binaries
+    - **Output structure**:
+        - `bin/<platform>/<arch>/` — compiled binaries
+        - `checksums/` — SHA256 checksum files
 
-### 支持的构建目标
+### Supported Build Targets
 
-| 平台 | 架构 | 输出文件名 |
-|------|------|------------|
+| Platform | Architecture | Output Filename |
+|----------|-------------|-----------------|
 | Linux | amd64 | `msp-linux-amd64` |
 | Linux | arm64 | `msp-linux-arm64` |
 | Linux | arm (v7) | `msp-linux-armv7` |
@@ -96,105 +155,105 @@ chmod +x ./scripts/build.sh
 
 ---
 
-## 2. 开发环境脚本 (`dev.ps1` / `dev.sh`)
+## 2. Development Scripts (`dev.ps1` / `dev.sh`)
 
-这两个脚本专为本地开发设计，提供了前后端热重载体验。
+These scripts are designed for local development with full-stack hot-reload support.
 
-### 参数说明
+### Parameters
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `BackendPort` | 指定后端服务监听的端口 | `8099` |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `BackendPort` | Backend server listen port | `8099` |
 
-### 启动流程
+### Startup Flow
 
-1.  **Build Backend**: 编译后端 Go 代码到 `bin/dev/msp-dev` (或 `.exe`)
+1.  **Build Backend**: Compiles Go code to `bin/dev/msp-dev` (or `.exe`)
 2.  **Start Backend**:
-    - 初始化开发配置 `bin/dev/config.json` (如果不存在，从 `config.example.json` 复制或创建空配置)
-    - 运行后端服务，监听指定端口 (默认 8099)
-    - 设置环境变量 `MSP_NO_AUTO_OPEN=1` 防止后端自动打开浏览器
+    - Initializes dev config `bin/dev/config.json` (copies from `config.example.json` or creates empty if missing)
+    - Runs backend server on the specified port (default 8099)
+    - Sets `MSP_NO_AUTO_OPEN=1` to prevent auto-opening browser
 3.  **Start Frontend**:
-    - 检查并安装前端依赖
-    - 启动 Vite 开发服务器 (`pnpm run dev`)
-    - 设置 `MSP_DEV_BACKEND` 环境变量指向本地后端，实现前后端代理联调
+    - Installs frontend dependencies if needed
+    - Starts Vite dev server (`pnpm run dev`)
+    - Sets `MSP_DEV_BACKEND` to proxy API requests to local backend
 4.  **Watch Mode**:
-    - **Windows (`dev.ps1`)**: 使用 .NET `FileSystemWatcher` 监听文件变化，带 1 秒防抖
-    - **Linux/macOS (`dev.sh`)**: 轮询检查 `.go` 文件的修改时间戳
-    - 一旦检测到 Go 代码修改，自动重新编译并重启后端进程
-    - 支持优雅关闭（等待最多 5 秒，超时强制终止）
+    - **Windows (`dev.ps1`)**: Uses .NET `FileSystemWatcher` with 1-second debounce
+    - **Linux/macOS (`dev.sh`)**: Polls `.go` file modification timestamps
+    - Auto-recompiles and restarts backend on Go code changes
+    - Graceful shutdown (5-second timeout before force-kill)
 
-### 交互控制
+### Interactive Controls
 
 **Windows (PowerShell)**:
-- 按 `Q` 或 `Esc` 停止开发服务器
-- 按 `R` 手动触发后端重建
+- Press `Q` or `Esc` to stop dev server
+- Press `R` to manually trigger backend rebuild
 
 **Linux/macOS (Bash)**:
-- 按 `Ctrl+C` 停止开发服务器
+- Press `Ctrl+C` to stop dev server
 
-### 使用示例
+### Usage Examples
 
 #### Windows (PowerShell)
 
 ```powershell
-# 启动开发环境（默认端口 8099）
+# Start dev server (default port 8099)
 .\scripts\dev.ps1
 
-# 指定后端端口启动
+# Custom backend port
 .\scripts\dev.ps1 -BackendPort 3000
 ```
 
 #### Linux / macOS (Bash)
 
 ```bash
-# 给脚本添加执行权限（首次运行）
+# Make script executable (first run)
 chmod +x ./scripts/dev.sh
 
-# 启动开发环境（默认端口 8099）
+# Start dev server (default port 8099)
 ./scripts/dev.sh
 
-# 指定后端端口启动
+# Custom backend port
 ./scripts/dev.sh --backend-port 3000
 ```
 
-### 开发环境特点
+### Dev Environment Features
 
-- **全栈热重载**: 修改前端代码 Vite 自动刷新；修改后端 Go 代码自动重启服务
-- **优雅关闭**: 后端进程支持优雅关闭，确保资源正确释放（数据库连接、日志文件等）
-- **配置隔离**: 开发使用独立的 `bin/dev/config.json`，不影响生产环境配置
-- **一键启动**: 自动管理前后端两个进程，关闭脚本时自动清理残留进程
-- **彩色日志**: 不同级别的日志使用不同颜色显示，便于区分
-
----
-
-## 3. 依赖要求
-
-### 必需依赖
-
-| 工具 | 版本 | 用途 |
-|------|------|------|
-| Go | 1.24+ | 后端编译 |
-| pnpm | 10.x | 前端包管理 |
-
-### 可选依赖
-
-| 工具 | 用途 |
-|------|------|
-| golangci-lint | 代码质量检查 |
-| jq | 开发配置自动更新 (dev.sh) |
+- **Full-stack hot-reload**: Frontend auto-refreshes via Vite; backend auto-restarts on Go changes
+- **Graceful shutdown**: Ensures proper resource cleanup (DB connections, log files, etc.)
+- **Config isolation**: Uses separate `bin/dev/config.json`, does not affect production config
+- **One-command launch**: Manages both frontend and backend processes, cleans up on exit
+- **Colored logs**: Different log levels use distinct colors for easy identification
 
 ---
 
-## 总结
+## 3. Dependencies
 
-| 特性 | `build.ps1` / `build.sh` | `dev.ps1` / `dev.sh` |
-|------|--------------------------|----------------------|
-| **用途** | 生产环境发布构建 | 本地开发调试 |
-| **平台** | 跨平台 (Windows/Linux/Mac) | 跨平台 (Windows/Linux/Mac) |
-| **前端** | `pnpm run build` (静态构建) | `pnpm run dev` (Dev Server) |
-| **后端** | 交叉编译，去除符号表优化体积 | 本地编译，支持 Debug |
-| **测试** | 执行 `go test` | 不执行 |
-| **Lint** | 执行 `go vet` 和 `golangci-lint` | 不执行 |
-| **产物** | `bin/`, `checksums/` | `bin/dev/` |
-| **热更新** | 无 | 支持 (前后端双向) |
-| **优雅关闭** | 不适用 | 支持 |
+### Required
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Go | 1.24+ | Backend compilation |
+| pnpm | 10.x | Frontend package manager |
+
+### Optional
+
+| Tool | Purpose |
+|------|---------|
+| golangci-lint | Code quality checks |
+| jq | Dev config auto-update (dev.sh) |
+
+---
+
+## Summary
+
+| Feature | `build.ps1` / `build.sh` | `dev.ps1` / `dev.sh` |
+|---------|--------------------------|----------------------|
+| **Purpose** | Production release builds | Local development |
+| **Platform** | Cross-platform | Cross-platform |
+| **Frontend** | `pnpm run build` (static) | `pnpm run dev` (Dev Server) |
+| **Backend** | Cross-compile, stripped binaries | Local compile, debug-friendly |
+| **Tests** | Runs `go test` | Skipped |
+| **Lint** | Runs `go vet` + `golangci-lint` | Skipped |
+| **Output** | `bin/`, `checksums/` | `bin/dev/` |
+| **Hot Reload** | No | Yes (frontend + backend) |
+| **Graceful Shutdown** | N/A | Yes |

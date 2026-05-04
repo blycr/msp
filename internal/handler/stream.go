@@ -38,7 +38,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 
 	shouldTranscode, err := h.checkTranscodePolicy(r, cfg, ext)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		writeError(w, http.StatusForbidden, err.Error())
 		return
 	}
 
@@ -55,13 +55,13 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) resolveMediaTarget(w http.ResponseWriter, r *http.Request) (string, *os.File, os.FileInfo, error) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "missing id", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "missing id")
 		return "", nil, nil, fmt.Errorf("missing id")
 	}
 
 	target, err := util.DecodeID(id)
 	if err != nil {
-		http.Error(w, "bad id", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "bad id")
 		return "", nil, nil, err
 	}
 	//nolint:gosec // Validated via util.DecodeID and IsAllowedFile below
@@ -71,21 +71,21 @@ func (h *Handler) resolveMediaTarget(w http.ResponseWriter, r *http.Request) (st
 	shares := append([]domain.Share(nil), cfg.Shares...)
 
 	if !util.IsAllowedFile(target, shares) {
-		http.Error(w, "not allowed", http.StatusForbidden)
+		writeError(w, http.StatusForbidden, "not allowed")
 		return "", nil, nil, fmt.Errorf("not allowed")
 	}
 
 	//nolint:gosec // Path is validated above
 	f, err := os.Open(target)
 	if err != nil {
-		http.Error(w, "open failed", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "open failed")
 		return "", nil, nil, err
 	}
 
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {
 		_ = f.Close()
-		http.Error(w, "not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "not found")
 		return "", nil, nil, fmt.Errorf("not found")
 	}
 
@@ -166,7 +166,9 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 	w.Header().Set("X-MSP-Transcode", "1")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Del("Content-Length")
-	_, _ = io.Copy(w, stream)
+	if _, err := io.Copy(w, stream); err != nil {
+		log.Printf("[WARN] io.Copy transcode stream error: %v", err)
+	}
 	return true
 }
 

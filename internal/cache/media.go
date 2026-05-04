@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"hash/fnv"
+	"log"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -39,6 +40,16 @@ func NewMediaCache(cacheFilePath string, ttl time.Duration) *MediaCache {
 	return c
 }
 
+func (c *MediaCache) unmarshalResp() domain.MediaResponse {
+	var r domain.MediaResponse
+	if len(c.respJSON) > 0 {
+		if err := json.Unmarshal(c.respJSON, &r); err != nil {
+			log.Printf("[WARN] cache unmarshal error: %v", err)
+		}
+	}
+	return r
+}
+
 func (c *MediaCache) Invalidate() {
 	c.mu.Lock()
 	c.key = ""
@@ -60,16 +71,14 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 			go c.rebuild(context.Background(), key, shares, blacklist, maxItems)
 			c.mu.Lock()
 		}
-		var r domain.MediaResponse
-		_ = json.Unmarshal(c.respJSON, &r)
+		r := c.unmarshalResp()
 		etag := c.etag
 		c.mu.Unlock()
 		return r, etag
 	}
 
 	if c.building {
-		var r domain.MediaResponse
-		_ = json.Unmarshal(c.respJSON, &r)
+		r := c.unmarshalResp()
 		r.Scanning = true
 		etag := c.etag
 		c.mu.Unlock()
@@ -79,8 +88,7 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 	if refresh {
 		c.building = true
 		go c.rebuild(context.Background(), key, shares, blacklist, maxItems)
-		var r domain.MediaResponse
-		_ = json.Unmarshal(c.respJSON, &r)
+		r := c.unmarshalResp()
 		r.Scanning = true
 		etag := c.etag
 		c.mu.Unlock()
@@ -89,10 +97,17 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 
 	if c.key != key {
 		c.mu.Unlock()
-		if resp, builtAt, ok, _ := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
+		if resp, builtAt, ok, dbErr := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
+			if dbErr != nil {
+				log.Printf("[WARN] LoadMediaFromDB error: %v", dbErr)
+			}
 			etag := WeakETag(key, builtAt)
 			c.mu.Lock()
-			c.respJSON, _ = json.Marshal(resp)
+			if b, err := json.Marshal(resp); err != nil {
+				log.Printf("[WARN] cache marshal error: %v", err)
+			} else {
+				c.respJSON = b
+			}
 			c.key = key
 			c.builtAt = builtAt
 			c.etag = etag
@@ -118,15 +133,26 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 			resp = r
 			builtAt = bt
 		} else {
-			resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+			var berr error
+			resp, berr = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+			if berr != nil {
+				log.Printf("[WARN] BuildMediaResponse error: %v", berr)
+			}
 			builtAt = time.Now()
 		}
 	} else {
-		resp = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+		var err error
+		resp, err = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+		if err != nil {
+			log.Printf("[WARN] BuildMediaResponse error: %v", err)
+		}
 	}
 	etag := WeakETag(key, builtAt)
 
-	b, _ := json.Marshal(resp)
+	b, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("[WARN] cache marshal error: %v", err)
+	}
 
 	c.mu.Lock()
 	c.respJSON = b
@@ -178,7 +204,11 @@ func (c *MediaCache) LoadFromDisk(key string) bool {
 	c.key = v.Key
 	c.builtAt = time.Unix(0, v.BuiltAt)
 	c.etag = v.ETag
-	c.respJSON, _ = json.Marshal(v.Resp)
+	if b, err := json.Marshal(v.Resp); err != nil {
+		log.Printf("[WARN] cache marshal error: %v", err)
+	} else {
+		c.respJSON = b
+	}
 	c.mu.Unlock()
 	return true
 }

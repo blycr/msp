@@ -44,13 +44,13 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		id := r.URL.Query().Get("id")
 		if id == "" {
-			http.Error(w, constants.ErrMsgMissingID, http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, constants.ErrMsgMissingID)
 			return
 		}
 		t, err := h.progress.GetProgress(r.Context(), id)
 		if err != nil {
 			log.Printf("Error in GetProgress: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": constants.ErrMsgReadProgress})
+			writeError(w, http.StatusInternalServerError, constants.ErrMsgReadProgress)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"time": t})
@@ -60,20 +60,16 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			Time float64 `json:"time"`
 		}
 		if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
-			if isPayloadTooLarge(err) {
-				writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{"error": "payload too large"})
-			} else {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgInvalidJSON})
-			}
+			writeJSONDecodeError(w, err)
 			return
 		}
 		if req.ID == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": constants.ErrMsgMissingID})
+			writeError(w, http.StatusBadRequest, constants.ErrMsgMissingID)
 			return
 		}
 		if err := h.progress.SetProgress(r.Context(), req.ID, req.Time); err != nil {
 			log.Printf("Error in SetProgress: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": constants.ErrMsgWriteProgress})
+			writeError(w, http.StatusInternalServerError, constants.ErrMsgWriteProgress)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -89,11 +85,7 @@ func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
 	}
 	var req domain.LogRequest
 	if err := decodeJSONBody(w, r, &req, defaultJSONBodyLimit); err != nil {
-		if isPayloadTooLarge(err) {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-		}
+		writeJSONDecodeError(w, err)
 		return
 	}
 	if req.Msg != "" {

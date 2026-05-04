@@ -3,8 +3,10 @@ package handler
 import (
 	"compress/gzip"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +21,18 @@ type gzipResponseWriter struct {
 
 func (g gzipResponseWriter) Write(p []byte) (int, error) {
 	return g.gw.Write(p)
+}
+
+func WithRecovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[PANIC] %v\n%s", rec, debug.Stack())
+				writeError(w, http.StatusInternalServerError, "内部错误")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func WithGzip(next http.Handler) http.Handler {
@@ -87,7 +101,7 @@ func WithSecurity(config ConfigProvider, session SessionProvider, logger Logger,
 		// Check IP whitelist/blacklist
 		if !isIPAllowed(clientIP, cfg.Security.IPWhitelist, cfg.Security.IPBlacklist) {
 			logger.Log("info", fmt.Sprintf("Access denied for IP: %s", clientIP))
-			http.Error(w, constants.ErrMsgAccessDenied, http.StatusForbidden)
+			writeError(w, http.StatusForbidden, constants.ErrMsgAccessDenied)
 			return
 		}
 

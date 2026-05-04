@@ -84,7 +84,7 @@ func main() {
 
 	printStartupBanner(cfgPath, port)
 
-	finalHandler := handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithGzip(mux)))
+	finalHandler := handler.WithRecovery(handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithGzip(mux))))
 
 	srv := &http.Server{
 		Addr:              addr,
