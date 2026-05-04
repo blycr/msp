@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"msp/internal/config"
@@ -545,4 +546,196 @@ Second subtitle
 	for i := 0; i < b.N; i++ {
 		_ = SrtToVtt(srt)
 	}
+}
+
+func TestSrtToVttBOM(t *testing.T) {
+	srt := []byte{0xEF, 0xBB, 0xBF}
+	srt = append(srt, []byte(`1
+00:00:01,000 --> 00:00:04,000
+Hello BOM
+
+`)...)
+
+	vtt := SrtToVtt(srt)
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "Hello BOM")
+	assert.Contains(t, vttStr, "00:00:01.000")
+}
+
+func TestSrtToVttMultipleSubtitles(t *testing.T) {
+	srt := `1
+00:00:01,000 --> 00:00:04,000
+First line
+
+2
+00:00:05,500 --> 00:00:08,300
+Second line
+
+3
+00:00:10,000 --> 00:00:15,000
+Third line
+with multiple lines
+`
+
+	vtt := SrtToVtt([]byte(srt))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "First line")
+	assert.Contains(t, vttStr, "Second line")
+	assert.Contains(t, vttStr, "Third line")
+	assert.Contains(t, vttStr, "00:00:05.500 --> 00:00:08.300")
+	assert.NotContains(t, vttStr, "1\n")
+	assert.NotContains(t, vttStr, "2\n")
+}
+
+func TestAssToVttWithStyles(t *testing.T) {
+	ass := `[Script Info]
+Title: Test ASS
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:01:30.50,0:01:35.25,Default,,0,0,0,,Hello from ASS
+Dialogue: 0,0:02:00.00,0:02:05.00,Default,,0,0,0,,Second ASS line
+`
+
+	vtt := AssToVtt([]byte(ass))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "Hello from ASS")
+	assert.Contains(t, vttStr, "Second ASS line")
+	assert.Contains(t, vttStr, "00:01:30.500")
+	assert.Contains(t, vttStr, "00:02:00.000")
+}
+
+func TestAssToVttWithOverrideTags(t *testing.T) {
+	ass := `[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\b1}Bold text{\b0}
+Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,Normal{\i1}Italic{\i0} text
+`
+
+	vtt := AssToVtt([]byte(ass))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "Bold text")
+	assert.NotContains(t, vttStr, "{\\b1}")
+	assert.Contains(t, vttStr, "Normal")
+	assert.Contains(t, vttStr, "Italic")
+}
+
+func TestAssToVttWithNewlines(t *testing.T) {
+	ass := `[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,Line one\NLine two\nLine three
+`
+
+	vtt := AssToVtt([]byte(ass))
+	vttStr := string(vtt)
+
+	assert.Contains(t, vttStr, "WEBVTT")
+	assert.Contains(t, vttStr, "Line one")
+	assert.Contains(t, vttStr, "Line two")
+	assert.Contains(t, vttStr, "Line three")
+}
+
+func TestFindSidecarSubtitlesCached(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	videoPath := filepath.Join(tmpDir, "movie.mp4")
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0600))
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.zh.srt"), []byte("zh sub"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.en.srt"), []byte("en sub"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.default.vtt"), []byte("WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nDefault"), 0600))
+
+	cache := make(map[string][]os.DirEntry)
+
+	subs := FindSidecarSubtitlesCached(videoPath, cache)
+	assert.Len(t, subs, 3)
+
+	assert.True(t, cache[tmpDir] != nil)
+
+	subs2 := FindSidecarSubtitlesCached(videoPath, cache)
+	assert.Len(t, subs2, 3)
+}
+
+func TestFindSidecarSubtitlesNoMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	videoPath := filepath.Join(tmpDir, "movie.mp4")
+	require.NoError(t, os.WriteFile(videoPath, []byte("fake"), 0600))
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.zh.srt"), []byte("not matching"), 0600))
+
+	subs := FindSidecarSubtitles(videoPath)
+	assert.Nil(t, subs)
+}
+
+func TestExtractBaseVariants(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		minCount int
+	}{
+		{"简单名称", "movie", 1},
+		{"带编码信息", "Movie.1080p.BluRay.x264", 2},
+		{"带年份", "Movie.2024.720p.WEB-DL", 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variants := extractBaseVariants(tt.base)
+			assert.GreaterOrEqual(t, len(variants), tt.minCount)
+			assert.Equal(t, strings.ToLower(tt.base), variants[0])
+		})
+	}
+}
+
+func TestSortSubtitles(t *testing.T) {
+	subs := []domain.Subtitle{
+		{Lang: "en", Label: "English"},
+		{Lang: "zh", Label: "中文"},
+		{Lang: "ja", Label: "日本語"},
+	}
+
+	sortSubtitles(subs)
+
+	assert.Equal(t, "zh", subs[0].Lang, "中文应该排在第一位")
+}
+
+func TestLrcPicker(t *testing.T) {
+	t.Run("精确匹配优先", func(t *testing.T) {
+		p := &lrcPicker{}
+		p.consider("song.lrc", "song", "song")
+		p.consider("song.cn.lrc", "song.cn", "song")
+		assert.Equal(t, "song.lrc", p.choose())
+	})
+
+	t.Run("语言次之", func(t *testing.T) {
+		p := &lrcPicker{}
+		p.consider("song.cn.lrc", "song.cn", "song")
+		p.consider("other.lrc", "other", "song")
+		assert.Equal(t, "song.cn.lrc", p.choose())
+	})
+
+	t.Run("任意匹配", func(t *testing.T) {
+		p := &lrcPicker{}
+		p.consider("other.lrc", "other", "song")
+		assert.Equal(t, "other.lrc", p.choose())
+	})
+
+	t.Run("无匹配", func(t *testing.T) {
+		p := &lrcPicker{}
+		assert.Equal(t, "", p.choose())
+	})
 }
