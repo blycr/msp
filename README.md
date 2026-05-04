@@ -73,16 +73,6 @@ Run it on your PC, share local folders, and play media from any modern browser i
 3. Open the URL printed in the console, for example `http://127.0.0.1:8099`.
 4. Add shared folders from Settings on first launch.
 
-## Documentation
-
-- Wiki index: [Project Wiki](https://github.com/blycr/msp/wiki)
-- Installation: [Installation Guide](https://github.com/blycr/msp/wiki/Installation)
-- Configuration: [Configuration Reference](https://github.com/blycr/msp/wiki/Configuration)
-- Playback/Transcode: [Encoding & Transcoding](https://github.com/blycr/msp/wiki/Encoding)
-- Security: [Security Guide](https://github.com/blycr/msp/wiki/Security)
-- Release: [Release Workflow](https://github.com/blycr/msp/wiki/Release)
-- Build & Dev Scripts: [Scripts Guide](scripts/README.md)
-
 ## Build from Source
 
 Requirements: `Go 1.25+`, `Node.js 18+` (frontend build)
@@ -101,6 +91,8 @@ cd msp
 ./scripts/build.sh -P all                   # All platforms and architectures
 ./scripts/build.sh -h                       # Show all available options
 ```
+
+For more build and dev script options, see [Scripts Guide](scripts/README.md).
 
 ## License
 

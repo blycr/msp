@@ -73,16 +73,6 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 3. 打开控制台输出地址，例如 `http://127.0.0.1:8099`。
 4. 首次进入后在设置中添加共享目录。
 
-## 文档支持
-
-- Wiki 总览：[项目 Wiki](https://github.com/blycr/msp/wiki)
-- 安装与运行：[Installation_CN](https://github.com/blycr/msp/wiki/Installation_CN)
-- 配置说明：[Configuration_CN](https://github.com/blycr/msp/wiki/Configuration_CN)
-- 编码与转码：[Encoding_CN](https://github.com/blycr/msp/wiki/Encoding_CN)
-- 安全功能：[Security_CN](https://github.com/blycr/msp/wiki/Security_CN)
-- 发布流程：[Release](https://github.com/blycr/msp/wiki/Release)
-- 构建与开发脚本：[脚本说明](../scripts/README_CN.md)
-
 ## 源码编译
 
 环境要求：`Go 1.24+`、`Node.js 18+`（用于构建前端）
@@ -101,6 +91,8 @@ cd msp
 ./scripts/build.sh -P all                   # 全量编译所有平台和架构
 ./scripts/build.sh -h                       # 查看所有可用选项
 ```
+
+更多构建与开发脚本选项，请参阅 [脚本说明](../scripts/README_CN.md)。
 
 ## 许可证
 
