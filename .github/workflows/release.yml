@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (e.g., v1.0.0)'
+        description: "Release Version (e.g., v1.0.0)"
         required: true
         type: string
       notes:
-        description: 'Release Notes / Changelog'
+        description: "Release Notes / Changelog"
         required: false
         type: string
 
@@ -23,20 +23,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-release:
-    name: Build & Release
+  test:
+    name: Test & Lint
     runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ""
-      RELEASE_NOTES_PATH: ""
-      RELEASE_TARGET: ""
-      UPLOAD_FILES: ""
-      NO_ARTIFACTS: "0"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -55,7 +47,7 @@ jobs:
       - name: Get pnpm store directory
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -65,13 +57,132 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Build web frontend
-        shell: bash
+      - name: Build Frontend
         run: |
           cd web
           pnpm install --frozen-lockfile
           pnpm run build
-          cd ..
+
+      - name: Run Go Tests
+        run: go test -v -race ./...
+
+      - name: Run Go Vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.7.2
+          args: --timeout=5m
+
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ""
+          - goos: linux
+            goarch: arm64
+            suffix: ""
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+            suffix: "-armv7"
+          - goos: linux
+            goarch: loong64
+            suffix: "-loong64"
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+            suffix: ""
+          - goos: windows
+            goarch: "386"
+            ext: .exe
+            suffix: "-386"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build Frontend
+        run: |
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Build Binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm || '' }}
+          CGO_ENABLED: 0
+        run: |
+          output="msp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}${{ matrix.ext }}"
+          go build -trimpath -ldflags="-s -w" -o "${output}" ./cmd/msp
+          echo "artifact=${output}" >> "$GITHUB_ENV"
+          ls -la "${output}"
+
+      - name: Compute SHA256 Checksum
+        run: |
+          sha256sum "${{ env.artifact }}" > "${{ env.artifact }}.sha256"
+          cat "${{ env.artifact }}.sha256"
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: msp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          path: |
+            ${{ env.artifact }}
+            ${{ env.artifact }}.sha256
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ""
+      RELEASE_NOTES_PATH: ""
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set release tag
         shell: bash
@@ -85,26 +196,22 @@ jobs:
             tag="v$tag"
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
-          echo "RELEASE_TARGET=${{ github.sha }}" >> "$GITHUB_ENV"
           echo "Release tag: $tag"
 
-      - name: Run tests
-        run: go test -v ./...
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          version: v2.7.2
-          args: --timeout=5m
+          path: artifacts
+          merge-multiple: true
 
-      - name: Build all targets via scripts/build.sh
+      - name: List artifacts
         shell: bash
         run: |
-          set -euo pipefail
-          rm -rf bin checksums debug || true
-          chmod +x scripts/build.sh
-          sed -i 's/\r$//' scripts/build.sh
-          bash scripts/build.sh -P release -t -l
+          echo "## Downloaded Artifacts" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          find artifacts -type f | sort >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare release notes
         shell: bash
@@ -135,84 +242,39 @@ jobs:
             fi
           fi
 
-      - name: Remove debug copies
-        shell: bash
-        run: |
-          rm -rf debug || true
-
-      - name: Compute upload file list
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=""
-          if [ -d bin ]; then
-            files="$(find bin -type f -print || true)"
-          fi
-          if [ -d checksums ]; then
-            more="$(find checksums -type f -name '*.sha256' -print || true)"
-            files="$(printf "%s\n%s" "$files" "$more")"
-          fi
-          # Match files in bin/(windows|linux|darwin|arm)/ or checksums/*.sha256
-          files="$(printf "%s\n" "$files" | sed '/^$/d' \
-            | grep -E '^(bin/(windows|linux|darwin|arm)/.+|checksums/.+\.sha256)$' || true)"
-          if [ -z "$files" ]; then
-            echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
-            echo "UPLOAD_FILES=" >> "$GITHUB_ENV"
-            echo "[Warn] No artifacts found to upload"
-          else
-            {
-              echo "UPLOAD_FILES<<EOF"
-              printf "%s\n" "$files"
-              echo "EOF"
-            } >> "$GITHUB_ENV"
-            echo "[Info] Files to upload:"
-            printf "%s\n" "$files"
-          fi
-
       - name: Create GitHub Release (tag push)
-        if: github.event_name == 'push' && env.NO_ARTIFACTS != '1'
+        if: github.event_name == 'push' && env.RELEASE_NOTES_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
           fail_on_unmatched_files: true
-          files: ${{ env.UPLOAD_FILES }}
+          files: artifacts/*
 
       - name: Create GitHub Release (workflow_dispatch, with notes file)
-        if: github.event_name == 'workflow_dispatch' && env.NO_ARTIFACTS != '1' && env.RELEASE_NOTES_PATH != ''
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ env.RELEASE_TARGET }}
+          target_commitish: ${{ github.sha }}
           body_path: ${{ env.RELEASE_NOTES_PATH }}
           fail_on_unmatched_files: true
-          files: ${{ env.UPLOAD_FILES }}
+          files: artifacts/*
 
       - name: Create GitHub Release (workflow_dispatch, with input notes)
-        if: github.event_name == 'workflow_dispatch' && env.NO_ARTIFACTS != '1' && env.RELEASE_NOTES_PATH == ''
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_NOTES_PATH == ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ env.RELEASE_TARGET }}
+          target_commitish: ${{ github.sha }}
           body: ${{ inputs.notes }}
           fail_on_unmatched_files: true
-          files: ${{ env.UPLOAD_FILES }}
+          files: artifacts/*
 
-      - name: Upload artifacts summary
+      - name: Release summary
         if: always()
         shell: bash
         run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Release Tag: $RELEASE_TAG" >> $GITHUB_STEP_SUMMARY
-          echo "- Target Commit: $RELEASE_TARGET" >> $GITHUB_STEP_SUMMARY
-          if [ "$NO_ARTIFACTS" = "1" ]; then
-            echo "- ⚠️ No artifacts were produced" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ✅ Artifacts uploaded successfully" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Built Files" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "$UPLOAD_FILES" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "## Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release Tag: $RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
