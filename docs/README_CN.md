@@ -1,6 +1,6 @@
-# MSP: 极简局域网媒体服务器
-
 <div align="center">
+
+# MSP: 极简局域网媒体服务器
 
 <img src="web/public/logo.svg" width="120" alt="MSP Logo" />
 

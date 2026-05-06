@@ -1,6 +1,6 @@
-# MSP: Media Share & Preview
-
 <div align="center">
+
+# MSP: Media Share & Preview
 
 <img src="web/public/logo.svg" width="120" alt="MSP Logo" />
 
