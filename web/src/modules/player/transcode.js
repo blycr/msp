@@ -38,7 +38,7 @@ export function switchToTranscodeSource(element, isVideo, url, currentTime) {
     newSource.poster = state.current?.coverId ? streamUrl(state.current.coverId) : undefined;
     newSource.tracks = (state.current?.subtitles || []).map(s => ({
       kind: "subtitles",
-      label: s.label || "字幕",
+      label: s.label || t("label_subtitle"),
       srclang: s.lang || "zh",
       src: s.src || streamUrl(s.id),
       default: !!s.default

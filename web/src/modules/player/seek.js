@@ -1,5 +1,5 @@
 import { state, el, LS } from '../state.js';
-import { gpGet, gpSet, logRemote, reportProgress, getProgress } from '../api.js';
+import { gpGet, gpSet, logRemote, reportProgress, getProgress, rememberEnabled } from '../api.js';
 
 export function getActiveMedia() {
   const kind = state.current?.kind;
@@ -61,12 +61,6 @@ export function updateResumeButton() {
   const show = !state.current && hasResumeCandidate();
   btn.hidden = !show;
   btn.disabled = !show;
-}
-
-function rememberEnabled(kind) {
-  const cfg = state.config?.playback?.[kind];
-  if (!cfg) return true;
-  return cfg.remember !== false;
 }
 
 export async function restorePlaybackTime(kind, id, mediaEl) {

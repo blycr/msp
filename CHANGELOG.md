@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.1
+
+- **前端架构深度重构**：
+  - `player.js` 从 579 行精简至 51 行，转为薄编排层（仅 re-export + bus 监听）
+  - `playlist.js` 从 175 行精简至 45 行，同样转为薄编排层
+  - 提取 `player/play.js`（`playItem` + `onMediaEnded`），消除 `player.js ↔ player/resume.js` 循环依赖
+  - 将 `setPlaylist` 移入 `playlist/navigation.js`，通过 `bus.emit('playlist:updated')` 触发 UI 更新
+  - 消除 `actions.js ↔ ui/bindings.js` 循环依赖，改用 bus 事件解耦
+- **代码去重**：
+  - `rememberEnabled` 从 3 处实现统一为 `api.js` 中的单一实现
+  - `canStorage` 从 2 处实现统一为 `state.js` 中的单一实现
+- **死代码清理**：移除 7 个未使用的导出（`I18N`、`mediaErrorText`、`getSortVal`、`hidePinDialog`、`verifyPin`、`switchAudioTrack`、`getAudioTracks`）和 1 个无监听者的 bus 事件
+- **PWA 优化**：VitePWA 启用 `cleanupOutdatedCaches`、`skipWaiting`、`clientsClaim`，加速 Service Worker 更新
+- **I18N 完善**：歌词纯音乐提示文案改为 i18n key，页面标题和 `lang` 属性统一为英文
+- **构建脚本**：新增龙架构（loong64）Linux 构建支持
+
 ## 1.1.0
 
 - **统一错误处理**：

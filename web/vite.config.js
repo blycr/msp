@@ -9,6 +9,9 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'logo.svg'],
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^\/api\//,

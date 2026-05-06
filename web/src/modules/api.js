@@ -81,7 +81,7 @@ export function probeWarnText(p) {
   return "";
 }
 
-export function mediaErrorText(err) {
+function mediaErrorText(err) {
   if (!err) return "";
   switch (err.code) {
     case 1: return t("err_aborted");

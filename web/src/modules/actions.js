@@ -6,6 +6,7 @@ import { updateResumeButton, hideAllMedia, bindGlobalHotkeys, resumeLast } from 
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
 import { bus } from './eventbus.js';
+import './ui.js';
 
 export async function loadConfig() {
   try {
@@ -80,7 +81,12 @@ export async function loadMedia(refresh, limit) {
 export async function boot() {
   if ('serviceWorker' in navigator) {
     // eslint-disable-next-line
-    registerSW({ immediate: true });
+    registerSW({
+      immediate: true,
+      onNeedRefresh() {
+        window.location.reload();
+      },
+    });
   }
 
   initLang();
@@ -89,6 +95,8 @@ export async function boot() {
   // Setup UI bindings
   bindGlobalHotkeys();
   bindPinDialog();
+  bus.on('config:reload', () => loadConfig());
+  bus.on('media:refresh', (limit) => loadMedia(true, limit));
   bus.emit('boot:init');
 
   // Reset UI state

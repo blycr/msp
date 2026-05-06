@@ -1,4 +1,4 @@
-import { state, el } from '../state.js';
+import { state, el, canStorage } from '../state.js';
 import { t } from '../i18n.js';
 import { gpGet, gpSet, logRemote } from '../api.js';
 import { streamUrl, getCfg } from '../utils.js';
@@ -86,7 +86,7 @@ export function setTracks(videoEl, subtitles) {
   for (const s of subtitles) {
     const tr = document.createElement("track");
     tr.kind = "subtitles";
-    tr.label = s.label || "字幕";
+    tr.label = s.label || t("label_subtitle");
     tr.srclang = s.lang || "zh";
     tr.src = s.src || streamUrl(s.id);
     if (s.default) tr.default = true;
@@ -101,17 +101,6 @@ export function setTracks(videoEl, subtitles) {
       tt[0].mode = "showing";
     } catch { }
   });
-}
-
-export function canStorage() {
-  try {
-    const k = "__msp__probe__";
-    localStorage.setItem(k, "1");
-    localStorage.removeItem(k);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function getActivePlyr() {
@@ -249,7 +238,7 @@ export function applyPlyr(element, onMediaEnded) {
         newSource.poster = state.current.coverId ? streamUrl(state.current.coverId) : undefined;
         newSource.tracks = (state.current.subtitles || []).map(s => ({
           kind: "subtitles",
-          label: s.label || "字幕",
+          label: s.label || t("label_subtitle"),
           srclang: s.lang || "zh",
           src: s.src || streamUrl(s.id),
           default: !!s.default
@@ -289,9 +278,9 @@ export function applyPlyr(element, onMediaEnded) {
   } catch { }
   window.plyrPlayer = state.plyr;
   window.callPlyr = (method, ...args) => {
-    if (!state.plyr) throw new Error("Plyr 未初始化");
+    if (!state.plyr) throw new Error(t("err_plyr_init"));
     const fn = state.plyr[method];
-    if (typeof fn !== "function") throw new Error("不支持的 Plyr 方法: " + method);
+    if (typeof fn !== "function") throw new Error(t("err_plyr_method", method));
     return fn.apply(state.plyr, args);
   };
   try {

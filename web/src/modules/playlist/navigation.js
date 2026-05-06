@@ -1,5 +1,6 @@
 import { state, el } from '../state.js';
 import { t } from '../i18n.js';
+import { logRemote } from '../api.js';
 import { getCfg, formatName, dirOfAbsPath, absPathOfItem } from '../utils.js';
 import { bus } from '../eventbus.js';
 
@@ -146,4 +147,16 @@ export function rebuildPlayOrderFromCurrent(shuffle) {
   }
 
   pl.playOrder = newOrder;
+}
+
+export function setPlaylist(kind, items, index, playOrder = null, playIndex = -1) {
+  state.playlist.kind = kind;
+  state.playlist.items = Array.isArray(items) ? items : [];
+  state.playlist.index = Number.isFinite(index) ? index : -1;
+  state.playlist.playOrder = Array.isArray(playOrder) ? playOrder : [];
+  state.playlist.playIndex = Number.isFinite(playIndex) ? playIndex : -1;
+  updateNavButtons();
+  updateNavLabels();
+  logRemote("info", `Playlist updated: kind=${kind} count=${items?.length} index=${index} playIndex=${playIndex}`);
+  bus.emit('playlist:updated');
 }

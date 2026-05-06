@@ -95,7 +95,7 @@ $lines = @'
   Available Presets:
     all        All platforms and architectures
     release    Release build (same as all)
-    linux      Linux all architectures (amd64, arm64, armv7)
+    linux      Linux all architectures (amd64, arm64, armv7, loong64)
     macos      macOS all architectures (amd64, arm64)
     darwin     macOS all architectures (alias)
     windows    Windows all architectures (amd64, x86)
@@ -341,6 +341,7 @@ Invoke-Step 'Cross Build Artifacts' {
     @{ Platform = 'linux';   Arch = 'amd64'; OutName = 'msp-linux-amd64' },
     @{ Platform = 'linux';   Arch = 'arm64'; OutName = 'msp-linux-arm64' },
     @{ Platform = 'linux';   Arch = 'arm';   GOARM = '7'; OutName = 'msp-linux-armv7' },
+    @{ Platform = 'linux';   Arch = 'loong64'; OutName = 'msp-linux-loong64' },
     @{ Platform = 'darwin';  Arch = 'amd64'; OutName = 'msp-darwin-amd64' },
     @{ Platform = 'darwin';  Arch = 'arm64'; OutName = 'msp-darwin-arm64' },
     @{ Platform = 'windows'; Arch = 'amd64'; OutName = 'msp-windows-amd64.exe' },
@@ -360,6 +361,8 @@ Invoke-Step 'Cross Build Artifacts' {
       $shouldBuild = (ShouldBuild 'linux' 'arm64')
     } elseif ($platform -eq 'linux' -and $arch -eq 'arm') {
       $shouldBuild = (ShouldBuild 'arm' 'v7')
+    } elseif ($platform -eq 'linux' -and $arch -eq 'loong64') {
+      $shouldBuild = (ShouldBuild 'linux' 'loong64')
     } elseif ($platform -eq 'darwin' -and $arch -eq 'amd64') {
       $shouldBuild = (ShouldBuild 'macos' 'amd64') -or (ShouldBuild 'macos' 'x64')
     } elseif ($platform -eq 'darwin' -and $arch -eq 'arm64') {

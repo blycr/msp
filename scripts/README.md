@@ -42,9 +42,9 @@ Presets are predefined platform + architecture combinations managed in `build-pr
 
 | Preset | Description | Platforms | Architectures |
 |--------|-------------|-----------|---------------|
-| `all` | All platforms and architectures | linux, macos, windows, arm | x64, arm64, x86, v7 |
-| `release` | Release build (same as all) | linux, macos, windows, arm | x64, arm64, x86, v7 |
-| `linux` | Linux all architectures | linux | x64, arm64, v7 |
+| `all` | All platforms and architectures | linux, macos, windows, arm | x64, arm64, x86, v7, loong64 |
+| `release` | Release build (same as all) | linux, macos, windows, arm | x64, arm64, x86, v7, loong64 |
+| `linux` | Linux all architectures | linux | x64, arm64, v7, loong64 |
 | `macos` | macOS all architectures | macos | x64, arm64 |
 | `darwin` | macOS all architectures (alias) | macos | x64, arm64 |
 | `windows` | Windows all architectures | windows | x64, x86 |
@@ -148,6 +148,7 @@ chmod +x ./scripts/build.sh
 | Linux | amd64 | `msp-linux-amd64` |
 | Linux | arm64 | `msp-linux-arm64` |
 | Linux | arm (v7) | `msp-linux-armv7` |
+| Linux | loong64 | `msp-linux-loong64` |
 | macOS | amd64 | `msp-darwin-amd64` |
 | macOS | arm64 | `msp-darwin-arm64` |
 | Windows | amd64 | `msp-windows-amd64.exe` |

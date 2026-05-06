@@ -22,14 +22,14 @@ export function showPinDialog() {
   setTimeout(() => input.focus(), 100);
 }
 
-export function hidePinDialog() {
+function hidePinDialog() {
   el("pinBackdrop").hidden = true;
   el("pinDlg").hidden = true;
   el("pinInput").value = "";
   el("pinError").textContent = "";
 }
 
-export async function verifyPin(pin) {
+async function verifyPin(pin) {
   try {
     const data = await apiPost("/api/pin", { pin });
     return data.valid === true;

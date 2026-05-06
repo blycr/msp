@@ -6,7 +6,6 @@ export {
   setFitBtnVisible,
   updateFitBtnFromVideo,
   setTracks,
-  canStorage,
   getActivePlyr,
   applyPlyr
 } from './core.js';
@@ -26,12 +25,14 @@ export {
 } from './seek.js';
 
 export {
-  setupAudioTrackHandling,
-  switchAudioTrack,
-  getAudioTracks
+  setupAudioTrackHandling
 } from './audio-track.js';
 
 export {
   resumeLast,
   bindGlobalHotkeys
 } from './resume.js';
+
+export {
+  playItem
+} from './play.js';

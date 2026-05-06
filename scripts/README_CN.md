@@ -42,9 +42,9 @@
 
 | 预设名称 | 说明 | 平台 | 架构 |
 |----------|------|------|------|
-| `all` | 全量编译所有平台和架构 | linux, macos, windows, arm | x64, arm64, x86, v7 |
-| `release` | 发布构建（等同于 all） | linux, macos, windows, arm | x64, arm64, x86, v7 |
-| `linux` | Linux 全架构 | linux | x64, arm64, v7 |
+| `all` | 全量编译所有平台和架构 | linux, macos, windows, arm | x64, arm64, x86, v7, loong64 |
+| `release` | 发布构建（等同于 all） | linux, macos, windows, arm | x64, arm64, x86, v7, loong64 |
+| `linux` | Linux 全架构 | linux | x64, arm64, v7, loong64 |
 | `macos` | macOS 全架构 | macos | x64, arm64 |
 | `darwin` | macOS 全架构（别名） | macos | x64, arm64 |
 | `windows` | Windows 全架构 | windows | x64, x86 |
@@ -148,6 +148,7 @@ chmod +x ./scripts/build.sh
 | Linux | amd64 | `msp-linux-amd64` |
 | Linux | arm64 | `msp-linux-arm64` |
 | Linux | arm (v7) | `msp-linux-armv7` |
+| Linux | loong64 | `msp-linux-loong64` |
 | macOS | amd64 | `msp-darwin-amd64` |
 | macOS | arm64 | `msp-darwin-arm64` |
 | Windows | amd64 | `msp-windows-amd64.exe` |

@@ -11,7 +11,7 @@ export function currentList() {
   }
 }
 
-export function getSortVal(item, field) {
+function getSortVal(item, field) {
   if (field === "size") return item.size || 0;
   if (field === "date") return item.modTime || 0;
   return String(item.name || "").toLowerCase();

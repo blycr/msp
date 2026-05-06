@@ -1,6 +1,6 @@
 import { state, lsGet, lsSet, LS, el } from './state.js';
 
-export const I18N = {
+const I18N = {
   en: {
     title: "MSP Media Share",
     theme: "Switch Theme",
@@ -90,6 +90,13 @@ export const I18N = {
     err_video_load: "Video load/decode failed ({0}, {1}). Browser may not support codec. {2}Try 'Open Raw' or transcode.",
     err_img_load: "Image load failed ({0}). Try 'Open Raw'.",
     meta_fail: "Connection failed or init failed",
+
+    label_subtitle: "Subtitles",
+    label_unnamed: "Unnamed",
+    label_unknown: "Unknown",
+    err_plyr_init: "Plyr not initialized",
+    err_plyr_method: "Unsupported Plyr method: {0}",
+    lyrics_pure_music: "· Pure Music ·",
   },
   zh: {
     title: "MSP 媒体分享预览",
@@ -171,6 +178,13 @@ export const I18N = {
     err_video_load: "视频加载/解码失败（{0}，{1}）。同为 mp4/mkv 也可能因编码不同而无法播放。{2}建议用“在新标签打开”，或转码为 H.264/AAC（或仅转音频为 AAC）再播放。",
     err_img_load: "图片加载失败（{0}）。可用“在新标签打开”查看原文件。",
     meta_fail: "服务连接失败或初始化失败",
+
+    label_subtitle: "字幕",
+    label_unnamed: "未命名",
+    label_unknown: "未知",
+    err_plyr_init: "Plyr 未初始化",
+    err_plyr_method: "不支持的 Plyr 方法: {0}",
+    lyrics_pure_music: "· 纯音乐 / 请欣赏 ·",
 
     // PIN Authentication
     pin_title: "身份验证",

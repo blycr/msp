@@ -13,7 +13,8 @@ export {
   playNext,
   generatePlayOrder,
   buildPlaylist,
-  rebuildPlayOrderFromCurrent
+  rebuildPlayOrderFromCurrent,
+  setPlaylist
 } from './navigation.js';
 
 export {

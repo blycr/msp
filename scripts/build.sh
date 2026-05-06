@@ -42,7 +42,7 @@ show_help() {
   Available Presets:
     all        All platforms and architectures
     release    Release build (same as all)
-    linux      Linux all architectures (amd64, arm64, armv7)
+    linux      Linux all architectures (amd64, arm64, armv7, loong64)
     macos      macOS all architectures (amd64, arm64)
     darwin     macOS all architectures (alias)
     windows    Windows all architectures (amd64, x86)
@@ -386,6 +386,7 @@ invoke_step "Cross Build Artifacts" bash -c "
     'linux:amd64:msp-linux-amd64:'
     'linux:arm64:msp-linux-arm64:'
     'linux:arm:msp-linux-armv7:7'
+    'linux:loong64:msp-linux-loong64:'
     'darwin:amd64:msp-darwin-amd64:'
     'darwin:arm64:msp-darwin-arm64:'
     'windows:amd64:msp-windows-amd64.exe:'
@@ -402,6 +403,8 @@ invoke_step "Cross Build Artifacts" bash -c "
       should_build 'linux' 'arm64' && should_build_flag=true
     elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'arm' ]]; then
       should_build 'arm' 'v7' && should_build_flag=true
+    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'loong64' ]]; then
+      should_build 'linux' 'loong64' && should_build_flag=true
     elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'amd64' ]]; then
       should_build 'macos' 'amd64' || should_build 'macos' 'x64' && should_build_flag=true
     elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'arm64' ]]; then

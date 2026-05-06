@@ -1,4 +1,5 @@
 import { state, el } from '../state.js';
+import { t } from '../i18n.js';
 import { gpGet, gpSet } from '../api.js';
 
 export function setupAudioTrackHandling(videoEl) {
@@ -103,8 +104,8 @@ export function getAudioTracks() {
 
   return Array.from(videoEl.audioTracks).map((track, index) => ({
     index,
-    label: track.label || "未命名",
-    language: track.language || "未知",
+    label: track.label || t("label_unnamed"),
+    language: track.language || t("label_unknown"),
     enabled: track.enabled
   }));
 }

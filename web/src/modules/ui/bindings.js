@@ -2,7 +2,7 @@ import { state, el, lsSet, LS } from '../state.js';
 import { t } from '../i18n.js';
 import { getCfg } from '../utils.js';
 import { apiPost, gpSet } from '../api.js';
-import { loadConfig, loadMedia } from '../actions.js';
+import { bus } from '../eventbus.js';
 import { renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent, playPrev, playNext } from '../playlist.js';
 import { updateResumeButton, resumeLast, setFitBtnVisible } from '../player.js';
 import { createArrowDownIcon, createArrowUpIcon } from '../icons.js';
@@ -22,8 +22,9 @@ export function bindUI() {
   el("dlgBackdrop").addEventListener("click", () => showDlg(false));
   el("topbarTitle").addEventListener("click", () => location.reload());
 
-  el("btnRefresh").addEventListener("click", async () => {
-    try { await loadConfig(); await loadMedia(true); } catch (e) { alert(String(e?.message || e)); }
+  el("btnRefresh").addEventListener("click", () => {
+    bus.emit('config:reload');
+    bus.emit('media:refresh');
   });
 
   el("btnAddShare").addEventListener("click", async () => {
@@ -35,7 +36,7 @@ export function bindUI() {
       el("sharePath").value = "";
       el("shareLabel").value = "";
       renderShares();
-      await loadMedia(true);
+      bus.emit('media:refresh');
     } catch (e) {
       alert(String(e?.message || e));
     }
@@ -53,7 +54,7 @@ export function bindUI() {
       const data = await apiPost("/api/config", state.config);
       state.config = data.config;
       alert(t("msg_bl_saved"));
-      await loadMedia(true);
+      bus.emit('media:refresh');
     } catch (e) {
       alert(String(e?.message || e));
     }

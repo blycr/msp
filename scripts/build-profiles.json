@@ -2,17 +2,17 @@
   "presets": {
     "all": {
       "platforms": ["linux", "macos", "windows", "arm"],
-      "architectures": ["x64", "arm64", "x86", "v7"],
+      "architectures": ["x64", "arm64", "x86", "v7", "loong64"],
       "description": "Compile all platforms and architectures"
     },
     "release": {
       "platforms": ["linux", "macos", "windows", "arm"],
-      "architectures": ["x64", "arm64", "x86", "v7"],
+      "architectures": ["x64", "arm64", "x86", "v7", "loong64"],
       "description": "Release build (same as all)"
     },
     "linux": {
       "platforms": ["linux"],
-      "architectures": ["x64", "arm64", "v7"],
+      "architectures": ["x64", "arm64", "v7", "loong64"],
       "description": "Linux all architectures"
     },
     "macos": {

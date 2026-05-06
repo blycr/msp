@@ -18,6 +18,7 @@ export function updateUIForLang() {
   if (btn) btn.textContent = state.lang === "en" ? "CN" : "EN";
 
   document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+  document.title = t("title");
 
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const k = el.getAttribute("data-i18n");
@@ -49,8 +50,6 @@ export function updateUIForLang() {
 
   const blHint = el("blHint");
   if (blHint) blHint.innerHTML = t("bl_hint");
-
-  bus.emit('ui:render');
 }
 
 export function renderList() {

@@ -1,16 +1,10 @@
 import { state, el, LS } from '../state.js';
-import { gpGet } from '../api.js';
+import { gpGet, rememberEnabled } from '../api.js';
 import { getCfg } from '../utils.js';
 import { setPlaylist, buildPlaylist, generatePlayOrder, playNext, playAtIndex } from '../playlist.js';
 import { updateNavLabels } from '../playlist.js';
 import { restorePlaybackTime, getActiveMedia } from './seek.js';
 import { playItem } from '../player.js';
-
-function rememberEnabled(kind) {
-  const cfg = state.config?.playback?.[kind];
-  if (!cfg) return true;
-  return cfg.remember !== false;
-}
 
 export async function resumeLast() {
   if (!state.media) return;

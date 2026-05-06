@@ -1,4 +1,5 @@
 import { state, el } from './state.js';
+import { t } from './i18n.js';
 
 export function resetLyrics() {
   state.lyrics = null;
@@ -31,7 +32,7 @@ export function renderLyrics(lines) {
     const emptyDiv = document.createElement("div");
     emptyDiv.className = "lyrics-empty";
     // Check for "pure music" explicitly if needed, or just generic message
-    emptyDiv.textContent = "· Pure Music / 请欣赏 ·";
+    emptyDiv.textContent = t("lyrics_pure_music");
     box.appendChild(emptyDiv);
     return;
   }
