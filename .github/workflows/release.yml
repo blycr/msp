@@ -152,9 +152,9 @@ jobs:
             more="$(find checksums -type f -name '*.sha256' -print || true)"
             files="$(printf "%s\n%s" "$files" "$more")"
           fi
-          # Match files in bin/(windows|linux|macos|arm)/ or checksums/*.sha256
+          # Match files in bin/(windows|linux|darwin|arm)/ or checksums/*.sha256
           files="$(printf "%s\n" "$files" | sed '/^$/d' \
-            | grep -E '^(bin/(windows|linux|macos|arm)/.+|checksums/.+\.sha256)$' || true)"
+            | grep -E '^(bin/(windows|linux|darwin|arm)/.+|checksums/.+\.sha256)$' || true)"
           if [ -z "$files" ]; then
             echo "NO_ARTIFACTS=1" >> "$GITHUB_ENV"
             echo "UPLOAD_FILES=" >> "$GITHUB_ENV"
