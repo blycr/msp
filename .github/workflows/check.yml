@@ -91,12 +91,19 @@ jobs:
             goarch: amd64
           - goos: linux
             goarch: arm64
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+          - goos: linux
+            goarch: loong64
           - goos: darwin
             goarch: amd64
           - goos: darwin
             goarch: arm64
           - goos: windows
             goarch: amd64
+          - goos: windows
+            goarch: "386"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -138,6 +145,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm || '' }}
           CGO_ENABLED: 0
         run: |
           output="msp-${{ matrix.goos }}-${{ matrix.goarch }}"

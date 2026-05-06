@@ -104,7 +104,7 @@ jobs:
           rm -rf bin checksums debug || true
           chmod +x scripts/build.sh
           sed -i 's/\r$//' scripts/build.sh
-          bash scripts/build.sh -P release
+          bash scripts/build.sh -P release -t -l
 
       - name: Prepare release notes
         shell: bash
