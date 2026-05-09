@@ -135,6 +135,7 @@ temp/
 # Local project tooling / private configs
 # ------------------------------------------------------------
 .trae/
+.claude/
 .qoder/
 vercel.json
 .vercel/
@@ -155,6 +156,8 @@ msp.code-workspace
 prompt.md
 PROJECT_REVIEW.md
 AGENTS.md
+CLAUDE.md
+OPTIMIZATION.md
 .cursorrules
 
 # Testing helper file
