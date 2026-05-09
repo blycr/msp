@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.2
+## 1.1.3
 
 - **Bug 修复**：修复 ffprobe 缓存键精度丢失，`string(rune(mtime))` 改为 `fmt.Sprintf`，消除不同文件误共享缓存的问题
 - **性能优化**：
