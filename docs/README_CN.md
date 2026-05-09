@@ -2,7 +2,7 @@
 
 # MSP: 极简局域网媒体服务器
 
-<img src="web/public/logo.svg" width="120" alt="MSP Logo" />
+<img src="../web/public/logo.svg" width="120" alt="MSP Logo" />
 
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp?style=flat-square&color=blue)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
@@ -97,7 +97,7 @@ cd msp
 
 ## 许可证
 
-本项目采用 [MIT License](LICENSE) 授权。
+本项目采用 [MIT License](../LICENSE) 授权。
 
 ## 致谢
 
