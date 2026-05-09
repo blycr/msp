@@ -118,6 +118,20 @@ func TestFormatHWAccelStatus(t *testing.T) {
 	ResetHWAccelForTest()
 	defer ResetHWAccelForTest()
 
+	// Trigger path discovery first so pathOnce fires, then we can override
+	_ = FFmpegPath()
+	origPath := ffmpegPath
+	defer func() { ffmpegPath = origPath }()
+
+	// When FFmpeg is not found, status should reflect that
+	ffmpegPath = ""
+	assert.Equal(t, "unavailable (FFmpeg not found)", FormatHWAccelStatus())
+
+	// Restore real path for remaining assertions (skip if ffmpeg not installed)
+	if origPath == "" {
+		t.Skip("FFmpeg not installed, skipping available-state tests")
+	}
+	ffmpegPath = origPath
 	assert.Equal(t, "software (libx264)", FormatHWAccelStatus())
 
 	hwResult = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}

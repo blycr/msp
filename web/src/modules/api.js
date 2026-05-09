@@ -72,15 +72,6 @@ export function probeText(p) {
   return parts.length ? `${t("codec_info")}${parts.join(" / ")}` : "";
 }
 
-export function probeWarnText(p) {
-  const a = String(p?.audio || "");
-  if (!a) return "";
-  if (a.includes("AC-3") || a.includes("E-AC-3") || a.includes("DTS") || a.includes("TrueHD") || a.includes("FLAC")) {
-    return t("audio_warn", a);
-  }
-  return "";
-}
-
 function mediaErrorText(err) {
   if (!err) return "";
   switch (err.code) {

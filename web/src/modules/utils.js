@@ -133,7 +133,7 @@ export function canPlayMedia(kind, ext, name, mediaEl) {
     const mime = mimeFor("video", e);
     if (mime && mediaEl && typeof mediaEl.canPlayType === "function") {
       const res = mediaEl.canPlayType(mime);
-      if (res === "" && e !== ".mkv" && e !== ".avi") return false;
+      if (res === "") return false;
     }
     return true;
   }

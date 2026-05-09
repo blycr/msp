@@ -1,22 +1,9 @@
-import { state, el } from '../state.js';
+import { state } from '../state.js';
 import { t } from '../i18n.js';
-import { gpGet, logRemote, probePeek } from '../api.js';
+import { logRemote } from '../api.js';
 import { streamUrl, getCfg } from '../utils.js';
 import { getActivePlyr } from './core.js';
 import { showPreviewError } from './core.js';
-
-const preemptiveTranscodeVideoExts = new Set([".avi", ".wmv"]);
-
-export function needsCompatibilityVideoTranscode(item) {
-  const ext = String(item?.ext || "").toLowerCase();
-  if (preemptiveTranscodeVideoExts.has(ext)) return true;
-
-  const p = probePeek(item?.id);
-  if (!p) return false;
-
-  const container = String(p.container || "").toLowerCase();
-  return container === "avi" || container === "wmv";
-}
 
 export function switchToTranscodeSource(element, isVideo, url, currentTime) {
   const player = getActivePlyr();

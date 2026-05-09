@@ -220,10 +220,80 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	if scanner.ClassifyExt(ext) == "video" {
 		subs = scanner.FindSidecarSubtitles(target)
 	}
+
+	kind := scanner.ClassifyExt(ext)
+	transcodeEnabled := false
+	if kind == "video" && cfg.Playback.Video.Transcode != nil && *cfg.Playback.Video.Transcode {
+		transcodeEnabled = true
+	} else if kind == "audio" && cfg.Playback.Audio.Transcode != nil && *cfg.Playback.Audio.Transcode {
+		transcodeEnabled = true
+	}
+
+	var playback *domain.PlaybackStrategy
+	if transcodeEnabled {
+		mode := decidePlaybackMode(video, audio, media.FFmpegAvailable())
+		playback = &domain.PlaybackStrategy{Mode: mode}
+	}
+
 	writeJSON(w, http.StatusOK, domain.ProbeResponse{
 		Container: strings.TrimPrefix(ext, "."),
 		Video:     video,
 		Audio:     audio,
 		Subtitles: subs,
+		Playback:  playback,
 	})
+}
+
+// decidePlaybackMode determines the optimal playback strategy based on actual codecs.
+// Returns "direct" or "transcode".
+func decidePlaybackMode(videoCodec, audioCodec string, ffmpegAvailable bool) string {
+	if !ffmpegAvailable {
+		return "direct"
+	}
+
+	// 视频编码判断
+	if videoCodec != "" {
+		vc := strings.ToLower(videoCodec)
+		switch {
+		case strings.Contains(vc, "264") || strings.Contains(vc, "avc"):
+			// H.264: browser native support
+		case strings.Contains(vc, "265") || strings.Contains(vc, "hevc"):
+			return "transcode"
+		case strings.Contains(vc, "av1"):
+			return "transcode"
+		case strings.Contains(vc, "vc1") || strings.Contains(vc, "wmv3"):
+			return "transcode"
+		default:
+			return "transcode" // unknown video codec: conservative
+		}
+	}
+
+	// 音频编码判断（解决"有画无声"）
+	if audioCodec != "" {
+		ac := strings.ToLower(audioCodec)
+		switch {
+		case strings.Contains(ac, "aac"):
+			// browser native support (includes "AAC", "AAC/MP4A")
+		case strings.Contains(ac, "mp3") || ac == "mp3":
+			// browser native support
+		case strings.Contains(ac, "opus"):
+			// browser native support
+		case strings.Contains(ac, "vorbis"):
+			// browser native support
+		case strings.Contains(ac, "flac"):
+			// Chrome supports, Firefox partial — conservative direct
+		case ac == "pcm" || ac == "lpcm" || ac == "wav":
+			// uncompressed: browser supports
+		case strings.Contains(ac, "ac-3") || strings.Contains(ac, "ac3"):
+			return "transcode" // AC-3/E-AC-3: Chrome silently skips
+		case strings.Contains(ac, "dts") || strings.Contains(ac, "dca"):
+			return "transcode"
+		case strings.Contains(ac, "truehd"):
+			return "transcode"
+		default:
+			return "transcode" // unknown audio codec: conservative
+		}
+	}
+
+	return "direct"
 }

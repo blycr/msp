@@ -11,7 +11,6 @@ export {
 } from './core.js';
 
 export {
-  needsCompatibilityVideoTranscode,
   switchToTranscodeSource,
   setupErrorHandler
 } from './transcode.js';

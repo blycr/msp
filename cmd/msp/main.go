@@ -217,6 +217,13 @@ func initHWAccel(s *server.Server) {
 		maxJobs = enc.MaxJobs
 	}
 
+	if !media.CheckFFmpeg() {
+		media.SetTranscodeLimit(0)
+		log.Printf("转码引擎: %s (并发上限: 0)", media.FormatHWAccelStatus())
+		fmt.Printf("转码引擎: %s (并发上限: 0)\n", media.FormatHWAccelStatus())
+		return
+	}
+
 	result := media.DetectHWAccel(mode)
 
 	if maxJobs <= 0 {

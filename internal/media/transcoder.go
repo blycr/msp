@@ -132,6 +132,11 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 		return nil, fmt.Errorf("input path is not a regular file")
 	}
 
+	ffmpegBin := FFmpegPath()
+	if ffmpegBin == "" {
+		return nil, fmt.Errorf("FFmpeg not found")
+	}
+
 	// Acquire semaphore
 	select {
 	case transcodeLimit <- struct{}{}:
@@ -213,7 +218,7 @@ func TranscodeStream(ctx context.Context, inputPath string, opts TranscodeOption
 	args = append(args, "-f", opts.Format, "-map_metadata", "-1", "pipe:1")
 
 	//nolint:gosec // Safe subprocess args
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := exec.CommandContext(ctx, ffmpegBin, args...)
 
 	// Track process for graceful shutdown
 	activeProcessesMu.Lock()

@@ -1,13 +1,28 @@
 import { state, el, LS } from '../state.js';
 import { t } from '../i18n.js';
-import { gpGet, logRemote, probeItem, probeText, probeWarnText, rememberEnabled, getProgress } from '../api.js';
+import { gpGet, logRemote, probeItem, probeText, rememberEnabled, getProgress } from '../api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from '../utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from '../lyrics.js';
 import { setPlaylist, updateNavLabels, playNext, buildPlaylist, generatePlayOrder } from '../playlist.js';
 import { resetMediaEl, hideAllMedia, showPreviewError, setFitBtnVisible, updateFitBtnFromVideo, setTracks, applyPlyr } from './core.js';
-import { needsCompatibilityVideoTranscode, setupErrorHandler } from './transcode.js';
+import { setupErrorHandler } from './transcode.js';
 import { saveProgress, updateResumeButton } from './seek.js';
 import { setupAudioTrackHandling } from './audio-track.js';
+
+async function getPlaybackUrl(item) {
+  const base = streamUrl(item.id);
+  const kind = item.kind;
+  const transcodeCfg = kind === "video" ? "playback.video.transcode" : "playback.audio.transcode";
+
+  if (getCfg(transcodeCfg, false)) {
+    const p = await probeItem(item.id);
+    if (p?.playback?.mode === "transcode") {
+      return { url: base + "&transcode=1", mode: "transcode" };
+    }
+  }
+
+  return { url: base, mode: "direct" };
+}
 
 let lastMediaEndedAt = 0;
 
@@ -26,7 +41,7 @@ function onMediaEnded() {
   playNext(true);
 }
 
-export function playItem(item, opts) {
+export async function playItem(item, opts) {
   const options = opts || {};
   if (!item) return;
 
@@ -54,7 +69,7 @@ export function playItem(item, opts) {
     probeItem(item.id).then((p) => {
       if (token !== state.selectionToken) return;
       if (!state.current || state.current.id !== item.id) return;
-      el("previewSub").textContent = state.currentMetaBase + probeText(p) + probeWarnText(p);
+      el("previewSub").textContent = state.currentMetaBase + probeText(p);
     }).catch(() => { });
   }
 
@@ -144,7 +159,10 @@ export function playItem(item, opts) {
     }
     resetMediaEl(audio);
     try { delete audio.dataset.mspDirectRetryDone; } catch { }
-    audio.src = streamUrl(item.id);
+
+    const audioPlayback = await getPlaybackUrl(item);
+    if (token !== state.selectionToken) return;
+    audio.src = audioPlayback.url;
     audio.style.opacity = "0";
     audio.style.display = "block";
     requestAnimationFrame(() => {
@@ -263,18 +281,13 @@ export function playItem(item, opts) {
         state.plyr.off("ended", onMediaEnded);
 
         try {
-          const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
-
-          let src = streamUrl(item.id);
-          if (needsPreemptiveTranscode) {
-            src += "&transcode=1";
-            logRemote("info", `Pre-emptive transcode for AVI/WMV compatibility`);
-          }
+          const switchPlayback = await getPlaybackUrl(item);
+          if (token !== state.selectionToken) return;
 
           state.plyr.source = {
             type: "video",
             title: item.name || "",
-            sources: [{ src: src }],
+            sources: [{ src: switchPlayback.url }],
             tracks: (item.subtitles || []).map(s => ({
               kind: "subtitles",
               label: s.label || t("label_subtitle"),
@@ -325,7 +338,9 @@ export function playItem(item, opts) {
         return;
       } else {
         state.isSwitchingMedia = true;
-        video.src = streamUrl(item.id);
+        const switchPlayback = await getPlaybackUrl(item);
+        if (token !== state.selectionToken) return;
+        video.src = switchPlayback.url;
         setTracks(video, item.subtitles || []);
         try { video.load(); } catch { }
         if (options.autoplay) {
@@ -343,15 +358,10 @@ export function playItem(item, opts) {
 
     resetMediaEl(video);
 
-    const needsPreemptiveTranscode = needsCompatibilityVideoTranscode(item) && getCfg("playback.video.transcode", false);
+    const videoPlayback = await getPlaybackUrl(item);
+    if (token !== state.selectionToken) return;
 
-    let src = streamUrl(item.id);
-    if (needsPreemptiveTranscode) {
-      src += "&transcode=1";
-      logRemote("info", `Pre-emptive transcode for AVI/WMV compatibility`);
-    }
-
-    video.src = src;
+    video.src = videoPlayback.url;
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
     updateFitBtnFromVideo(video);

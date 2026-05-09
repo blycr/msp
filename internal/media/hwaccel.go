@@ -211,8 +211,13 @@ func probeEncoder(enc hwEncoder) bool {
 	args = append(args, enc.encArgs...)
 	args = append(args, "-frames:v", "1", "-f", "null", "-")
 
+	ffmpegBin := FFmpegPath()
+	if ffmpegBin == "" {
+		return false
+	}
+
 	//nolint:gosec // args are from internal whitelist, not user input
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := exec.CommandContext(ctx, ffmpegBin, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -262,6 +267,9 @@ func ResetHWAccelForTest() {
 
 // FormatHWAccelStatus returns a human-readable status string for logging.
 func FormatHWAccelStatus() string {
+	if !FFmpegAvailable() {
+		return "unavailable (FFmpeg not found)"
+	}
 	r := GetHWAccel()
 	if r == nil || !r.Available {
 		return "software (libx264)"

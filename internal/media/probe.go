@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -38,17 +40,149 @@ func ClearProbeCache() {
 	probeCache = sync.Map{}
 }
 
-func CheckFFmpeg() bool {
-	_, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		log.Printf("[WARN] FFmpeg not found in PATH")
+// FFmpeg/FFprobe 路径发现
+var (
+	ffmpegPath  string
+	ffprobePath string
+	pathOnce    sync.Once
+)
+
+// ResetPathsForTest resets the discovered paths for testing.
+func ResetPathsForTest() {
+	pathOnce = sync.Once{}
+	ffmpegPath = ""
+	ffprobePath = ""
+}
+
+// resolveFFmpegPaths discovers ffmpeg and ffprobe paths once.
+func resolveFFmpegPaths() {
+	pathOnce.Do(func() {
+		ffmpegPath = findExecutable("ffmpeg")
+		if ffmpegPath != "" {
+			dir := filepath.Dir(ffmpegPath)
+			candidate := filepath.Join(dir, exeName("ffprobe"))
+			if _, err := os.Stat(candidate); err == nil {
+				ffprobePath = candidate
+			} else {
+				ffprobePath = findExecutable("ffprobe")
+			}
+		} else {
+			ffprobePath = findExecutable("ffprobe")
+		}
+	})
+}
+
+// FFmpegPath returns the discovered ffmpeg path, or empty string if not found.
+func FFmpegPath() string {
+	resolveFFmpegPaths()
+	return ffmpegPath
+}
+
+// FFprobePath returns the discovered ffprobe path, or empty string if not found.
+func FFprobePath() string {
+	resolveFFmpegPaths()
+	return ffprobePath
+}
+
+// FFmpegAvailable returns true if ffmpeg was found.
+func FFmpegAvailable() bool {
+	return FFmpegPath() != ""
+}
+
+func findExecutable(name string) string {
+	exe := exeName(name)
+
+	// 1. 环境变量（仅 ffmpeg）
+	if name == "ffmpeg" {
+		if env := os.Getenv("MSP_FFMPEG_PATH"); env != "" {
+			if p, err := exec.LookPath(env); err == nil {
+				return p
+			}
+			if _, err := os.Stat(env); err == nil {
+				return env
+			}
+		}
 	}
-	return err == nil
+
+	// 2-5. 程序目录和工作目录
+	for _, c := range localCandidatePaths(exe) {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+
+	// 6. 平台特定路径
+	for _, c := range platformCandidatePaths(exe) {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+
+	// 7. 系统 PATH
+	if p, err := exec.LookPath(exe); err == nil {
+		return p
+	}
+
+	return ""
+}
+
+func exeName(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
+}
+
+func localCandidatePaths(exe string) []string {
+	var paths []string
+
+	if exePath, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exePath)
+		paths = append(paths, filepath.Join(dir, exe))
+		paths = append(paths, filepath.Join(dir, "bin", exe))
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		paths = append(paths, filepath.Join(cwd, exe))
+		paths = append(paths, filepath.Join(cwd, "bin", exe))
+	}
+
+	return paths
+}
+
+func platformCandidatePaths(exe string) []string {
+	switch runtime.GOOS {
+	case "windows":
+		return []string{
+			filepath.Join(`C:\FFmpeg\bin`, exe),
+			filepath.Join(`C:\Program Files\FFmpeg\bin`, exe),
+		}
+	case "darwin":
+		return []string{
+			filepath.Join("/opt/homebrew/bin", exe),
+			filepath.Join("/usr/local/bin", exe),
+		}
+	default:
+		return []string{
+			filepath.Join("/usr/local/bin", exe),
+			filepath.Join("/usr/bin", exe),
+		}
+	}
+}
+
+func CheckFFmpeg() bool {
+	resolveFFmpegPaths()
+	if ffmpegPath == "" {
+		log.Printf("[WARN] FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)")
+		return false
+	}
+	log.Printf("[INFO] FFmpeg found: %s", ffmpegPath)
+	return true
 }
 
 func CheckFFprobe() bool {
-	_, err := exec.LookPath("ffprobe")
-	return err == nil
+	resolveFFmpegPaths()
+	return ffprobePath != ""
 }
 
 // getCacheKey 生成缓存键（文件路径 + 修改时间）
@@ -98,6 +232,11 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 
 // probeCodecInfo 实际执行 ffprobe 命令（单次调用获取视频和音频编码）
 func probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
+	probePath := FFprobePath()
+	if probePath == "" {
+		return CodecInfo{}, fmt.Errorf("ffprobe not found")
+	}
+
 	args := []string{
 		"-v", "error",
 		"-select_streams", "v:0,a:0",
@@ -107,7 +246,7 @@ func probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	}
 
 	//nolint:gosec // Safe subprocess args
-	cmd := exec.CommandContext(ctx, "ffprobe", args...)
+	cmd := exec.CommandContext(ctx, probePath, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return CodecInfo{}, err

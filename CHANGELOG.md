@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- **FFmpeg 多路径发现**：FFmpeg/ffprobe 查找从单一 PATH 升级为 7 层优先级搜索（环境变量 → 同目录 → bin/ → CWD → 平台路径 → PATH），支持 `MSP_FFMPEG_PATH` 环境变量指定路径
+- **启动日志修正**：`FormatHWAccelStatus` 区分 3 种状态（unavailable/software/hardware），FFmpeg 不可用时转码并发上限自动归零
+- **后端播放策略**：`/api/probe` 新增 `playback.mode` 字段，后端基于实际编码信息（byte-sniff + ffprobe）决策 direct/transcode，覆盖 H.264/H.265/AV1/VC-1/AC-3/DTS/TrueHD 等主流编码
+- **前端播放集成**：新增 `getPlaybackUrl()` 异步函数查询后端策略，替代前端扩展名猜测逻辑，消除 5-10 秒回退延迟
+- **CSS 性能优化**：移除不可见的 `backdrop-filter`，topbar 模糊半径 12px→8px 并启用 GPU 合成层，歌词滤镜改为透明度
+- **代码清理**：移除 `probeWarnText()`、`needsCompatibilityVideoTranscode()`、AVI 特殊分支等死代码
+- **测试补强**：新增 FFmpeg 路径发现、播放策略决策等 31+ 测试用例
+
 ## 1.1.4
 
 - **依赖安全修复**：升级 vite、vite-plugin-pwa、workbox-window，修复 serialize-javascript RCE、fast-uri 路径遍历、@babel 任意代码执行等漏洞

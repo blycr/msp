@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,15 +100,82 @@ func TestProbeCacheExpiry(t *testing.T) {
 }
 
 func TestCheckFFmpegWithoutPanic(t *testing.T) {
+	ResetPathsForTest()
+	defer ResetPathsForTest()
+
 	assert.NotPanics(t, func() {
 		_ = CheckFFmpeg()
 	})
 }
 
 func TestCheckFFprobeWithoutPanic(t *testing.T) {
+	ResetPathsForTest()
+	defer ResetPathsForTest()
+
 	assert.NotPanics(t, func() {
 		_ = CheckFFprobe()
 	})
+}
+
+func TestFFmpegPathDiscovery(t *testing.T) {
+	ResetPathsForTest()
+	defer ResetPathsForTest()
+
+	// Test that FFmpegPath does not panic
+	assert.NotPanics(t, func() {
+		_ = FFmpegPath()
+	})
+
+	// Test that FFprobePath does not panic
+	assert.NotPanics(t, func() {
+		_ = FFprobePath()
+	})
+
+	// Test FFmpegAvailable consistency
+	path := FFmpegPath()
+	assert.Equal(t, path != "", FFmpegAvailable())
+}
+
+func TestExeName(t *testing.T) {
+	name := exeName("ffmpeg")
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, "ffmpeg.exe", name)
+	} else {
+		assert.Equal(t, "ffmpeg", name)
+	}
+}
+
+func TestLocalCandidatePaths(t *testing.T) {
+	paths := localCandidatePaths("ffmpeg")
+	assert.NotEmpty(t, paths)
+
+	// Should contain at least executable dir and cwd candidates
+	foundExe := false
+	foundCwd := false
+	for _, p := range paths {
+		if filepath.Base(p) == "ffmpeg" || filepath.Base(p) == "ffmpeg.exe" {
+			// Check if it's from the executable directory or cwd
+			if strings.Contains(p, "bin") {
+				foundExe = true
+			} else {
+				foundCwd = true
+			}
+		}
+	}
+	// At least cwd paths should exist (the test binary runs from somewhere)
+	assert.True(t, foundCwd || foundExe, "should contain at least one candidate path")
+}
+
+func TestPlatformCandidatePaths(t *testing.T) {
+	paths := platformCandidatePaths("ffmpeg")
+	assert.NotEmpty(t, paths)
+
+	// All paths should end with the executable name
+	for _, p := range paths {
+		assert.True(t,
+			strings.HasSuffix(p, "ffmpeg") || strings.HasSuffix(p, "ffmpeg.exe"),
+			"platform path should end with executable name: %s", p)
+	}
 }
 
 func TestGetCodecInfoWithFakeFile(t *testing.T) {

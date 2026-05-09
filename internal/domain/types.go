@@ -109,12 +109,17 @@ type SharesOpResponse struct {
 	Error  *ApiError   `json:"error,omitempty"`
 }
 
+type PlaybackStrategy struct {
+	Mode string `json:"mode"` // "direct" 或 "transcode"
+}
+
 type ProbeResponse struct {
-	Container string     `json:"container"`
-	Video     string     `json:"video,omitempty"`
-	Audio     string     `json:"audio,omitempty"`
-	Subtitles []Subtitle `json:"subtitles,omitempty"`
-	Error     *ApiError  `json:"error,omitempty"`
+	Container string           `json:"container"`
+	Video     string           `json:"video,omitempty"`
+	Audio     string           `json:"audio,omitempty"`
+	Subtitles []Subtitle       `json:"subtitles,omitempty"`
+	Playback  *PlaybackStrategy `json:"playback,omitempty"`
+	Error     *ApiError        `json:"error,omitempty"`
 }
 
 type PrefsResponse struct {
