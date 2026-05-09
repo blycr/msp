@@ -65,7 +65,12 @@
     "label": "电影"     // 可选，仅 add 时有效
   }
   ```
-- **响应**: `SharesOpResponse` (包含更新后的配置)
+- **响应**: `SharesOpResponse`
+  ```json
+  {
+    "config": { ... }
+  }
+  ```
 
 ---
 
@@ -85,16 +90,24 @@
       {
         "id": "base64_path...",
         "name": "Movie.mp4",
+        "ext": ".mp4",
+        "kind": "video",
         "size": 1024000,
         "modTime": 1700000000,
+        "shareLabel": "电影",
         "subtitles": [...]
       }
     ],
     "audios": [...],
     "images": [...],
-    "scanning": false // 如果为 true，表示后台正在扫描，数据可能不完整
+    "others": [...],
+    "shares": [...],
+    "scanning": false
   }
   ```
+- **当 `limit` 参数生效时**，响应会额外包含以下字段：
+  - `limited`: `true` — 表示结果被截断
+  - `videosTotal` / `audiosTotal` / `imagesTotal` / `othersTotal` — 各分类的真实总数
 
 ---
 
@@ -112,18 +125,20 @@
   - `bitrate`: 限制转码码率 (如 `2M`)。
 - **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)。
 - **播放策略说明**:
-  - 默认优先返回原始流（直连）。
-  - 前端可基于 `GET /api/probe` 的容器信息决定是否优先请求转码。
-  - 当前策略仅对 `AVI/WMV` 执行预转码；其他格式先直连，失败后再回退转码。
+  - 默认优先返回原始流（直连），需要转码时前端传递 `transcode=1`。
+  - 转码需在配置中开启 `playback.video.transcode`（视频）或 `playback.audio.transcode`（音频）。
+  - 前端可基于 `GET /api/probe` 的容器和编码信息判断是否需要转码。
+  - 支持硬件加速转码（NVIDIA/Intel/AMD/VAAPI/VideoToolbox），详见 `playback.video.encoding` 配置。
   - `.wmv` 原始流响应头为 `video/x-ms-wmv`。
 
 ### 字幕流
-获取外挂字幕文件。会自动将 SRT 转换为 WebVTT 格式。
+获取外挂字幕文件。支持 SRT、ASS、SSA 格式，自动转换为 WebVTT。
 
 - **端点**: `GET /api/subtitle`
 - **参数**:
   - `id`: 字幕文件 ID (注意：这是字幕文件的 ID，不是视频 ID)。
 - **响应**: `text/vtt` 内容。
+- **补充**: 也支持 `HEAD` 请求（仅返回头信息，不返回内容）。
 
 ### 媒体探针
 获取媒体文件的详细元数据（编码格式、流信息），用于前端判断是否需要转码。
@@ -225,3 +240,4 @@
     "msg": "Player failed to decode..."
   }
   ```
+- **响应**: 204 No Content

@@ -31,10 +31,14 @@
 |------|------|----------|
 | `SECURITY_QUICKSTART.md` | 安全功能快速开始 | 内容已整合到主文档 [SECURITY.md](../SECURITY.md) |
 
-### 审计与整理报告
+### 一次性分析与计划
 
 | 文档 | 说明 | 归档原因 |
 |------|------|----------|
+| `BUILD_AND_INTERACTION_ANALYSIS.md` | amd64/x64 架构命名问题调查 | Bug 已修复，分析报告归档 |
+| `REFACTOR_PLAN.md` | 架构重构计划（5 阶段） | 计划已全部执行，v1.0.0 发布 |
+| `frontend-architecture-audit.md` | 前端架构审计报告 | 一次性审计，问题已记录 |
+| `OPTIMIZATION.md` | 项目优化分析 | 建议已在 v1.1.3 中全部实现 |
 | `SECURITY_AUDIT_REPORT.md` | 安全审计报告 | 审计工作已完成，问题已修复 |
 | `DOCUMENTATION_CLEANUP_REPORT.md` | 文档整理报告 | 整理工作已完成 |
 
@@ -50,13 +54,13 @@
 | `CONFIG_EXAMPLE.md` | 配置文件示例（带详细注释） |
 | `SECURITY.md` | 安全配置指南 |
 | `SECURITY_UPDATE.md` | 安全功能更新记录 |
-| `REFACTOR_PLAN.md` | 架构重构完整计划 |
+| `CodeMap.md` | 代码架构导航图 |
 
 ### 发布说明
 
 | 目录 | 说明 |
 |------|------|
-| `docs/release/` | 所有版本的官方发布说明（v0.4.0 ~ v1.0.0） |
+| `docs/release/` | 所有版本的官方发布说明（v0.4.0 ~ v1.1.3） |
 
 ### 项目根目录核心文档
 
@@ -69,15 +73,6 @@
 | `LICENSE` | MIT 许可证 |
 | `config.example.json` | 配置示例 |
 
-### 历史参考文档（根目录，带⚠️标记）
-
-| 文档 | 说明 |
-|------|------|
-| `IMPROVEMENTS.md` | 项目改进总结（2026-01）⚠️ |
-| `PERFORMANCE_ANALYSIS.md` | 性能分析报告（2026-01）⚠️ |
-
-> ⚠️ 表示历史文档，内容可能已过时，仅供参考
-
 ---
 
 ## 文档分类导航
@@ -89,8 +84,8 @@
 
 ### 开发者文档
 - [API_REFERENCE.md](../API_REFERENCE.md) - API 文档
+- [CodeMap.md](../CodeMap.md) - 代码架构导航
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - 贡献指南
-- [REFACTOR_PLAN.md](../REFACTOR_PLAN.md) - 架构设计
 
 ### 发布历史
 - [CHANGELOG.md](../../CHANGELOG.md) - 变更日志
@@ -103,10 +98,10 @@
 1. **新用户入门**：从 [README.md](../../README.md) 开始
 2. **配置服务**：参考 [CONFIG_EXAMPLE.md](../CONFIG_EXAMPLE.md)
 3. **安全配置**：阅读 [SECURITY.md](../SECURITY.md)
-4. **开发贡献**：查看 [CONTRIBUTING.md](../../CONTRIBUTING.md) 和 [REFACTOR_PLAN.md](../REFACTOR_PLAN.md)
+4. **开发贡献**：查看 [CONTRIBUTING.md](../../CONTRIBUTING.md) 和 [CodeMap.md](../CodeMap.md)
 5. **历史参考**：可查阅本归档目录中的文档
 
 ---
 
-**归档日期**: 2026-05-03  
+**归档日期**: 2026-05-09  
 **维护状态**: 这些文档不再更新，仅作为历史记录保存

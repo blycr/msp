@@ -63,26 +63,31 @@
     "audio": {
       // 是否启用音频播放
       "enabled": true,
-      
+
       // 是否默认随机播放
       "shuffle": false,
-      
+
       // 是否记住播放位置
       "remember": true,
-      
+
       // 播放范围：all（全部）或 folder（当前文件夹）
-      "scope": "all"
+      "scope": "all",
+
+      // 是否启用音频转码（默认 true）
+      // 开启后，浏览器不支持的音频格式（如 FLAC、DTS）会自动转码为 AAC
+      "transcode": true
     },
-    "video": {
-      "enabled": true,
-      "scope": "folder",
-      
-      // 是否启用转码（家庭场景推荐开启）
-      // 开启后并非“所有视频都转码”：
-      // 1) 常见 MP4(H.264/AAC) 仍优先直连；
-      // 2) 仅对已知浏览器高风险容器（AVI/WMV）优先转码；
-      // 3) 其余场景在直连真实失败后自动回退转码。
-      "transcode": true,
+    “video”: {
+      “enabled”: true,
+      “scope”: “folder”,
+
+      // 是否启用视频转码（默认 false，家庭场景推荐开启）
+      // 开启后，前端可请求服务端转码不兼容格式（如 HEVC、AVI、WMV）
+      // 默认优先直连原始流，直连失败后才回退转码
+      “transcode”: false,
+
+      // 是否记住播放位置（默认 true）
+      “resume”: true,
 
       // 转码编码配置
       "encoding": {
@@ -147,7 +152,11 @@
     
     // PIN 码（默认：0000）
     // 必须为 4-8 位数字（仅 0-9）
-    "pin": "0000"
+    "pin": "0000",
+
+    // 是否信任反向代理转发头（默认 false）
+    // 家庭局域网模式下通常保持 false，客户端 IP 直接取 RemoteAddr
+    "trustProxy": false
   }
 }
 ```

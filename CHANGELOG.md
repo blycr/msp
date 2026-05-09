@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.4
+
+- **依赖安全修复**：升级 vite、vite-plugin-pwa、workbox-window，修复 serialize-javascript RCE、fast-uri 路径遍历、@babel 任意代码执行等漏洞
+- **文档整理**：4 个一次性分析文档移入归档，更新 API 参考和配置示例文档
+
 ## 1.1.3
 
 - **Bug 修复**：修复 ffprobe 缓存键精度丢失，`string(rune(mtime))` 改为 `fmt.Sprintf`，消除不同文件误共享缓存的问题
