@@ -124,11 +124,12 @@
   - `format`: 强制转码格式 (如 `mp4`, `mp3`)。
   - `bitrate`: 限制转码码率 (如 `2M`)。
 - **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)。
-- **播放策略说明**:
+- **播放策略说明**（v1.2.0 更新）:
   - 默认优先返回原始流（直连），需要转码时前端传递 `transcode=1`。
   - 转码需在配置中开启 `playback.video.transcode`（视频）或 `playback.audio.transcode`（音频）。
-  - 前端可基于 `GET /api/probe` 的容器和编码信息判断是否需要转码。
+  - 前端通过 `GET /api/probe` 获取 `playback.mode` 字段决定是否转码，基于实际编码而非扩展名。
   - 支持硬件加速转码（NVIDIA/Intel/AMD/VAAPI/VideoToolbox），详见 `playback.video.encoding` 配置。
+  - FFmpeg 路径支持 7 层搜索（环境变量 → 可执行文件目录 → bin/ → 平台路径 → PATH），详见 `MSP_FFMPEG_PATH` 环境变量。
   - `.wmv` 原始流响应头为 `video/x-ms-wmv`。
 
 ### 字幕流
@@ -141,7 +142,7 @@
 - **补充**: 也支持 `HEAD` 请求（仅返回头信息，不返回内容）。
 
 ### 媒体探针
-获取媒体文件的详细元数据（编码格式、流信息），用于前端判断是否需要转码。
+获取媒体文件的详细元数据（编码格式、流信息）和推荐播放策略。
 
 - **端点**: `GET /api/probe`
 - **参数**:
@@ -152,14 +153,23 @@
     "container": "mkv",
     "video": "H.265/HEVC",
     "audio": "AC-3",
-    "subtitles": [...]
+    "subtitles": [...],
+    "playback": {
+      "mode": "transcode"
+    }
   }
   ```
-- **推荐用法**:
-  - 可将 `container` 与 `video/audio` 编码联合判断：
-  - 高风险容器：`avi`, `wmv`
-  - 高风险视频编码：`hevc/h.265`, `vc-1`, `wmv3`, `mpeg-2`
-  - 高风险音频编码：`ac-3`, `e-ac-3`, `dts`, `truehd`
+- **`playback` 字段**（v1.2.0+）：
+  - 仅在对应类型的转码配置开启时返回（`playback.video.transcode` 或 `playback.audio.transcode`）
+  - `mode: "direct"` — 浏览器可直接播放（H.264/AAC/MP3/Opus 等）
+  - `mode: "transcode"` — 需要服务端转码（HEVC/AV1/VC-1/AC-3/DTS/TrueHD 等）
+  - 判断基于实际编码信息（字节嗅探 + ffprobe），非文件扩展名
+  - 字段为 `omitempty`，旧客户端忽略即可，向后兼容
+- **编码兼容性参考**:
+  - 浏览器原生支持的视频编码：H.264/AVC
+  - 浏览器原生支持的音频编码：AAC、MP3、Opus、Vorbis、FLAC
+  - 需要转码的视频编码：H.265/HEVC、AV1、VC-1/WMV3、未知编码
+  - 需要转码的音频编码：AC-3、E-AC-3、DTS、TrueHD、未知编码
 
 ---
 

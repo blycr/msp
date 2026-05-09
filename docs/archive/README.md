@@ -41,6 +41,8 @@
 | `OPTIMIZATION.md` | 项目优化分析 | 建议已在 v1.1.3 中全部实现 |
 | `SECURITY_AUDIT_REPORT.md` | 安全审计报告 | 审计工作已完成，问题已修复 |
 | `DOCUMENTATION_CLEANUP_REPORT.md` | 文档整理报告 | 整理工作已完成 |
+| `TRANSCODING_ANALYSIS.md` | 媒体播放架构分析与改进方案 | 4 阶段方案已在 v1.2.0 全部实施 |
+| `SECURITY_UPDATE.md` | 安全功能更新说明 | 内容已整合到 [SECURITY.md](../SECURITY.md) |
 
 ---
 
@@ -53,14 +55,14 @@
 | `API_REFERENCE.md` | API 接口参考文档 |
 | `CONFIG_EXAMPLE.md` | 配置文件示例（带详细注释） |
 | `SECURITY.md` | 安全配置指南 |
-| `SECURITY_UPDATE.md` | 安全功能更新记录 |
+| `TRANSCODING.md` | 转码技术文档（FFmpeg、播放策略、硬件加速） |
 | `CodeMap.md` | 代码架构导航图 |
 
 ### 发布说明
 
 | 目录 | 说明 |
 |------|------|
-| `docs/release/` | 所有版本的官方发布说明（v0.4.0 ~ v1.1.3） |
+| `docs/release/` | 所有版本的官方发布说明（v0.4.0 ~ v1.2.0） |
 
 ### 项目根目录核心文档
 
@@ -85,6 +87,7 @@
 ### 开发者文档
 - [API_REFERENCE.md](../API_REFERENCE.md) - API 文档
 - [CodeMap.md](../CodeMap.md) - 代码架构导航
+- [TRANSCODING.md](../TRANSCODING.md) - 转码技术文档
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) - 贡献指南
 
 ### 发布历史
@@ -103,5 +106,6 @@
 
 ---
 
-**归档日期**: 2026-05-09  
+**归档日期**: 2026-05-09
+**最后更新**: 2026-05-09（v1.2.0 归档 TRANSCODING_ANALYSIS.md、SECURITY_UPDATE.md）
 **维护状态**: 这些文档不再更新，仅作为历史记录保存

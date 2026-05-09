@@ -52,7 +52,7 @@ msp/
 │   │   ├── media.go            # 媒体响应构建
 │   │   ├── transcoder.go       # FFmpeg 转码流处理
 │   │   ├── hwaccel.go          # 硬件加速检测与配置
-│   │   ├── probe.go            # 媒体文件探测
+│   │   ├── probe.go            # 媒体探测 + FFmpeg 多路径发现
 │   │   └── store.go            # 媒体数据库存储操作
 │   ├── scanner/                # 文件扫描器
 │   │   ├── scanner.go          # 目录遍历与文件分类
@@ -90,10 +90,11 @@ msp/
 │   │       ├── icons.js        # 图标定义
 │   │       ├── utils.js        # 前端工具函数
 │   │       ├── player/         # 播放器模块
-│   │       │   ├── index.js    # 播放器入口
-│   │       │   ├── core.js     # 核心播放逻辑
+│   │       │   ├── index.js    # 播放器入口（re-export + bus 监听）
+│   │       │   ├── play.js     # 播放编排（playItem + getPlaybackUrl + onMediaEnded）
+│   │       │   ├── core.js     # 核心播放逻辑（Plyr、媒体元素管理）
 │   │       │   ├── seek.js     # 进度控制
-│   │       │   ├── transcode.js# 转码处理
+│   │       │   ├── transcode.js# 转码回退（错误兜底）
 │   │       │   ├── audio-track.js # 音轨切换
 │   │       │   └── resume.js   # 续播功能
 │   │       ├── playlist/       # 播放列表模块
@@ -220,10 +221,17 @@ main.go
     │
     ├──► 设置日志 SetupLogger()
     │
-    ├──► 硬件加速检测 initHWAccel()
+    ├──► FFmpeg 路径发现 + 硬件加速检测 initHWAccel()
+    │       ├── media.CheckFFmpeg()
+    │       │       └── resolveFFmpegPaths() — 7 层搜索
+    │       │           ├── MSP_FFMPEG_PATH 环境变量
+    │       │           ├── 可执行文件同目录 / bin/ 子目录
+    │       │           ├── 当前工作目录 / bin/ 子目录
+    │       │           ├── 平台特定路径
+    │       │           └── 系统 PATH
     │       └── media.DetectHWAccel(mode)
     │           ├── 探测 NVENC/QSV/AMF/VAAPI/VideoToolbox
-    │           └── 返回可用的硬件编码器
+    │           └── 返回可用的硬件编码器（无 FFmpeg 时并发上限归零）
     │
     ├──► 初始化数据库 InitSQLite()
     │
@@ -325,6 +333,8 @@ Handler.HandleStream()
     │       │       │
     │       │       ├──► media.TranscodeStream()
     │       │       │       │
+    │       │       │       ├──► 检查 FFmpegPath() 是否可用
+    │       │       │       │
     │       │       │       ├──► 验证转码选项
     │       │       │       │
     │       │       │       ├──► 获取信号量（并发控制）
@@ -353,6 +363,45 @@ Handler.HandleStream()
     │               └── http.ServeContent() (支持 Range 请求)
     │
     └──► 清理资源
+```
+
+### 4.3.1 播放策略决策流程（v1.2.0+）
+
+```
+客户端请求 /api/probe?id=xxx
+    │
+    ▼
+Handler.HandleProbe()
+    │
+    ├──► 解析并验证媒体 ID
+    │
+    ├──► 字节嗅探编码信息 scanner.SniffContainerCodecs()
+    │       ├── 读取文件首尾各 2MB
+    │       ├── MKV: 匹配 V_MPEGH/ISO/HEVC 等编码标签
+    │       └── MP4/M4V/MOV: 匹配 hvc1/avc1 等 FourCC
+    │
+    ├──► 检查转码配置是否开启
+    │       └── playback.video.transcode / playback.audio.transcode
+    │
+    ├──► decidePlaybackMode(videoCodec, audioCodec, ffmpegAvailable)
+    │       │
+    │       ├── 无 FFmpeg → "direct"（只能直连）
+    │       │
+    │       ├── 视频编码判断
+    │       │       ├── H.264/AVC → 继续检查音频
+    │       │       ├── H.265/HEVC → "transcode"
+    │       │       ├── AV1 → "transcode"
+    │       │       ├── VC-1/WMV3 → "transcode"
+    │       │       └── 未知编码 → "transcode"（保守）
+    │       │
+    │       ├── 音频编码判断（解决"有画无声"）
+    │       │       ├── AAC/MP3/Opus/Vorbis/FLAC → 继续
+    │       │       ├── AC-3/DTS/TrueHD → "transcode"
+    │       │       └── 未知编码 → "transcode"（保守）
+    │       │
+    │       └── 全部兼容 → "direct"
+    │
+    └──► 返回 ProbeResponse（含 playback.mode）
 ```
 
 ### 4.4 前端初始化流程
@@ -431,6 +480,21 @@ type MediaResponse struct {
     OthersTotal int         // 其他文件总数
     Limited     bool        // 是否被限制返回数量
     Scanning    bool        // 是否正在扫描
+}
+
+// PlaybackStrategy - 播放策略（v1.2.0+）
+type PlaybackStrategy struct {
+    Mode string // "direct" 或 "transcode"
+}
+
+// ProbeResponse - 媒体探针响应
+type ProbeResponse struct {
+    Container string            // 容器格式（如 "mkv"、"mp4"）
+    Video     string            // 视频编码（如 "H.264/AVC"、"H.265/HEVC"）
+    Audio     string            // 音频编码（如 "AAC"、"AC-3"）
+    Subtitles []Subtitle        // 外挂字幕列表
+    Playback  *PlaybackStrategy // 推荐播放策略（转码开启时返回）
+    Error     *ApiError         // 错误信息
 }
 ```
 
@@ -752,5 +816,5 @@ WithSecurity 中间件
 
 ---
 
-*文档版本: 1.0*
-*最后更新: 2026-05-03*
+*文档版本: 1.1*
+*最后更新: 2026-05-09*

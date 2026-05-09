@@ -74,17 +74,19 @@
       "scope": "all",
 
       // 是否启用音频转码（默认 true）
-      // 开启后，浏览器不支持的音频格式（如 FLAC、DTS）会自动转码为 AAC
+      // 开启后，浏览器不支持的音频格式（如 AC-3、DTS、TrueHD）会自动转码为 AAC
       "transcode": true
     },
     “video”: {
       “enabled”: true,
       “scope”: “folder”,
 
-      // 是否启用视频转码（默认 false，家庭场景推荐开启）
-      // 开启后，前端可请求服务端转码不兼容格式（如 HEVC、AVI、WMV）
-      // 默认优先直连原始流，直连失败后才回退转码
-      “transcode”: false,
+      // 是否启用视频转码（默认 true）
+      // 开启后，后端会根据实际编码信息（字节嗅探）判断是否需要转码
+      // H.264/AAC 等浏览器兼容编码 → 直连原始流
+      // HEVC/AV1/AC-3/DTS 等不兼容编码 → 自动转码
+      // FFmpeg 路径支持 7 层搜索，也可通过 MSP_FFMPEG_PATH 环境变量指定
+      “transcode”: true,
 
       // 是否记住播放位置（默认 true）
       “resume”: true,
@@ -224,5 +226,15 @@
    - 建议观察日志确认已重载成功
    - 如果忘记 PIN，可以编辑 config.json 文件修改或禁用
    - 当前默认面向家庭局域网，不建议直接公网暴露
+
+5. **FFmpeg 与转码**：
+   - 转码功能依赖 FFmpeg，程序会自动搜索以下位置（按优先级）：
+     1. `MSP_FFMPEG_PATH` 环境变量（显式指定）
+     2. 可执行文件同目录 / `bin/` 子目录
+     3. 当前工作目录 / `bin/` 子目录
+     4. 平台特定路径（如 `C:\FFmpeg\bin`、`/usr/local/bin`）
+     5. 系统 PATH
+   - 启动日志会显示 FFmpeg 发现路径和转码引擎状态
+   - 无 FFmpeg 时转码并发上限自动归零，不影响直连播放
 
 详细文档请参阅：docs/SECURITY.md
