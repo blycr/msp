@@ -2,10 +2,11 @@ package media
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 )
@@ -52,7 +53,7 @@ func CheckFFprobe() bool {
 
 // getCacheKey 生成缓存键（文件路径 + 修改时间）
 func getCacheKey(path string, mtime int64) string {
-	return path + "|" + string(rune(mtime))
+	return fmt.Sprintf("%s|%d", path, mtime)
 }
 
 // getFileMtime 获取文件修改时间
@@ -95,32 +96,56 @@ func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	return info, nil
 }
 
-// probeCodecInfo 实际执行 ffprobe 命令
+// probeCodecInfo 实际执行 ffprobe 命令（单次调用获取视频和音频编码）
 func probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	args := []string{
 		"-v", "error",
-		"-select_streams", "v:0",
-		"-show_entries", "stream=codec_name",
-		"-of", "default=noprint_wrappers=1:nokey=1",
+		"-select_streams", "v:0,a:0",
+		"-show_entries", "stream=codec_name,codec_type",
+		"-of", "json",
 		inputPath,
 	}
 
+	//nolint:gosec // Safe subprocess args
+	cmd := exec.CommandContext(ctx, "ffprobe", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return CodecInfo{}, err
+	}
+
+	return parseProbeJSON(out)
+}
+
+// probeStream 表示 ffprobe JSON 输出中的单个流
+type probeStream struct {
+	CodecName string `json:"codec_name"`
+	CodecType string `json:"codec_type"`
+}
+
+// probeResult 表示 ffprobe JSON 输出的整体结构
+type probeResult struct {
+	Streams []probeStream `json:"streams"`
+}
+
+// parseProbeJSON 从 ffprobe 的 JSON 输出中提取编码信息
+func parseProbeJSON(data []byte) (CodecInfo, error) {
+	var result probeResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return CodecInfo{}, err
+	}
+
 	var info CodecInfo
-
-	//nolint:gosec // Safe subprocess args
-	cmdV := exec.CommandContext(ctx, "ffprobe", args...)
-	outV, err := cmdV.Output()
-	if err == nil {
-		info.VideoCodec = strings.TrimSpace(string(outV))
+	for _, s := range result.Streams {
+		switch s.CodecType {
+		case "video":
+			if info.VideoCodec == "" {
+				info.VideoCodec = s.CodecName
+			}
+		case "audio":
+			if info.AudioCodec == "" {
+				info.AudioCodec = s.CodecName
+			}
+		}
 	}
-
-	args[2] = "a:0"
-	//nolint:gosec // Safe subprocess args
-	cmdA := exec.CommandContext(ctx, "ffprobe", args...)
-	outA, err := cmdA.Output()
-	if err == nil {
-		info.AudioCodec = strings.TrimSpace(string(outA))
-	}
-
 	return info, nil
 }

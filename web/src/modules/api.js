@@ -51,8 +51,8 @@ export async function probeItem(id) {
   if (probeCache.has(id)) return probeCache.get(id);
   try {
     const data = await apiGet(`/api/probe?id=${encodeURIComponent(id)}`);
-    // Limit cache size to 100 items
-    if (probeCache.size > 100) {
+    // Limit cache size to 500 items
+    if (probeCache.size > 500) {
       const first = probeCache.keys().next().value;
       probeCache.delete(first);
     }
@@ -92,9 +92,21 @@ function mediaErrorText(err) {
   }
 }
 
+let progressBatchQueue = {};
+let progressBatchTimer = 0;
+
 export function reportProgress(id, time) {
   if (!id) return;
-  apiPost("/api/progress", { id, time }).catch(() => { });
+  progressBatchQueue[id] = time;
+  if (progressBatchTimer) return;
+  progressBatchTimer = setTimeout(() => {
+    const batch = { ...progressBatchQueue };
+    progressBatchQueue = {};
+    progressBatchTimer = 0;
+    for (const [batchId, batchTime] of Object.entries(batch)) {
+      apiPost("/api/progress", { id: batchId, time: batchTime }).catch(() => { });
+    }
+  }, 300);
 }
 
 export async function getProgress(id) {

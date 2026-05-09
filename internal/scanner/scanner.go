@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"msp/internal/config"
 	"msp/internal/constants"
@@ -20,6 +21,23 @@ import (
 
 // 预编译的正则表达式
 var blockedStringRegex = regexp.MustCompile(`^/(.*)/$`)
+
+// regexpCache 缓存用户配置中的正则规则，避免每次匹配都重新编译
+var regexpCache sync.Map
+
+// getOrCompileRegexp 获取缓存的编译正则，或编译并缓存
+func getOrCompileRegexp(pattern string) *regexp.Regexp {
+	if v, ok := regexpCache.Load(pattern); ok {
+		return v.(*regexp.Regexp)
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		log.Printf("[WARN] invalid regexp pattern %q: %v", pattern, err)
+		return nil
+	}
+	regexpCache.Store(pattern, re)
+	return re
+}
 
 // IsBlockedStringRegex 检查规则是否是正则表达式格式（以 / 开头和结尾）
 func IsBlockedStringRegex(rule string) bool {
@@ -202,7 +220,7 @@ func IsBlockedString(list []string, target string) bool {
 		}
 
 		if pattern := GetBlockedStringPattern(rule); pattern != "" {
-			if matched, _ := regexp.MatchString(pattern, target); matched {
+			if re := getOrCompileRegexp(pattern); re != nil && re.MatchString(target) {
 				return true
 			}
 			continue
