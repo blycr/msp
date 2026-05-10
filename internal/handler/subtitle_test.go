@@ -87,8 +87,7 @@ func TestHandleSubtitleForbiddenFile(t *testing.T) {
 
 func TestHandleSubtitleVTT(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	s := newTestServerWithShare(t, configPath, tmpDir)
+	s := newTestServerWithShare(t, tmpDir)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
 	vttContent := "WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nHello World\n"
@@ -111,8 +110,7 @@ func TestHandleSubtitleVTT(t *testing.T) {
 
 func TestHandleSubtitleSRT(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	s := newTestServerWithShare(t, configPath, tmpDir)
+	s := newTestServerWithShare(t, tmpDir)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
 	srtContent := "1\n00:00:01,000 --> 00:00:05,000\nHello World\n"
@@ -139,8 +137,7 @@ func TestHandleSubtitleSRT(t *testing.T) {
 
 func TestHandleSubtitleASS(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	s := newTestServerWithShare(t, configPath, tmpDir)
+	s := newTestServerWithShare(t, tmpDir)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
 	assContent := `[Script Info]
@@ -171,8 +168,7 @@ Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,Hello World
 
 func TestHandleSubtitleUnsupportedFormat(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	s := newTestServerWithShare(t, configPath, tmpDir)
+	s := newTestServerWithShare(t, tmpDir)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
 	txtPath := filepath.Join(tmpDir, "test.xyz")

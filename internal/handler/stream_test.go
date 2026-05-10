@@ -125,9 +125,8 @@ func TestHandleProbeMethodNotAllowed(t *testing.T) {
 
 func TestHandleProbeWithValidFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
 
-	s := newTestServerWithShare(t, configPath, tmpDir)
+	s := newTestServerWithShare(t, tmpDir)
 
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil})
 
@@ -234,7 +233,7 @@ func TestDecidePlaybackMode(t *testing.T) {
 	}
 }
 
-func newTestServerWithShare(t *testing.T, configPath, shareDir string) *testServerWrapper {
+func newTestServerWithShare(t *testing.T, shareDir string) *testServerWrapper {
 	t.Helper()
 	s := &testServerWrapper{cfg: config.Default()}
 	s.cfg.Shares = []domain.Share{{Label: "Test", Path: shareDir}}

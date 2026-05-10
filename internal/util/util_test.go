@@ -2,6 +2,8 @@ package util
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"msp/internal/domain"
@@ -241,12 +243,12 @@ func TestIsPrivateIPv4(t *testing.T) {
 func TestDedupeStrings(t *testing.T) {
 	input := []string{"a", "b", "a", "c", "b", "d"}
 	expected := []string{"a", "b", "c", "d"}
-	
+
 	result := DedupeStrings(input)
 	if len(result) != len(expected) {
 		t.Errorf("DedupeStrings length = %d, want %d", len(result), len(expected))
 	}
-	
+
 	seen := make(map[string]bool)
 	for _, s := range result {
 		if seen[s] {
@@ -254,4 +256,72 @@ func TestDedupeStrings(t *testing.T) {
 		}
 		seen[s] = true
 	}
+}
+
+func TestIsAllowedFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 在 share 目录内创建测试文件
+	testFile := filepath.Join(tmpDir, "video.mp4")
+	if err := os.WriteFile(testFile, []byte("data"), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	subDir := filepath.Join(tmpDir, "sub")
+	if err := os.MkdirAll(subDir, 0750); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	subFile := filepath.Join(subDir, "audio.mp3")
+	if err := os.WriteFile(subFile, []byte("data"), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	shares := []domain.Share{{Label: "Media", Path: tmpDir}}
+
+	t.Run("empty path returns false", func(t *testing.T) {
+		if IsAllowedFile("", shares) {
+			t.Error("empty path should not be allowed")
+		}
+	})
+
+	t.Run("file in share root is allowed", func(t *testing.T) {
+		if !IsAllowedFile(testFile, shares) {
+			t.Errorf("file %q should be allowed", testFile)
+		}
+	})
+
+	t.Run("file in subdirectory of share is allowed", func(t *testing.T) {
+		if !IsAllowedFile(subFile, shares) {
+			t.Errorf("subdirectory file %q should be allowed", subFile)
+		}
+	})
+
+	t.Run("directory path returns false", func(t *testing.T) {
+		if IsAllowedFile(tmpDir, shares) {
+			t.Error("directory path should not be allowed")
+		}
+	})
+
+	t.Run("file outside shares returns false", func(t *testing.T) {
+		otherDir := t.TempDir()
+		otherFile := filepath.Join(otherDir, "other.mp4")
+		if err := os.WriteFile(otherFile, []byte("data"), 0600); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		if IsAllowedFile(otherFile, shares) {
+			t.Error("file outside shares should not be allowed")
+		}
+	})
+
+	t.Run("non-existent file returns false", func(t *testing.T) {
+		nonExistent := filepath.Join(tmpDir, "doesnotexist.mp4")
+		if IsAllowedFile(nonExistent, shares) {
+			t.Error("non-existent file should not be allowed")
+		}
+	})
+
+	t.Run("empty shares returns false", func(t *testing.T) {
+		if IsAllowedFile(testFile, []domain.Share{}) {
+			t.Error("file should not be allowed when shares is empty")
+		}
+	})
 }
