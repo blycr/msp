@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1
+
+- **测试覆盖率提升**：
+  - 新增 `internal/handler/auth_test.go` 和 `internal/service/session_test.go`，补全认证流程与会话管理逻辑的测试。
+  - 重构 `stream_test.go`、`subtitle_test.go`、`server_test.go` 和 `util_test.go`，补全边界条件测试。
+- **代码质量优化**：
+  - 修复 `internal/handler/stream_test.go` 中 `unusedparams` 诊断警告，移除未使用的 `configPath` 参数。
+  - 修复测试文件中未检查的错误返回值，统一符合 Go 最佳实践。
+
 ## 1.2.0
 
 - **FFmpeg 多路径发现**：FFmpeg/ffprobe 查找从单一 PATH 升级为 7 层优先级搜索（环境变量 → 同目录 → bin/ → CWD → 平台路径 → PATH），支持 `MSP_FFMPEG_PATH` 环境变量指定路径
