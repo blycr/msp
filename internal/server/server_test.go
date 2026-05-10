@@ -98,7 +98,7 @@ func TestUpdateConfig(t *testing.T) {
 	}
 
 	// 验证文件也已持久化
-	b, err := os.ReadFile(cfgPath)
+	b, err := os.ReadFile(cfgPath) //nolint:gosec // G304: testing with temp file is safe
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
 	}
