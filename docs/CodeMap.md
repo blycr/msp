@@ -16,7 +16,7 @@ MSP 是一个基于 Go + 原生 JavaScript 的媒体共享与预览服务，支�
 | 数据库 | SQLite (modernc.org/sqlite) | 纯 Go SQLite 驱动 |
 | 前端 | Vite 8 + Vanilla JS | 无框架依赖 |
 | 转码 | FFmpeg | 支持硬件加速 (NVENC/QSV/AMF/VAAPI) |
-| 包管理 | pnpm 10 | 前端依赖管理 |
+| 包管理 | bun 1.3 | 前端依赖管理 |
 
 ---
 
@@ -212,24 +212,24 @@ main.go
     ├──► 设置 GC 参数、日志格式
     │
     ├──► 创建 Server 实例
-    │       └── New(cfgPath)
+    │       └── New(cfgPath, processor)
     │           ├── 初始化 SessionService
     │           ├── 初始化 LoggerService
-    │           └── 初始化 MediaService (含 MediaCache)
+    │           └── 初始化 MediaService (含 MediaCache + MediaProcessor)
     │
     ├──► 加载或初始化配置 LoadOrInitConfig()
     │
     ├──► 设置日志 SetupLogger()
     │
-    ├──► FFmpeg 路径发现 + 硬件加速检测 initHWAccel()
-    │       ├── media.CheckFFmpeg()
+    ├──► FFmpeg 路径发现 + 硬件加速检测 initHWAccel(processor)
+    │       ├── processor.CheckFFmpeg()
     │       │       └── resolveFFmpegPaths() — 7 层搜索
     │       │           ├── MSP_FFMPEG_PATH 环境变量
     │       │           ├── 可执行文件同目录 / bin/ 子目录
     │       │           ├── 当前工作目录 / bin/ 子目录
     │       │           ├── 平台特定路径
     │       │           └── 系统 PATH
-    │       └── media.DetectHWAccel(mode)
+    │       └── processor.MediaProcessor.DetectHWAccel(mode)
     │           ├── 探测 NVENC/QSV/AMF/VAAPI/VideoToolbox
     │           └── 返回可用的硬件编码器（无 FFmpeg 时并发上限归零）
     │
@@ -256,7 +256,7 @@ main.go
     │
     └──► 优雅关闭处理
             ├── 停止接受新连接
-            ├── 终止转码进程 KillAllTranscodeProcesses()
+            ├── 终止转码进程 processor.KillAllTranscodeProcesses()
             ├── 关闭数据库连接
             └── 关闭日志文件
 ```
@@ -284,12 +284,12 @@ Handler.HandleMedia()
     │               │       └── 未命中 -> 继续
     │               │
     │               ├──► 检查数据库缓存（有数据库时）
-    │               │       └── media.LoadMediaFromDB()
+    │               │       └── processor.LoadMediaFromDB()
     │               │
     │               └──► 重建缓存 buildAndUpdate()
     │                       │
     │                       ├──► 数据库可用?
-    │                       │       ├── 是 -> media.ReindexAndLoadMedia()
+    │                       │       ├── 是 -> processor.ReindexAndLoadMedia()
     │                       │       │       ├── 扫描文件系统
     │                       │       │       ├── 写入数据库
     │                       │       │       └── 返回结果
@@ -331,15 +331,15 @@ Handler.HandleStream()
     │       │
     │       ├── 是 -> tryServeTranscode()
     │       │       │
-    │       │       ├──► media.TranscodeStream()
+    │       │       ├──► processor.TranscodeStream()
     │       │       │       │
-    │       │       │       ├──► 检查 FFmpegPath() 是否可用
+    │       │       │       ├──► 检查 processor.FFmpegPath() 是否可用
     │       │       │       │
     │       │       │       ├──► 验证转码选项
     │       │       │       │
     │       │       │       ├──► 获取信号量（并发控制）
     │       │       │       │
-    │       │       │       ├──► 探测源文件编码 GetCodecInfo()
+    │       │       │       ├──► 探测源文件编码 processor.GetCodecInfo()
     │       │       │       │
     │       │       │       ├──► 智能选择转码策略
     │       │       │       │       ├── H.264 视频 -> copy 视频流
@@ -348,7 +348,7 @@ Handler.HandleStream()
     │       │       │       │       └── 其他音频 -> 转 AAC
     │       │       │       │
     │       │       │       ├──► 构建 FFmpeg 参数
-    │       │       │       │       └── media.BuildVideoArgs()
+    │       │       │       │       └── processor.BuildVideoArgs()
     │       │       │       │           ├── 硬件加速可用?
     │       │       │       │           │       ├── 是 -> 使用 h264_nvenc/qsv/amf 等
     │       │       │       │           │       └── 否 -> 使用 libx264
@@ -621,7 +621,7 @@ WalkShares(ctx, shares, blacklist, limit, callback)
 ### 7.3 转码流控制 (internal/media/transcoder.go)
 
 ```
-TranscodeStream(ctx, inputPath, opts)
+MediaProcessor.TranscodeStream(ctx, inputPath, opts)
     │
     ├── 验证转码选项（格式、码率、偏移量）
     │

@@ -175,7 +175,7 @@ chmod +x ./scripts/build.sh
     - 设置环境变量 `MSP_NO_AUTO_OPEN=1` 防止后端自动打开浏览器
 3.  **Start Frontend**:
     - 检查并安装前端依赖
-    - 启动 Vite 开发服务器 (`pnpm run dev`)
+    - 启动 Vite 开发服务器 (`bun run dev`)
     - 设置 `MSP_DEV_BACKEND` 环境变量指向本地后端，实现前后端代理联调
 4.  **Watch Mode**:
     - **Windows (`dev.ps1`)**: 使用 .NET `FileSystemWatcher` 监听文件变化，带 1 秒防抖

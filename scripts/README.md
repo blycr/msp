@@ -175,7 +175,7 @@ These scripts are designed for local development with full-stack hot-reload supp
     - Sets `MSP_NO_AUTO_OPEN=1` to prevent auto-opening browser
 3.  **Start Frontend**:
     - Installs frontend dependencies if needed
-    - Starts Vite dev server (`pnpm run dev`)
+    - Starts Vite dev server (`bun run dev`)
     - Sets `MSP_DEV_BACKEND` to proxy API requests to local backend
 4.  **Watch Mode**:
     - **Windows (`dev.ps1`)**: Uses .NET `FileSystemWatcher` with 1-second debounce

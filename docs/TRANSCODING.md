@@ -22,7 +22,7 @@ MSP 采用 **"后端决策 + 前端执行"** 的播放架构（v1.2.0+）：
     └──► "transcode" → video.src = streamUrl(id) + "&transcode=1"
                             │
                             ▼
-                        后端 TranscodeStream()
+                        后端 processor.TranscodeStream()
                             ├── H.264 视频 → stream copy（零开销）
                             ├── 非 H.264 → HW/SW 重编码
                             ├── AAC/MP3 音频 → stream copy
@@ -58,23 +58,25 @@ FFmpeg/ffprobe 查找采用 7 层优先级搜索（`internal/media/probe.go`）�
 路径发现通过 `sync.Once` 缓存，全程零重复开销：
 
 ```go
-var (
-    ffmpegPath  string
-    ffprobePath string
-    pathOnce    sync.Once
-)
+type MediaProcessor struct {
+    probePaths struct {
+        ffmpeg  string
+        ffprobe string
+        once    sync.Once
+    }
+    // ... 其他字段
+}
 
-func resolveFFmpegPaths() {
-    pathOnce.Do(func() {
-        ffmpegPath = findExecutable("ffmpeg")
-        // ffprobe 通常和 ffmpeg 在同一目录
-        if ffmpegPath != "" {
-            dir := filepath.Dir(ffmpegPath)
+func (mp *MediaProcessor) resolveFFmpegPaths() {
+    mp.probePaths.once.Do(func() {
+        mp.probePaths.ffmpeg = findExecutable("ffmpeg")
+        if mp.probePaths.ffmpeg != "" {
+            dir := filepath.Dir(mp.probePaths.ffmpeg)
             candidate := filepath.Join(dir, exeName("ffprobe"))
             if _, err := os.Stat(candidate); err == nil {
-                ffprobePath = candidate
+                mp.probePaths.ffprobe = candidate
             } else {
-                ffprobePath = findExecutable("ffprobe")
+                mp.probePaths.ffprobe = findExecutable("ffprobe")
             }
         }
     })
@@ -184,7 +186,7 @@ func resolveFFmpegPaths() {
 ### 4.2 探测流程
 
 ```
-DetectHWAccel(mode)
+processor.DetectHWAccel(mode)
     │
     ├── mode == "none" → 禁用硬件加速
     │
@@ -320,7 +322,7 @@ ffmpeg -i input.mp4 \
 - FFmpeg 进程崩溃 → 返回错误，前端回退到直连
 - 转码超时 → 通过 context 取消
 - 信号量耗尽 → 返回 503，前端可重试
-- 优雅关闭 → `KillAllTranscodeProcesses()` 终止所有活跃进程
+- 优雅关闭 → `processor.KillAllTranscodeProcesses()` 终止所有活跃进程
 
 ---
 
