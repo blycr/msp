@@ -5,7 +5,14 @@ import { formatName, formatBytes, formatTime } from '../utils.js';
 import { bus } from '../eventbus.js';
 
 export function setMeta(text) {
-  el("meta").textContent = text;
+  const meta = el("meta");
+  if (!meta) return;
+  // Auto-convert URLs to clickable links while keeping plain text
+  const html = String(text || "").replace(
+    /(https?:\/\/[^\s]+)/g,
+    '<a href="$1" target="_blank" rel="noreferrer" class="meta-link">$1</a>'
+  );
+  meta.innerHTML = html;
 }
 
 export function showDlg(show) {

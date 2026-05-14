@@ -318,6 +318,17 @@ p {
   white-space: nowrap;
 }
 
+.topbar__meta a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.topbar__meta a:hover {
+  color: var(--md-primary);
+  text-decoration: underline;
+}
+
 .row {
   display: flex;
   align-items: center;
