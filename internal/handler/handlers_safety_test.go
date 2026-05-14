@@ -44,7 +44,7 @@ func TestHandlePINRejectsLargePayload(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
 
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	if err := s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.PINEnabled = true
 		cfg.Security.PIN = "1234"
@@ -70,7 +70,7 @@ func TestHandlePINCookieSecureAlwaysDisabled(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
 
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	if err := s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.PINEnabled = true
 		cfg.Security.PIN = "1234"

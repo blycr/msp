@@ -39,7 +39,7 @@ func setupTestHandlerWithRealServer(t *testing.T) (*Handler, *server.Server, str
 	t.Helper()
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
-	s := server.New(cfgPath)
+	s := server.New(cfgPath, nil)
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 	return h, s, tmpDir

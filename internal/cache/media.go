@@ -31,12 +31,14 @@ type MediaCache struct {
 	building      bool
 	cacheFilePath string
 	bg            sync.WaitGroup
+	processor     *media.MediaProcessor
 }
 
-func NewMediaCache(cacheFilePath string, ttl time.Duration) *MediaCache {
+func NewMediaCache(processor *media.MediaProcessor, cacheFilePath string, ttl time.Duration) *MediaCache {
 	c := &MediaCache{
 		cacheFilePath: cacheFilePath,
 		ttl:           ttl,
+		processor:     processor,
 	}
 	c.cond = sync.NewCond(&c.mu)
 	return c
@@ -111,7 +113,7 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 
 	if c.key != key {
 		c.mu.Unlock()
-		if resp, builtAt, ok, dbErr := media.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
+		if resp, builtAt, ok, dbErr := c.processor.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
 			if dbErr != nil {
 				log.Printf("[WARN] LoadMediaFromDB error: %v", dbErr)
 			}
@@ -147,8 +149,8 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 	builtAt := time.Now()
 	var buildErr error
 
-	if media.IsDBAvailable() {
-		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
+	if c.processor.IsDBAvailable() {
+		r, bt, err := c.processor.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
 		if err == nil && !bt.IsZero() {
 			resp = r
 			builtAt = bt
@@ -199,7 +201,7 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 	c.cond.Broadcast()
 	c.mu.Unlock()
 
-	if !media.IsDBAvailable() {
+	if !c.processor.IsDBAvailable() {
 		c.runBg(func() { c.saveToDisk(key, builtAt, etag, resp) })
 	}
 
@@ -216,7 +218,7 @@ func (c *MediaCache) rebuild(ctx context.Context, key string, shares []domain.Sh
 }
 
 func (c *MediaCache) LoadFromDisk(key string) bool {
-	if media.IsDBAvailable() {
+	if c.processor != nil && c.processor.IsDBAvailable() {
 		return false
 	}
 	c.mu.Lock()

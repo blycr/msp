@@ -18,81 +18,65 @@ type CodecInfo struct {
 	AudioCodec string
 }
 
-// probeCacheEntry 存储缓存的 ffprobe 结果和过期时间
+// probeCacheEntry stores cached ffprobe results and expiration time.
 type probeCacheEntry struct {
 	info   CodecInfo
 	mtime  int64
 	expire time.Time
 }
 
-var (
-	probeCache sync.Map
-	cacheTTL   = 5 * time.Minute
-)
-
-// SetProbeCacheTTL 设置 ffprobe 缓存的 TTL（默认 5 分钟）
-func SetProbeCacheTTL(ttl time.Duration) {
-	cacheTTL = ttl
+// SetProbeCacheTTL sets the ffprobe cache TTL (default 5 minutes).
+func (mp *MediaProcessor) SetProbeCacheTTL(ttl time.Duration) {
+	mp.probeTTL.Store(int64(ttl))
 }
 
-// ClearProbeCache 清除所有 ffprobe 缓存
-func ClearProbeCache() {
-	probeCache = sync.Map{}
-}
-
-// FFmpeg/FFprobe 路径发现
-var (
-	ffmpegPath  string
-	ffprobePath string
-	pathOnce    sync.Once
-)
-
-// ResetPathsForTest resets the discovered paths for testing.
-func ResetPathsForTest() {
-	pathOnce = sync.Once{}
-	ffmpegPath = ""
-	ffprobePath = ""
+// ClearProbeCache clears all ffprobe caches.
+func (mp *MediaProcessor) ClearProbeCache() {
+	mp.probeCache = sync.Map{}
 }
 
 // resolveFFmpegPaths discovers ffmpeg and ffprobe paths once.
-func resolveFFmpegPaths() {
-	pathOnce.Do(func() {
-		ffmpegPath = findExecutable("ffmpeg")
-		if ffmpegPath != "" {
-			dir := filepath.Dir(ffmpegPath)
+func (mp *MediaProcessor) resolveFFmpegPaths() {
+	mp.probePaths.once.Do(func() {
+		mp.probePaths.ffmpeg = findExecutable("ffmpeg")
+		if mp.probePaths.ffmpeg != "" {
+			dir := filepath.Dir(mp.probePaths.ffmpeg)
 			candidate := filepath.Join(dir, exeName("ffprobe"))
 			if _, err := os.Stat(candidate); err == nil {
-				ffprobePath = candidate
+				mp.probePaths.ffprobe = candidate
 			} else {
-				ffprobePath = findExecutable("ffprobe")
+				mp.probePaths.ffprobe = findExecutable("ffprobe")
 			}
 		} else {
-			ffprobePath = findExecutable("ffprobe")
+			mp.probePaths.ffprobe = findExecutable("ffprobe")
 		}
 	})
 }
 
 // FFmpegPath returns the discovered ffmpeg path, or empty string if not found.
-func FFmpegPath() string {
-	resolveFFmpegPaths()
-	return ffmpegPath
+func (mp *MediaProcessor) FFmpegPath() string {
+	mp.resolveFFmpegPaths()
+	return mp.probePaths.ffmpeg
 }
 
 // FFprobePath returns the discovered ffprobe path, or empty string if not found.
-func FFprobePath() string {
-	resolveFFmpegPaths()
-	return ffprobePath
+func (mp *MediaProcessor) FFprobePath() string {
+	mp.resolveFFmpegPaths()
+	return mp.probePaths.ffprobe
 }
 
 // FFmpegAvailable returns true if ffmpeg was found.
-func FFmpegAvailable() bool {
-	return FFmpegPath() != ""
+func (mp *MediaProcessor) FFmpegAvailable() bool {
+	if mp == nil {
+		return false
+	}
+	return mp.FFmpegPath() != ""
 }
 
 func findExecutable(name string) string {
 	exe := exeName(name)
 
-	// 1. 环境变量（仅 ffmpeg）
+	// 1. Environment variable (ffmpeg only)
 	if name == "ffmpeg" {
 		if env := os.Getenv("MSP_FFMPEG_PATH"); env != "" {
 			if p, err := exec.LookPath(env); err == nil {
@@ -104,21 +88,21 @@ func findExecutable(name string) string {
 		}
 	}
 
-	// 2-5. 程序目录和工作目录
+	// 2-5. Program directory and working directory
 	for _, c := range localCandidatePaths(exe) {
 		if _, err := os.Stat(c); err == nil {
 			return c
 		}
 	}
 
-	// 6. 平台特定路径
+	// 6. Platform-specific paths
 	for _, c := range platformCandidatePaths(exe) {
 		if _, err := os.Stat(c); err == nil {
 			return c
 		}
 	}
 
-	// 7. 系统 PATH
+	// 7. System PATH
 	if p, err := exec.LookPath(exe); err == nil {
 		return p
 	}
@@ -154,8 +138,8 @@ func platformCandidatePaths(exe string) []string {
 	switch runtime.GOOS {
 	case "windows":
 		return []string{
-			filepath.Join(`C:\FFmpeg\bin`, exe),
-			filepath.Join(`C:\Program Files\FFmpeg\bin`, exe),
+			filepath.Join("C:", "FFmpeg", "bin", exe),
+			filepath.Join("C:", "Program Files", "FFmpeg", "bin", exe),
 		}
 	case "darwin":
 		return []string{
@@ -170,27 +154,33 @@ func platformCandidatePaths(exe string) []string {
 	}
 }
 
-func CheckFFmpeg() bool {
-	resolveFFmpegPaths()
-	if ffmpegPath == "" {
+func (mp *MediaProcessor) CheckFFmpeg() bool {
+	if mp == nil {
+		return false
+	}
+	mp.resolveFFmpegPaths()
+	if mp.probePaths.ffmpeg == "" {
 		log.Printf("[WARN] FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)")
 		return false
 	}
-	log.Printf("[INFO] FFmpeg found: %s", ffmpegPath)
+	log.Printf("[INFO] FFmpeg found: %s", mp.probePaths.ffmpeg)
 	return true
 }
 
-func CheckFFprobe() bool {
-	resolveFFmpegPaths()
-	return ffprobePath != ""
+func (mp *MediaProcessor) CheckFFprobe() bool {
+	if mp == nil {
+		return false
+	}
+	mp.resolveFFmpegPaths()
+	return mp.probePaths.ffprobe != ""
 }
 
-// getCacheKey 生成缓存键（文件路径 + 修改时间）
+// getCacheKey generates a cache key (file path + modification time).
 func getCacheKey(path string, mtime int64) string {
 	return fmt.Sprintf("%s|%d", path, mtime)
 }
 
-// getFileMtime 获取文件修改时间
+// getFileMtime gets the file modification time.
 func getFileMtime(path string) int64 {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -199,40 +189,35 @@ func getFileMtime(path string) int64 {
 	return info.ModTime().Unix()
 }
 
-func GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
-	// 获取文件修改时间用于缓存键
+func (mp *MediaProcessor) GetCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	mtime := getFileMtime(inputPath)
 	cacheKey := getCacheKey(inputPath, mtime)
 
-	// 检查缓存
-	if cached, ok := probeCache.Load(cacheKey); ok {
+	if cached, ok := mp.probeCache.Load(cacheKey); ok {
 		if entry, valid := cached.(probeCacheEntry); valid && time.Now().Before(entry.expire) {
 			return entry.info, nil
 		}
-		// 缓存过期，删除
-		probeCache.Delete(cacheKey)
+		mp.probeCache.Delete(cacheKey)
 	}
 
-	// 执行 ffprobe 获取编码信息
-	info, err := probeCodecInfo(ctx, inputPath)
+	info, err := mp.probeCodecInfo(ctx, inputPath)
 	if err != nil {
 		return info, err
 	}
 
-	// 存入缓存
 	entry := probeCacheEntry{
 		info:   info,
 		mtime:  mtime,
-		expire: time.Now().Add(cacheTTL),
+		expire: time.Now().Add(time.Duration(mp.probeTTL.Load())),
 	}
-	probeCache.Store(cacheKey, entry)
+	mp.probeCache.Store(cacheKey, entry)
 
 	return info, nil
 }
 
-// probeCodecInfo 实际执行 ffprobe 命令（单次调用获取视频和音频编码）
-func probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
-	probePath := FFprobePath()
+// probeCodecInfo executes the ffprobe command to get encoding information.
+func (mp *MediaProcessor) probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
+	probePath := mp.FFprobePath()
 	if probePath == "" {
 		return CodecInfo{}, fmt.Errorf("ffprobe not found")
 	}
@@ -255,18 +240,18 @@ func probeCodecInfo(ctx context.Context, inputPath string) (CodecInfo, error) {
 	return parseProbeJSON(out)
 }
 
-// probeStream 表示 ffprobe JSON 输出中的单个流
+// probeStream represents a single stream in ffprobe JSON output.
 type probeStream struct {
 	CodecName string `json:"codec_name"`
 	CodecType string `json:"codec_type"`
 }
 
-// probeResult 表示 ffprobe JSON 输出的整体结构
+// probeResult represents the overall ffprobe JSON output structure.
 type probeResult struct {
 	Streams []probeStream `json:"streams"`
 }
 
-// parseProbeJSON 从 ffprobe 的 JSON 输出中提取编码信息
+// parseProbeJSON extracts encoding information from ffprobe JSON output.
 func parseProbeJSON(data []byte) (CodecInfo, error) {
 	var result probeResult
 	if err := json.Unmarshal(data, &result); err != nil {

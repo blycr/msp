@@ -12,6 +12,7 @@ import (
 	"msp/internal/cache"
 	"msp/internal/config"
 	"msp/internal/domain"
+	"msp/internal/media"
 	"msp/internal/service"
 )
 
@@ -21,19 +22,21 @@ type Server struct {
 	cfgPath    string
 	cfgModTime time.Time
 
-	MediaSvc *service.MediaService
-	session  *service.SessionService
-	logger   *service.LoggerService
+	MediaSvc  *service.MediaService
+	session   *service.SessionService
+	logger    *service.LoggerService
+	processor *media.MediaProcessor
 }
 
-func New(cfgPath string) *Server {
+func New(cfgPath string, processor *media.MediaProcessor) *Server {
 	s := &Server{
-		cfgPath: cfgPath,
-		session: service.NewSessionService(),
+		cfgPath:   cfgPath,
+		session:   service.NewSessionService(),
+		processor: processor,
 	}
 	s.logger = service.NewLoggerService("", "")
 	s.MediaSvc = service.NewMediaService(
-		cache.NewMediaCache(cache.FormatMediaCachePath(cfgPath), config.DefaultMediaCacheTTL),
+		cache.NewMediaCache(processor, cache.FormatMediaCachePath(cfgPath), config.DefaultMediaCacheTTL),
 		s,
 	)
 	return s

@@ -24,7 +24,7 @@ func TestPINAuthentication(t *testing.T) {
 
 	configPath := tmpDir + "/test_config.json"
 
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	err = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.PINEnabled = true
 		cfg.Security.PIN = "1234"

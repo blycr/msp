@@ -7,6 +7,7 @@ import (
 
 	"msp/internal/config"
 	"msp/internal/domain"
+	"msp/internal/media"
 	"msp/internal/service"
 	"msp/internal/storage"
 )
@@ -33,12 +34,13 @@ type Logger interface {
 }
 
 type Deps struct {
-	Config   ConfigProvider
-	Media    MediaCacheProvider
-	Session  SessionProvider
-	Logger   Logger
-	Progress storage.ProgressStore
-	Prefs    storage.PrefsStore
+	Config    ConfigProvider
+	Media     MediaCacheProvider
+	Session   SessionProvider
+	Logger    Logger
+	Progress  storage.ProgressStore
+	Prefs     storage.PrefsStore
+	Processor *media.MediaProcessor
 }
 
 type Handler struct {
@@ -49,6 +51,7 @@ type Handler struct {
 	progress      storage.ProgressStore
 	prefs         storage.PrefsStore
 	configService *service.ConfigService
+	processor     *media.MediaProcessor
 }
 
 const (
@@ -64,6 +67,7 @@ func New(deps Deps) *Handler {
 		logger:        deps.Logger,
 		progress:      deps.Progress,
 		prefs:         deps.Prefs,
-		configService: service.NewConfigService(deps.Config, deps.Media),
+		configService: service.NewConfigService(deps.Config, deps.Media, deps.Processor),
+		processor:     deps.Processor,
 	}
 }

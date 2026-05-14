@@ -10,14 +10,18 @@ import (
 	"msp/internal/scanner"
 )
 
-func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, error) {
-	resp := domain.MediaResponse{
+func newMediaResponse(shares []domain.Share) domain.MediaResponse {
+	return domain.MediaResponse{
 		Shares: make([]domain.Share, len(shares)),
 		Videos: []domain.MediaItem{},
 		Audios: []domain.MediaItem{},
 		Images: []domain.MediaItem{},
 		Others: []domain.MediaItem{},
 	}
+}
+
+func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, error) {
+	resp := newMediaResponse(shares)
 	copy(resp.Shares, shares)
 
 	cb := func(item domain.MediaItem, _, _ string) error {

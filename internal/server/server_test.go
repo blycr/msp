@@ -10,7 +10,7 @@ import (
 )
 
 func TestServerNew(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 	if s == nil {
 		t.Fatal("Expected server New to not be nil")
 	}
@@ -20,7 +20,7 @@ func TestLoadOrInitConfig_CreatesDefaultWhenMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
 
-	s := New(cfgPath)
+	s := New(cfgPath, nil)
 	if err := s.LoadOrInitConfig(); err != nil {
 		t.Fatalf("LoadOrInitConfig error: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestLoadOrInitConfig_LoadsExistingConfig(t *testing.T) {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	s := New(cfgPath)
+	s := New(cfgPath, nil)
 	if err := s.LoadOrInitConfig(); err != nil {
 		t.Fatalf("LoadOrInitConfig error: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestLoadOrInitConfig_InvalidJSON(t *testing.T) {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	s := New(cfgPath)
+	s := New(cfgPath, nil)
 	err := s.LoadOrInitConfig()
 	if err == nil {
 		t.Error("LoadOrInitConfig should return error for invalid JSON")
@@ -75,7 +75,7 @@ func TestLoadOrInitConfig_InvalidJSON(t *testing.T) {
 
 func TestConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	s := New(filepath.Join(tmpDir, "config.json"))
+	s := New(filepath.Join(tmpDir, "config.json"), nil)
 	cfg := s.Config()
 	// Config() 应返回当前（零值）配置而不 panic
 	_ = cfg
@@ -85,7 +85,7 @@ func TestUpdateConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
 
-	s := New(cfgPath)
+	s := New(cfgPath, nil)
 	err := s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Port = 7777
 	})
@@ -112,7 +112,7 @@ func TestUpdateConfig(t *testing.T) {
 }
 
 func TestGetPort_DefaultWhenZero(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 	// 未设置 Port 时应返回 DefaultPort
 	port := s.GetPort()
 	if port != config.DefaultPort {
@@ -123,7 +123,7 @@ func TestGetPort_DefaultWhenZero(t *testing.T) {
 func TestGetPort_ReturnsConfiguredPort(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
-	s := New(cfgPath)
+	s := New(cfgPath, nil)
 	_ = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Port = 5555
 	})
@@ -133,7 +133,7 @@ func TestGetPort_ReturnsConfiguredPort(t *testing.T) {
 }
 
 func TestCreateAndValidateSession(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 
 	token, err := s.CreateSession()
 	if err != nil {
@@ -148,21 +148,21 @@ func TestCreateAndValidateSession(t *testing.T) {
 }
 
 func TestValidateSession_Empty(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 	if s.ValidateSession("") {
 		t.Error("empty token should be invalid")
 	}
 }
 
 func TestValidateSession_Unknown(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 	if s.ValidateSession("unknowntokenxyz") {
 		t.Error("unknown token should be invalid")
 	}
 }
 
 func TestLog_DoesNotPanic(t *testing.T) {
-	s := New("config.json")
+	s := New("config.json", nil)
 	// 确保调用 Log 不 panic（未初始化 logger 文件的情况）
 	s.Log("info", "test message")
 	s.Log("error", "test error")

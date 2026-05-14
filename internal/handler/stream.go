@@ -42,7 +42,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if shouldTranscode && media.CheckFFmpeg() {
+	if shouldTranscode && h.processor.CheckFFmpeg() {
 		if h.tryServeTranscode(w, r, target, ext) {
 			return
 		}
@@ -151,7 +151,7 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 		opts.Format = "mp3"
 	}
 
-	stream, err := media.TranscodeStream(r.Context(), target, opts)
+	stream, err := h.processor.TranscodeStream(r.Context(), target, opts)
 	if err != nil {
 		log.Printf("[WARN] Transcode stream error: %v", err)
 		return false
@@ -231,7 +231,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 
 	var playback *domain.PlaybackStrategy
 	if transcodeEnabled {
-		mode := decidePlaybackMode(video, audio, media.FFmpegAvailable())
+		mode := decidePlaybackMode(video, audio, h.processor.FFmpegAvailable())
 		playback = &domain.PlaybackStrategy{Mode: mode}
 	}
 

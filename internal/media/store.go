@@ -9,55 +9,44 @@ import (
 	"msp/internal/constants"
 	"msp/internal/domain"
 	"msp/internal/scanner"
-	"msp/internal/storage"
 	"msp/internal/util"
 
 	"gorm.io/gorm"
 )
 
-var mediaDB *storage.SQLite
-
-func SetDB(sq *storage.SQLite) {
-	mediaDB = sq
-}
-
-func IsDBAvailable() bool {
-	return mediaDB != nil && mediaDB.DB() != nil
-}
-
 // LoadMediaFromDB 从数据库加载媒体列表。
-func LoadMediaFromDB(ctx context.Context, cacheKey string, shares []domain.Share) (domain.MediaResponse, time.Time, bool, error) {
-	if mediaDB == nil || mediaDB.DB() == nil {
+func (mp *MediaProcessor) LoadMediaFromDB(ctx context.Context, cacheKey string, shares []domain.Share) (domain.MediaResponse, time.Time, bool, error) {
+	if !mp.IsDBAvailable() {
 		return domain.MediaResponse{}, time.Time{}, false, nil
 	}
-	scan, ok, err := mediaDB.GetScanMeta(ctx, cacheKey)
+	scan, ok, err := mp.db.GetScanMeta(ctx, cacheKey)
 	if err != nil || !ok || scan.ScanID <= 0 || scan.BuiltAt <= 0 {
 		return domain.MediaResponse{}, time.Time{}, false, err
 	}
-	resp, err := LoadMediaResponseFromDBScan(ctx, scan.ScanID, shares)
+	resp, err := mp.LoadMediaResponseFromDBScan(ctx, scan.ScanID, shares)
 	if err != nil {
 		return domain.MediaResponse{}, time.Time{}, false, err
 	}
 	return resp, time.Unix(0, scan.BuiltAt), true, nil
 }
 
-func ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, time.Time, error) {
-	if mediaDB == nil || mediaDB.DB() == nil {
+func (mp *MediaProcessor) ReindexAndLoadMedia(ctx context.Context, cacheKey string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, time.Time, error) {
+	if !mp.IsDBAvailable() {
 		return domain.MediaResponse{}, time.Time{}, nil
 	}
-	scanID, builtAt, _, err := IndexMediaToDB(ctx, cacheKey, shares, blacklist, maxItems)
+	scanID, builtAt, _, err := mp.IndexMediaToDB(ctx, cacheKey, shares, blacklist, maxItems)
 	if err != nil {
 		return domain.MediaResponse{}, time.Time{}, err
 	}
-	resp, err := LoadMediaResponseFromDBScan(ctx, scanID, shares)
+	resp, err := mp.LoadMediaResponseFromDBScan(ctx, scanID, shares)
 	if err != nil {
 		return domain.MediaResponse{}, time.Time{}, err
 	}
 	return resp, builtAt, nil
 }
 
-func IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
-	if mediaDB == nil || mediaDB.DB() == nil {
+func (mp *MediaProcessor) IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
+	if !mp.IsDBAvailable() {
 		return 0, time.Time{}, false, nil
 	}
 
@@ -66,7 +55,7 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share,
 
 	validShares, shareRoots := prepareShares(shares)
 
-	tx := mediaDB.DB().WithContext(ctx).Begin()
+	tx := mp.db.DB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return 0, time.Time{}, false, tx.Error
 	}
@@ -74,7 +63,7 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share,
 		_ = tx.Rollback()
 	}()
 
-	seen, err := performScan(ctx, tx, scanID, validShares, blacklist, maxItems)
+	seen, err := mp.performScan(ctx, tx, scanID, validShares, blacklist, maxItems)
 	if err != nil {
 		return 0, time.Time{}, false, err
 	}
@@ -86,12 +75,12 @@ func IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share,
 	complete = seen < limit
 
 	if complete {
-		if err := cleanupStaleData(ctx, tx, scanID, shareRoots); err != nil {
+		if err := mp.cleanupStaleData(ctx, tx, scanID, shareRoots); err != nil {
 			return 0, time.Time{}, false, err
 		}
 	}
 
-	if err := mediaDB.SetScanMeta(ctx, tx, cacheKey, domain.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
+	if err := mp.db.SetScanMeta(ctx, tx, cacheKey, domain.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
 		return 0, time.Time{}, false, err
 	}
 
@@ -116,7 +105,7 @@ func prepareShares(shares []domain.Share) (validShares []domain.Share, shareRoot
 	return validShares, shareRoots
 }
 
-func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (int, error) {
+func (mp *MediaProcessor) performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (int, error) {
 	seen := 0
 	limit := maxItems
 	if limit <= 0 {
@@ -133,7 +122,7 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []domain
 		batch = append(batch, item)
 
 		if len(batch) >= batchSize {
-			if err := mediaDB.UpsertMediaItems(ctx, tx, batch); err != nil {
+			if err := mp.db.UpsertMediaItems(ctx, tx, batch); err != nil {
 				return fmt.Errorf("batch upsert media items: %w", err)
 			}
 			batch = batch[:0]
@@ -148,7 +137,7 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []domain
 	}
 
 	if len(batch) > 0 {
-		if err := mediaDB.UpsertMediaItems(ctx, tx, batch); err != nil {
+		if err := mp.db.UpsertMediaItems(ctx, tx, batch); err != nil {
 			return 0, fmt.Errorf("final batch upsert: %w", err)
 		}
 	}
@@ -156,40 +145,33 @@ func performScan(ctx context.Context, tx *gorm.DB, scanID int64, shares []domain
 	return seen, nil
 }
 
-func cleanupStaleData(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
-	if err := mediaDB.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
+func (mp *MediaProcessor) cleanupStaleData(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
+	if err := mp.db.DeleteStaleByScan(ctx, tx, scanID, shareRoots); err != nil {
 		return fmt.Errorf("delete stale scan data: %w", err)
 	}
-	if err := mediaDB.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
+	if err := mp.db.DeleteByShareRootsNotIn(ctx, tx, shareRoots); err != nil {
 		return fmt.Errorf("delete orphaned share data: %w", err)
 	}
 	return nil
 }
 
 // LoadMediaResponseFromDBScan 从指定的扫描会话加载媒体响应。
-func LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []domain.Share) (domain.MediaResponse, error) {
-	resp := domain.MediaResponse{
-		Shares: make([]domain.Share, len(shares)),
-		Videos: []domain.MediaItem{},
-		Audios: []domain.MediaItem{},
-		Images: []domain.MediaItem{},
-		Others: []domain.MediaItem{},
-	}
-	copy(resp.Shares, shares)
+func (mp *MediaProcessor) LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []domain.Share) (domain.MediaResponse, error) {
+	resp := newMediaResponse(shares)
 
-	videos, err := mediaDB.QueryMediaItems(ctx, scanID, "video")
+	videos, err := mp.db.QueryMediaItems(ctx, scanID, "video")
 	if err != nil {
 		return domain.MediaResponse{}, err
 	}
-	audios, err := mediaDB.QueryMediaItems(ctx, scanID, "audio")
+	audios, err := mp.db.QueryMediaItems(ctx, scanID, "audio")
 	if err != nil {
 		return domain.MediaResponse{}, err
 	}
-	images, err := mediaDB.QueryMediaItems(ctx, scanID, "image")
+	images, err := mp.db.QueryMediaItems(ctx, scanID, "image")
 	if err != nil {
 		return domain.MediaResponse{}, err
 	}
-	others, err := mediaDB.QueryMediaItems(ctx, scanID, "other")
+	others, err := mp.db.QueryMediaItems(ctx, scanID, "other")
 	if err != nil {
 		return domain.MediaResponse{}, err
 	}

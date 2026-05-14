@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewMediaCache(t *testing.T) {
-	c := NewMediaCache("/tmp/test.json", 5*time.Minute)
+	c := NewMediaCache(nil, "/tmp/test.json", 5*time.Minute)
 	if c == nil {
 		t.Fatal("NewMediaCache returned nil")
 	}
@@ -121,7 +121,7 @@ func TestInvalidate(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "test_cache.json")
 	_ = os.WriteFile(cachePath, []byte(`{}`), 0600)
 
-	c := NewMediaCache(cachePath, 5*time.Minute)
+	c := NewMediaCache(nil, cachePath, 5*time.Minute)
 	c.key = "some-key"
 	c.etag = "some-etag"
 	c.builtAt = time.Now()
@@ -202,7 +202,7 @@ func TestSharesCacheKey(t *testing.T) {
 
 func TestLoadFromDisk(t *testing.T) {
 	t.Run("returns false when file does not exist", func(t *testing.T) {
-		c := NewMediaCache(filepath.Join(t.TempDir(), "nonexistent.json"), 5*time.Minute)
+		c := NewMediaCache(nil, filepath.Join(t.TempDir(), "nonexistent.json"), 5*time.Minute)
 		if c.LoadFromDisk("some-key") {
 			t.Error("expected false for non-existent file")
 		}
@@ -213,7 +213,7 @@ func TestLoadFromDisk(t *testing.T) {
 		p := filepath.Join(tmpDir, "cache.json")
 		_ = os.WriteFile(p, []byte("not-json"), 0600)
 
-		c := NewMediaCache(p, 5*time.Minute)
+		c := NewMediaCache(nil, p, 5*time.Minute)
 		if c.LoadFromDisk("some-key") {
 			t.Error("expected false for invalid JSON")
 		}
@@ -226,7 +226,7 @@ func TestLoadFromDisk(t *testing.T) {
 		b, _ := jsonMarshal(v)
 		_ = os.WriteFile(p, b, 0600)
 
-		c := NewMediaCache(p, 5*time.Minute)
+		c := NewMediaCache(nil, p, 5*time.Minute)
 		if c.LoadFromDisk("my-key") {
 			t.Error("expected false for mismatched key")
 		}
@@ -239,7 +239,7 @@ func TestLoadFromDisk(t *testing.T) {
 		b, _ := jsonMarshal(v)
 		_ = os.WriteFile(p, b, 0600)
 
-		c := NewMediaCache(p, 5*time.Minute)
+		c := NewMediaCache(nil, p, 5*time.Minute)
 		if !c.LoadFromDisk("my-key") {
 			t.Error("expected true for valid cache file")
 		}

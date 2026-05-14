@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -39,9 +38,9 @@ var ValidHWAccelModes = map[HWAccelMode]bool{
 // hwEncoder describes one candidate hardware encoder.
 type hwEncoder struct {
 	mode     HWAccelMode
-	encoder  string   // FFmpeg encoder name, e.g. "h264_nvenc"
-	initArgs []string // args placed before -i
-	encArgs  []string // args placed after encoder selection
+	encoder  string
+	initArgs []string
+	encArgs  []string
 }
 
 // hwCandidates returns platform-filtered candidates in priority order.
@@ -78,7 +77,6 @@ func hwCandidates() []hwEncoder {
 		},
 	}
 
-	// Platform filter
 	var filtered []hwEncoder
 	for _, c := range all {
 		switch c.mode {
@@ -95,7 +93,6 @@ func hwCandidates() []hwEncoder {
 				filtered = append(filtered, c)
 			}
 		default:
-			// NVENC and QSV work on all desktop platforms
 			filtered = append(filtered, c)
 		}
 	}
@@ -105,53 +102,35 @@ func hwCandidates() []hwEncoder {
 // HWAccelResult holds the detected (or disabled) hardware acceleration state.
 type HWAccelResult struct {
 	Available bool
-	Encoder   string   // e.g. "h264_nvenc"
-	InitArgs  []string // e.g. ["-hwaccel", "cuda"]
-	EncArgs   []string // encoder-specific args
+	Encoder   string
+	InitArgs  []string
+	EncArgs   []string
 	Mode      HWAccelMode
 }
 
-var (
-	hwOnce   sync.Once
-	hwResult *HWAccelResult
-
-	// hwDisabled is set atomically when a runtime failure triggers fallback.
-	hwMu       sync.RWMutex
-	hwDisabled bool
-)
-
 // DetectHWAccel probes FFmpeg for a usable hardware encoder.
-// It is safe to call from multiple goroutines; detection runs at most once.
-// The mode parameter comes from user configuration ("auto", "nvenc", "none", etc.).
-func DetectHWAccel(mode HWAccelMode) *HWAccelResult {
-	hwOnce.Do(func() {
-		hwResult = detectHWAccelOnce(mode)
+func (mp *MediaProcessor) DetectHWAccel(mode HWAccelMode) *HWAccelResult {
+	mp.hwAccel.once.Do(func() {
+		mp.hwAccel.result = mp.detectHWAccelOnce(mode)
 	})
-	return hwResult
+	return mp.hwAccel.result
 }
 
-// GetHWAccel returns the cached detection result, or nil if not yet probed
-// or if hardware acceleration was disabled at runtime.
-func GetHWAccel() *HWAccelResult {
-	hwMu.RLock()
-	disabled := hwDisabled
-	hwMu.RUnlock()
-	if disabled {
+// GetHWAccel returns the cached detection result, or nil if disabled at runtime.
+func (mp *MediaProcessor) GetHWAccel() *HWAccelResult {
+	if mp.hwAccel.disabled.Load() {
 		return nil
 	}
-	return hwResult
+	return mp.hwAccel.result
 }
 
 // DisableHWAccel marks hardware acceleration as failed at runtime.
-// Subsequent calls to GetHWAccel will return nil.
-func DisableHWAccel() {
-	hwMu.Lock()
-	hwDisabled = true
-	hwMu.Unlock()
+func (mp *MediaProcessor) DisableHWAccel() {
+	mp.hwAccel.disabled.Store(true)
 	log.Printf("[WARN] Hardware acceleration disabled due to runtime failure, falling back to software encoding")
 }
 
-func detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
+func (mp *MediaProcessor) detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 	none := &HWAccelResult{Available: false}
 
 	if mode == HWAccelNone {
@@ -159,13 +138,12 @@ func detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 		return none
 	}
 
-	if !CheckFFmpeg() {
+	if !mp.CheckFFmpeg() {
 		return none
 	}
 
 	candidates := hwCandidates()
 
-	// If user specified a particular encoder, filter to that one.
 	if mode != HWAccelAuto {
 		var specific []hwEncoder
 		for _, c := range candidates {
@@ -180,9 +158,8 @@ func detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 		candidates = specific
 	}
 
-	// Probe each candidate with a real encode test.
 	for _, c := range candidates {
-		if probeEncoder(c) {
+		if mp.probeEncoder(c) {
 			log.Printf("[INFO] Hardware acceleration enabled: %s (%s)", c.encoder, c.mode)
 			return &HWAccelResult{
 				Available: true,
@@ -198,9 +175,7 @@ func detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 	return none
 }
 
-// probeEncoder runs a quick null-encode to verify the encoder actually works
-// (i.e. driver is installed and GPU is accessible).
-func probeEncoder(enc hwEncoder) bool {
+func (mp *MediaProcessor) probeEncoder(enc hwEncoder) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -211,7 +186,7 @@ func probeEncoder(enc hwEncoder) bool {
 	args = append(args, enc.encArgs...)
 	args = append(args, "-frames:v", "1", "-f", "null", "-")
 
-	ffmpegBin := FFmpegPath()
+	ffmpegBin := mp.FFmpegPath()
 	if ffmpegBin == "" {
 		return false
 	}
@@ -231,11 +206,8 @@ func probeEncoder(enc hwEncoder) bool {
 }
 
 // BuildVideoArgs returns the FFmpeg arguments for video encoding.
-// This is the single integration point used by TranscodeStream.
-// If hardware acceleration is available, it returns hw-accelerated args;
-// otherwise it returns the original software args.
-func BuildVideoArgs(bitrate string) (initArgs []string, codecArgs []string) {
-	hw := GetHWAccel()
+func (mp *MediaProcessor) BuildVideoArgs(bitrate string) (initArgs []string, codecArgs []string) {
+	hw := mp.GetHWAccel()
 	if hw != nil && hw.Available {
 		initArgs = make([]string, len(hw.InitArgs))
 		copy(initArgs, hw.InitArgs)
@@ -248,7 +220,7 @@ func BuildVideoArgs(bitrate string) (initArgs []string, codecArgs []string) {
 		return initArgs, codecArgs
 	}
 
-	// Software fallback — identical to original behaviour
+	// Software fallback
 	codecArgs = []string{"-vcodec", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-threads", "2"}
 	if bitrate != "" {
 		codecArgs = append(codecArgs, "-b:v", bitrate)
@@ -256,21 +228,12 @@ func BuildVideoArgs(bitrate string) (initArgs []string, codecArgs []string) {
 	return nil, codecArgs
 }
 
-// ResetHWAccelForTest is exported only for unit-test teardown.
-func ResetHWAccelForTest() {
-	hwOnce = sync.Once{}
-	hwResult = nil
-	hwMu.Lock()
-	hwDisabled = false
-	hwMu.Unlock()
-}
-
 // FormatHWAccelStatus returns a human-readable status string for logging.
-func FormatHWAccelStatus() string {
-	if !FFmpegAvailable() {
+func (mp *MediaProcessor) FormatHWAccelStatus() string {
+	if !mp.FFmpegAvailable() {
 		return "unavailable (FFmpeg not found)"
 	}
-	r := GetHWAccel()
+	r := mp.GetHWAccel()
 	if r == nil || !r.Available {
 		return "software (libx264)"
 	}

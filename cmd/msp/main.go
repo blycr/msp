@@ -47,7 +47,15 @@ func main() {
 
 	cfgPath := filepath.Join(util.MustExeDir(), "config.json")
 
-	s := server.New(cfgPath)
+	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
+	sq, err := storage.InitSQLite(dbPath)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize database: %v", err)
+	}
+
+	processor := media.NewMediaProcessor(sq)
+
+	s := server.New(cfgPath, processor)
 
 	if err := s.LoadOrInitConfig(); err != nil {
 		log.Fatal(err)
@@ -55,16 +63,7 @@ func main() {
 
 	s.SetupLogger()
 
-	initHWAccel(s)
-
-	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
-	sq, err := storage.InitSQLite(dbPath)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize database: %v", err)
-	}
-	if sq != nil {
-		media.SetDB(sq)
-	}
+	initHWAccel(processor, s)
 
 	go s.WatchConfig(ctx)
 
@@ -77,7 +76,7 @@ func main() {
 
 	store := storage.NewStore(sq)
 
-	mux := registerRoutes(s, store, webRoot)
+	mux := registerRoutes(s, processor, store, webRoot)
 
 	port := s.GetPort()
 	addr := ":" + util.Itoa(port)
@@ -100,7 +99,7 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		shutdownGracefully(srv, s, sq)
+		shutdownGracefully(srv, s, processor, sq)
 	}()
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -108,13 +107,13 @@ func main() {
 	}
 }
 
-func shutdownGracefully(srv *http.Server, s *server.Server, sq *storage.SQLite) {
+func shutdownGracefully(srv *http.Server, s *server.Server, processor *media.MediaProcessor, sq *storage.SQLite) {
 	log.Println("Shutting down gracefully...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	media.KillAllTranscodeProcesses()
+	processor.KillAllTranscodeProcesses()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
@@ -131,17 +130,18 @@ func shutdownGracefully(srv *http.Server, s *server.Server, sq *storage.SQLite) 
 	log.Println("Shutdown complete")
 }
 
-func registerRoutes(s *server.Server, store *storage.Store, webRoot fs.FS) *http.ServeMux {
+func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *storage.Store, webRoot fs.FS) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/favicon.ico", http.NotFoundHandler())
 
 	h := handler.New(handler.Deps{
-		Config:   s,
-		Media:    s.MediaSvc,
-		Session:  s,
-		Logger:   s,
-		Progress: store,
-		Prefs:    store,
+		Config:    s,
+		Media:     s.MediaSvc,
+		Session:   s,
+		Logger:    s,
+		Progress:  store,
+		Prefs:     store,
+		Processor: processor,
 	})
 
 	mux.Handle("/api/config", http.HandlerFunc(h.HandleConfig))
@@ -205,7 +205,7 @@ func openBrowser(url string) error {
 	}
 }
 
-func initHWAccel(s *server.Server) {
+func initHWAccel(processor *media.MediaProcessor, s *server.Server) {
 	cfg := s.Config()
 
 	mode := media.HWAccelAuto
@@ -217,14 +217,13 @@ func initHWAccel(s *server.Server) {
 		maxJobs = enc.MaxJobs
 	}
 
-	if !media.CheckFFmpeg() {
-		media.SetTranscodeLimit(0)
-		log.Printf("转码引擎: %s (并发上限: 0)", media.FormatHWAccelStatus())
-		fmt.Printf("转码引擎: %s (并发上限: 0)\n", media.FormatHWAccelStatus())
+	if !processor.CheckFFmpeg() {
+		log.Printf("转码引擎: %s (并发上限: 0)", processor.FormatHWAccelStatus())
+		fmt.Printf("转码引擎: %s (并发上限: 0)\n", processor.FormatHWAccelStatus())
 		return
 	}
 
-	result := media.DetectHWAccel(mode)
+	result := processor.DetectHWAccel(mode)
 
 	if maxJobs <= 0 {
 		if result != nil && result.Available {
@@ -233,8 +232,8 @@ func initHWAccel(s *server.Server) {
 			maxJobs = 2
 		}
 	}
-	media.SetTranscodeLimit(maxJobs)
+	processor.SetTranscodeLimit(maxJobs)
 
-	log.Printf("转码引擎: %s (并发上限: %d)", media.FormatHWAccelStatus(), maxJobs)
-	fmt.Printf("转码引擎: %s (并发上限: %d)\n", media.FormatHWAccelStatus(), maxJobs)
+	log.Printf("转码引擎: %s (并发上限: %d)", processor.FormatHWAccelStatus(), maxJobs)
+	fmt.Printf("转码引擎: %s (并发上限: %d)\n", processor.FormatHWAccelStatus(), maxJobs)
 }

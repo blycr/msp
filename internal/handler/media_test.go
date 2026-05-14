@@ -16,7 +16,7 @@ func setupTestHandler(t *testing.T) (*Handler, *server.Server) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 	t.Cleanup(func() {

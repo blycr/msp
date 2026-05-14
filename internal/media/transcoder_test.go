@@ -19,62 +19,62 @@ func TestTranscodeOptionsValidate(t *testing.T) {
 		name    string
 		opts    TranscodeOptions
 		wantErr bool
-		after   TranscodeOptions // 验证后的期望状态
+		after   TranscodeOptions
 	}{
 		{
-			name:    "默认格式",
+			name:    "default format",
 			opts:    TranscodeOptions{},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp4", Bitrate: "", Offset: 0},
 		},
 		{
-			name:    "有效格式 mp4",
+			name:    "valid format mp4",
 			opts:    TranscodeOptions{Format: "mp4"},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp4"},
 		},
 		{
-			name:    "有效格式 mp3",
+			name:    "valid format mp3",
 			opts:    TranscodeOptions{Format: "mp3"},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp3"},
 		},
 		{
-			name:    "有效格式 aac",
-			opts:    TranscodeOptions{Format: "AAC"}, // 大写也应该被接受
+			name:    "valid format aac",
+			opts:    TranscodeOptions{Format: "AAC"},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "aac"},
 		},
 		{
-			name:    "无效格式",
+			name:    "invalid format",
 			opts:    TranscodeOptions{Format: "exe"},
 			wantErr: true,
 		},
 		{
-			name:    "有效码率",
+			name:    "valid bitrate",
 			opts:    TranscodeOptions{Format: "mp4", Bitrate: "2M"},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp4", Bitrate: "2m"},
 		},
 		{
-			name:    "有效码率 k",
+			name:    "valid bitrate k",
 			opts:    TranscodeOptions{Format: "mp3", Bitrate: "128k"},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp3", Bitrate: "128k"},
 		},
 		{
-			name:    "无效码率格式",
+			name:    "invalid bitrate format",
 			opts:    TranscodeOptions{Format: "mp4", Bitrate: "2M;rm -rf /"},
 			wantErr: true,
 		},
 		{
-			name:    "负偏移量",
+			name:    "negative offset",
 			opts:    TranscodeOptions{Format: "mp4", Offset: -10},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp4", Offset: 0},
 		},
 		{
-			name:    "正常偏移量",
+			name:    "normal offset",
 			opts:    TranscodeOptions{Format: "mp4", Offset: 30.5},
 			wantErr: false,
 			after:   TranscodeOptions{Format: "mp4", Offset: 30.5},
@@ -101,81 +101,73 @@ func TestTranscodeOptionsValidate(t *testing.T) {
 }
 
 func TestCheckFFmpeg(t *testing.T) {
-	// 这个测试依赖于系统是否安装了 FFmpeg
-	// 我们只测试函数不会 panic
-	result := CheckFFmpeg()
-	// 结果可能是 true 或 false，取决于环境
+	mp := NewMediaProcessor(nil)
+	result := mp.CheckFFmpeg()
 	_ = result
 }
 
 func TestCheckFFprobe(t *testing.T) {
-	// 这个测试依赖于系统是否安装了 FFprobe
-	result := CheckFFprobe()
+	mp := NewMediaProcessor(nil)
+	result := mp.CheckFFprobe()
 	_ = result
 }
 
 func TestGetCodecInfo(t *testing.T) {
-	if !CheckFFprobe() {
-		t.Skip("FFprobe 未安装，跳过测试")
+	mp := NewMediaProcessor(nil)
+	if !mp.CheckFFprobe() {
+		t.Skip("FFprobe not installed, skipping test")
 	}
 
-	// 创建一个假的 MP4 文件
 	tmpDir := t.TempDir()
 	fakeMP4 := filepath.Join(tmpDir, "test.mp4")
 
-	// 写入一个最小的 MP4 文件头（ftyp 盒子）
-	// ftyp 盒子结构：大小(4字节) + "ftyp"(4字节) + 品牌(4字节) + 版本(4字节)
 	mp4Header := []byte{
-		0x00, 0x00, 0x00, 0x18, // 盒子大小 24
-		'f', 't', 'y', 'p', // 盒子类型
-		'i', 's', 'o', 'm', // 主要品牌
-		0x00, 0x00, 0x00, 0x00, // 次要版本
-		'i', 's', 'o', 'm', // 兼容品牌
+		0x00, 0x00, 0x00, 0x18,
+		'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm',
+		0x00, 0x00, 0x00, 0x00,
+		'i', 's', 'o', 'm',
 	}
 	require.NoError(t, os.WriteFile(fakeMP4, mp4Header, 0600))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	info, err := GetCodecInfo(ctx, fakeMP4)
-	// 对于假文件，FFprobe 可能返回错误或空结果
-	// 我们主要测试函数不会 panic
+	info, err := mp.GetCodecInfo(ctx, fakeMP4)
 	_ = err
 	_ = info
 }
 
 func TestTranscodeStreamValidation(t *testing.T) {
+	mp := NewMediaProcessor(nil)
 	tmpDir := t.TempDir()
 
-	t.Run("目录而不是文件", func(t *testing.T) {
+	t.Run("directory instead of file", func(t *testing.T) {
 		opts := TranscodeOptions{Format: "mp4"}
-		_, err := TranscodeStream(context.Background(), tmpDir, opts)
+		_, err := mp.TranscodeStream(context.Background(), tmpDir, opts)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "directory")
 	})
 
-	t.Run("不存在的文件", func(t *testing.T) {
+	t.Run("nonexistent file", func(t *testing.T) {
 		opts := TranscodeOptions{Format: "mp4"}
-		_, err := TranscodeStream(context.Background(), "/nonexistent/file.mp4", opts)
+		_, err := mp.TranscodeStream(context.Background(), "/nonexistent/file.mp4", opts)
 		assert.Error(t, err)
 	})
 
-	t.Run("无效格式", func(t *testing.T) {
+	t.Run("invalid format", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "test.mp4")
 		require.NoError(t, os.WriteFile(testFile, []byte("fake"), 0600))
 
 		opts := TranscodeOptions{Format: "invalid"}
-		_, err := TranscodeStream(context.Background(), testFile, opts)
+		_, err := mp.TranscodeStream(context.Background(), testFile, opts)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid options")
 	})
 
-	t.Run("非普通文件（符号链接）", func(t *testing.T) {
-		// Windows 上符号链接的行为与 Unix 不同
-		// 在 Windows 上，os.Symlink 创建的链接可能被报告为常规文件
-		// 这个测试在 Unix 系统上运行
+	t.Run("non-regular file (symlink)", func(t *testing.T) {
 		if os.PathSeparator == '\\' {
-			t.Skip("跳过 Windows 符号链接测试")
+			t.Skip("skip Windows symlink test")
 		}
 
 		targetFile := filepath.Join(tmpDir, "target.mp4")
@@ -184,41 +176,36 @@ func TestTranscodeStreamValidation(t *testing.T) {
 		require.NoError(t, os.Symlink(targetFile, linkFile))
 
 		opts := TranscodeOptions{Format: "mp4"}
-		_, err := TranscodeStream(context.Background(), linkFile, opts)
-		// 符号链接应该被拒绝
+		_, err := mp.TranscodeStream(context.Background(), linkFile, opts)
 		assert.Error(t, err)
 	})
 }
 
 func TestTranscodeStreamConcurrency(t *testing.T) {
-	if !CheckFFmpeg() {
-		t.Skip("FFmpeg 未安装，跳过测试")
+	mp := NewMediaProcessor(nil)
+	if !mp.CheckFFmpeg() {
+		t.Skip("FFmpeg not installed, skipping test")
 	}
 
-	// 创建一个测试视频文件
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.mp4")
 
-	// 使用 FFmpeg 创建一个测试视频
 	cmd := createTestVideo(testFile)
 	if cmd != nil {
 		err := cmd.Run()
 		if err != nil {
-			t.Skip("无法创建测试视频:", err)
+			t.Skip("cannot create test video:", err)
 		}
 	}
 
-	// 测试并发限制
 	ctx := context.Background()
 	opts := TranscodeOptions{Format: "mp4"}
 
-	// 启动多个转码请求，应该受到限制
 	done := make(chan error, 5)
 	for i := 0; i < 5; i++ {
 		go func() {
-			stream, err := TranscodeStream(ctx, testFile, opts)
+			stream, err := mp.TranscodeStream(ctx, testFile, opts)
 			if err == nil && stream != nil {
-				// 读取并关闭流
 				_, _ = io.Copy(io.Discard, stream)
 				_ = stream.Close()
 			}
@@ -226,7 +213,6 @@ func TestTranscodeStreamConcurrency(t *testing.T) {
 		}()
 	}
 
-	// 等待所有请求完成
 	var busyCount int
 	for i := 0; i < 5; i++ {
 		err := <-done
@@ -235,91 +221,79 @@ func TestTranscodeStreamConcurrency(t *testing.T) {
 		}
 	}
 
-	// 应该有部分请求因为并发限制而失败
-	assert.Greater(t, busyCount, 0, "应该有请求因为并发限制而失败")
+	assert.Greater(t, busyCount, 0, "some requests should fail due to concurrency limit")
 }
 
 func TestLimitReleaser(t *testing.T) {
-	// 重置信号量用于测试
-	transcodeLimit = make(chan struct{}, 2)
+	mp := NewMediaProcessor(nil)
+	mp.transcode.limit = make(chan struct{}, 2)
 
-	// 获取信号量
-	transcodeLimit <- struct{}{}
-	assert.Equal(t, 1, len(transcodeLimit))
+	mp.transcode.limit <- struct{}{}
+	assert.Equal(t, 1, len(mp.transcode.limit))
 
-	// 创建 limitReleaser
 	pr, pw := io.Pipe()
-	lr := &limitReleaser{ReadCloser: pr}
+	lr := &limitReleaser{ReadCloser: pr, limit: mp.transcode.limit}
 
-	// 关闭应该释放信号量
 	err := lr.Close()
 	assert.NoError(t, err)
-	assert.Equal(t, 0, len(transcodeLimit))
+	assert.Equal(t, 0, len(mp.transcode.limit))
 
-	// 多次关闭应该安全（只释放一次）
 	err = lr.Close()
 	assert.NoError(t, err)
-	assert.Equal(t, 0, len(transcodeLimit))
+	assert.Equal(t, 0, len(mp.transcode.limit))
 
 	_ = pw.Close()
 }
 
 func TestSetTranscodeLimit(t *testing.T) {
-	origLimit := transcodeLimit
-	defer func() { transcodeLimit = origLimit }()
+	mp := NewMediaProcessor(nil)
 
-	SetTranscodeLimit(6)
-	assert.Equal(t, 6, cap(transcodeLimit))
+	mp.SetTranscodeLimit(6)
+	assert.Equal(t, 6, cap(mp.transcode.limit))
 
-	SetTranscodeLimit(0)
-	assert.Equal(t, 2, cap(transcodeLimit))
+	mp.SetTranscodeLimit(0)
+	assert.Equal(t, 2, cap(mp.transcode.limit))
 
-	SetTranscodeLimit(-1)
-	assert.Equal(t, 2, cap(transcodeLimit))
+	mp.SetTranscodeLimit(-1)
+	assert.Equal(t, 2, cap(mp.transcode.limit))
 }
 
 func TestKillAllTranscodeProcessesNoPanic(t *testing.T) {
+	mp := NewMediaProcessor(nil)
 	assert.NotPanics(t, func() {
-		KillAllTranscodeProcesses()
+		mp.KillAllTranscodeProcesses()
 	})
 }
 
 func TestKillAllTranscodeProcessesCleanup(t *testing.T) {
-	origProcs := activeProcesses
-	defer func() { activeProcesses = origProcs }()
+	mp := NewMediaProcessor(nil)
+	mp.transcode.mu.Lock()
+	mp.transcode.active = make(map[*exec.Cmd]struct{})
+	mp.transcode.mu.Unlock()
 
-	activeProcessesMu.Lock()
-	activeProcesses = make(map[*exec.Cmd]struct{})
-	activeProcessesMu.Unlock()
+	mp.KillAllTranscodeProcesses()
 
-	KillAllTranscodeProcesses()
-
-	activeProcessesMu.Lock()
-	assert.Empty(t, activeProcesses)
-	activeProcessesMu.Unlock()
+	mp.transcode.mu.Lock()
+	assert.Empty(t, mp.transcode.active)
+	mp.transcode.mu.Unlock()
 }
 
 func TestRemoveProcess(t *testing.T) {
-	origProcs := activeProcesses
-	defer func() { activeProcesses = origProcs }()
-
-	activeProcesses = make(map[*exec.Cmd]struct{})
+	mp := NewMediaProcessor(nil)
+	mp.transcode.active = make(map[*exec.Cmd]struct{})
 
 	cmd := &exec.Cmd{}
-	activeProcesses[cmd] = struct{}{}
-	assert.Len(t, activeProcesses, 1)
+	mp.transcode.active[cmd] = struct{}{}
+	assert.Len(t, mp.transcode.active, 1)
 
-	removeProcess(cmd)
-	assert.Empty(t, activeProcesses)
+	mp.removeProcess(cmd)
+	assert.Empty(t, mp.transcode.active)
 
-	removeProcess(cmd)
-	assert.Empty(t, activeProcesses)
+	mp.removeProcess(cmd)
+	assert.Empty(t, mp.transcode.active)
 }
 
-// 辅助函数
-
 func createTestVideo(outputPath string) *exec.Cmd {
-	// 使用 FFmpeg 创建一个 1 秒的测试视频
 	return exec.Command("ffmpeg",
 		"-f", "lavfi",
 		"-i", "testsrc=duration=1:size=320x240:rate=1",

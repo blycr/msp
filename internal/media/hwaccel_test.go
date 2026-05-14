@@ -16,62 +16,44 @@ func TestValidHWAccelModes(t *testing.T) {
 }
 
 func TestDetectHWAccel_NoneMode(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	result := DetectHWAccel(HWAccelNone)
+	mp := NewMediaProcessor(nil)
+	result := mp.DetectHWAccel(HWAccelNone)
 	assert.NotNil(t, result)
 	assert.False(t, result.Available, "none mode should disable hardware acceleration")
 }
 
 func TestDetectHWAccel_AutoMode(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	// auto mode should not panic regardless of environment
-	result := DetectHWAccel(HWAccelAuto)
+	mp := NewMediaProcessor(nil)
+	result := mp.DetectHWAccel(HWAccelAuto)
 	assert.NotNil(t, result)
-	// result.Available depends on actual hardware — we only verify no crash
 }
 
 func TestDetectHWAccel_Idempotent(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	r1 := DetectHWAccel(HWAccelNone)
-	r2 := DetectHWAccel(HWAccelAuto) // second call should return cached result
+	mp := NewMediaProcessor(nil)
+	r1 := mp.DetectHWAccel(HWAccelNone)
+	r2 := mp.DetectHWAccel(HWAccelAuto)
 	assert.Equal(t, r1, r2, "DetectHWAccel must return the same pointer on repeated calls")
 }
 
 func TestGetHWAccel_BeforeDetection(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	// Before detection, should return nil
-	assert.Nil(t, GetHWAccel())
+	mp := NewMediaProcessor(nil)
+	assert.Nil(t, mp.GetHWAccel())
 }
 
 func TestDisableHWAccel(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
+	mp := NewMediaProcessor(nil)
+	mp.DetectHWAccel(HWAccelNone)
 
-	// Detect with none first to get a non-nil result
-	DetectHWAccel(HWAccelNone)
+	mp.hwAccel.result = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}
+	assert.NotNil(t, mp.GetHWAccel())
 
-	// Force a fake available result for testing
-	hwResult = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}
-	assert.NotNil(t, GetHWAccel())
-
-	DisableHWAccel()
-	assert.Nil(t, GetHWAccel(), "GetHWAccel should return nil after DisableHWAccel")
+	mp.DisableHWAccel()
+	assert.Nil(t, mp.GetHWAccel(), "GetHWAccel should return nil after DisableHWAccel")
 }
 
 func TestBuildVideoArgs_Software(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	// No detection done → software path
-	initArgs, codecArgs := BuildVideoArgs("2m")
+	mp := NewMediaProcessor(nil)
+	initArgs, codecArgs := mp.BuildVideoArgs("2m")
 	assert.Nil(t, initArgs)
 	assert.Contains(t, codecArgs, "-vcodec")
 	assert.Contains(t, codecArgs, "libx264")
@@ -80,20 +62,15 @@ func TestBuildVideoArgs_Software(t *testing.T) {
 }
 
 func TestBuildVideoArgs_SoftwareNoBitrate(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	initArgs, codecArgs := BuildVideoArgs("")
+	mp := NewMediaProcessor(nil)
+	initArgs, codecArgs := mp.BuildVideoArgs("")
 	assert.Nil(t, initArgs)
 	assert.NotContains(t, codecArgs, "-b:v")
 }
 
 func TestBuildVideoArgs_Hardware(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
-
-	// Inject a fake hardware result
-	hwResult = &HWAccelResult{
+	mp := NewMediaProcessor(nil)
+	mp.hwAccel.result = &HWAccelResult{
 		Available: true,
 		Encoder:   "h264_nvenc",
 		InitArgs:  []string{"-hwaccel", "cuda"},
@@ -101,7 +78,7 @@ func TestBuildVideoArgs_Hardware(t *testing.T) {
 		Mode:      HWAccelNVENC,
 	}
 
-	initArgs, codecArgs := BuildVideoArgs("4m")
+	initArgs, codecArgs := mp.BuildVideoArgs("4m")
 	assert.Equal(t, []string{"-hwaccel", "cuda"}, initArgs)
 	assert.Contains(t, codecArgs, "h264_nvenc")
 	assert.Contains(t, codecArgs, "-b:v")
@@ -110,30 +87,25 @@ func TestBuildVideoArgs_Hardware(t *testing.T) {
 
 func TestHWCandidates_NotEmpty(t *testing.T) {
 	candidates := hwCandidates()
-	// At least NVENC and QSV should be present on all platforms
 	assert.GreaterOrEqual(t, len(candidates), 2)
 }
 
 func TestFormatHWAccelStatus(t *testing.T) {
-	ResetHWAccelForTest()
-	defer ResetHWAccelForTest()
+	mp := NewMediaProcessor(nil)
 
-	// Trigger path discovery first so pathOnce fires, then we can override
-	_ = FFmpegPath()
-	origPath := ffmpegPath
-	defer func() { ffmpegPath = origPath }()
+	// Trigger path discovery so we can override the discovered value
+	_ = mp.FFmpegPath()
+	origPath := mp.probePaths.ffmpeg
 
-	// When FFmpeg is not found, status should reflect that
-	ffmpegPath = ""
-	assert.Equal(t, "unavailable (FFmpeg not found)", FormatHWAccelStatus())
+	mp.probePaths.ffmpeg = ""
+	assert.Equal(t, "unavailable (FFmpeg not found)", mp.FormatHWAccelStatus())
 
-	// Restore real path for remaining assertions (skip if ffmpeg not installed)
+	mp.probePaths.ffmpeg = origPath
 	if origPath == "" {
 		t.Skip("FFmpeg not installed, skipping available-state tests")
 	}
-	ffmpegPath = origPath
-	assert.Equal(t, "software (libx264)", FormatHWAccelStatus())
+	assert.Equal(t, "software (libx264)", mp.FormatHWAccelStatus())
 
-	hwResult = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}
-	assert.Equal(t, "hardware (h264_nvenc)", FormatHWAccelStatus())
+	mp.hwAccel.result = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}
+	assert.Equal(t, "hardware (h264_nvenc)", mp.FormatHWAccelStatus())
 }

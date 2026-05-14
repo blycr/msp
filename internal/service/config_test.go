@@ -41,7 +41,7 @@ func TestConfigService_GetConfigView(t *testing.T) {
 	cfg.Port = 8099
 
 	mock := &mockConfigProvider{cfg: cfg}
-	svc := NewConfigService(mock, &mockCacheInvalidator{})
+	svc := NewConfigService(mock, &mockCacheInvalidator{}, nil)
 
 	view := svc.GetConfigView()
 
@@ -74,7 +74,7 @@ func TestConfigService_UpdateConfig(t *testing.T) {
 
 	cfg := config.Default()
 	mock := &mockConfigProvider{cfg: cfg}
-	svc := NewConfigService(mock, &mockCacheInvalidator{})
+	svc := NewConfigService(mock, &mockCacheInvalidator{}, nil)
 
 	newCfg := mock.Config()
 	newCfg.Port = 9000

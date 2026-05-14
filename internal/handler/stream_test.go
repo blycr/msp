@@ -99,7 +99,7 @@ func TestResolveMediaTarget(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 	testFile := filepath.Join(mediaDir, "test.mp4")
-	if err := os.WriteFile(testFile, []byte("fake video"), 0640); err != nil {
+	if err := os.WriteFile(testFile, []byte("fake video"), 0600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -135,7 +135,7 @@ func TestResolveMediaTarget(t *testing.T) {
 	t.Run("not_allowed", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		outsideFile := filepath.Join(tmpDir, "outside.mp4")
-		_ = os.WriteFile(outsideFile, []byte("x"), 0640)
+		_ = os.WriteFile(outsideFile, []byte("x"), 0600)
 		id := util.EncodeID(outsideFile)
 		r := httptest.NewRequest(http.MethodGet, "/api/stream?id="+id, nil)
 		_, _, _, err := h.resolveMediaTarget(w, r)

@@ -20,22 +20,23 @@ type MediaCacheInvalidator interface {
 }
 
 type ConfigService struct {
-	config ConfigProvider
-	cache  MediaCacheInvalidator
+	config    ConfigProvider
+	cache     MediaCacheInvalidator
+	processor *media.MediaProcessor
 }
 
-func NewConfigService(config ConfigProvider, cache MediaCacheInvalidator) *ConfigService {
-	return &ConfigService{config: config, cache: cache}
+func NewConfigService(config ConfigProvider, cache MediaCacheInvalidator, processor *media.MediaProcessor) *ConfigService {
+	return &ConfigService{config: config, cache: cache, processor: processor}
 }
 
-// SecurityConfigView 是安全配置的安全视图（隐藏敏感信息）
+// SecurityConfigView is the safe view of security configuration (hides sensitive info)
 type SecurityConfigView struct {
 	IPWhitelist []string `json:"ipWhitelist"`
 	IPBlacklist []string `json:"ipBlacklist"`
 	PINEnabled  bool     `json:"pinEnabled"`
 }
 
-// ConfigView 包含了前端所需的配置和环境信息（安全版本，隐藏敏感字段）
+// ConfigView contains frontend-facing config and environment info (safe version)
 type ConfigView struct {
 	Config           SafeConfig `json:"config"`
 	LanIPs           []string   `json:"lanIPs"`
@@ -45,21 +46,21 @@ type ConfigView struct {
 	FFprobeAvailable bool       `json:"ffprobeAvailable"`
 }
 
-// SafeConfig 是 Config 的安全视图，隐藏敏感信息
+// SafeConfig is the safe view of Config, hiding sensitive information
 type SafeConfig struct {
-	Port        int                    `json:"port"`
-	LogLevel    string                 `json:"logLevel"`
-	LogFile     string                 `json:"logFile"`
-	MaxItems    int                    `json:"maxItems"`
-	Shares      []domain.Share         `json:"shares"`
-	Features    config.Features        `json:"features"`
-	UI          config.UIConfig        `json:"ui"`
-	Playback    config.PlaybackConfig  `json:"playback"`
-	Security    SecurityConfigView     `json:"security"`
-	Blacklist   config.BlacklistConfig `json:"blacklist"`
+	Port      int                    `json:"port"`
+	LogLevel  string                 `json:"logLevel"`
+	LogFile   string                 `json:"logFile"`
+	MaxItems  int                    `json:"maxItems"`
+	Shares    []domain.Share         `json:"shares"`
+	Features  config.Features        `json:"features"`
+	UI        config.UIConfig        `json:"ui"`
+	Playback  config.PlaybackConfig  `json:"playback"`
+	Security  SecurityConfigView     `json:"security"`
+	Blacklist config.BlacklistConfig `json:"blacklist"`
 }
 
-// toSafeConfig 将 Config 转换为安全视图
+// toSafeConfig converts Config to its safe view
 func toSafeConfig(cfg config.Config) SafeConfig {
 	return SafeConfig{
 		Port:     cfg.Port,
@@ -93,8 +94,8 @@ func (s *ConfigService) GetConfigView() ConfigView {
 		LanIPs:           ips,
 		URLs:             urls,
 		NowUnix:          time.Now().Unix(),
-		FFmpegAvailable:  media.CheckFFmpeg(),
-		FFprobeAvailable: media.CheckFFprobe(),
+		FFmpegAvailable:  s.processor.CheckFFmpeg(),
+		FFprobeAvailable: s.processor.CheckFFprobe(),
 	}
 }
 

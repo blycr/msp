@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestMediaStore(t *testing.T) func() {
+func setupTestMediaStore(t *testing.T) (*MediaProcessor, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -22,40 +22,39 @@ func setupTestMediaStore(t *testing.T) func() {
 	sq, err := storage.InitSQLite(dbPath)
 	require.NoError(t, err)
 
-	SetDB(sq)
-	return func() {
+	mp := NewMediaProcessor(sq)
+	return mp, func() {
 		sq.Close()
-		SetDB(nil)
 	}
 }
 
-func TestSetDBAndIsDBAvailable(t *testing.T) {
+func TestIsDBAvailable(t *testing.T) {
 	t.Run("nil DB", func(t *testing.T) {
-		SetDB(nil)
-		assert.False(t, IsDBAvailable())
+		mp := NewMediaProcessor(nil)
+		assert.False(t, mp.IsDBAvailable())
 	})
 
 	t.Run("valid DB", func(t *testing.T) {
-		cleanup := setupTestMediaStore(t)
+		mp, cleanup := setupTestMediaStore(t)
 		defer cleanup()
-		assert.True(t, IsDBAvailable())
+		assert.True(t, mp.IsDBAvailable())
 	})
 }
 
 func TestLoadMediaFromDBNoDB(t *testing.T) {
-	SetDB(nil)
+	mp := NewMediaProcessor(nil)
 	ctx := context.Background()
-	_, _, ok, err := LoadMediaFromDB(ctx, "key", nil)
+	_, _, ok, err := mp.LoadMediaFromDB(ctx, "key", nil)
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
 
 func TestLoadMediaFromDB(t *testing.T) {
-	cleanup := setupTestMediaStore(t)
+	mp, cleanup := setupTestMediaStore(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	sq := mediaDB
+	sq := mp.db
 	scanID := time.Now().UnixNano()
 
 	items := []domain.MediaItem{
@@ -70,7 +69,7 @@ func TestLoadMediaFromDB(t *testing.T) {
 	require.NoError(t, err)
 
 	shares := []domain.Share{{Label: "V", Path: "/v"}, {Label: "A", Path: "/a"}}
-	resp, bt, ok, err := LoadMediaFromDB(ctx, "test-key", shares)
+	resp, bt, ok, err := mp.LoadMediaFromDB(ctx, "test-key", shares)
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.False(t, bt.IsZero())
@@ -79,21 +78,21 @@ func TestLoadMediaFromDB(t *testing.T) {
 }
 
 func TestLoadMediaFromDBNoScanMeta(t *testing.T) {
-	cleanup := setupTestMediaStore(t)
+	mp, cleanup := setupTestMediaStore(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	_, _, ok, err := LoadMediaFromDB(ctx, "nonexistent-key", nil)
+	_, _, ok, err := mp.LoadMediaFromDB(ctx, "nonexistent-key", nil)
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
 
 func TestLoadMediaResponseFromDBScan(t *testing.T) {
-	cleanup := setupTestMediaStore(t)
+	mp, cleanup := setupTestMediaStore(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	sq := mediaDB
+	sq := mp.db
 	scanID := int64(12345)
 
 	items := []domain.MediaItem{
@@ -107,7 +106,7 @@ func TestLoadMediaResponseFromDBScan(t *testing.T) {
 	require.NoError(t, err)
 
 	shares := []domain.Share{{Label: "V", Path: "/v"}}
-	resp, err := LoadMediaResponseFromDBScan(ctx, scanID, shares)
+	resp, err := mp.LoadMediaResponseFromDBScan(ctx, scanID, shares)
 	assert.NoError(t, err)
 	assert.Len(t, resp.Videos, 2)
 	assert.Len(t, resp.Audios, 1)
@@ -117,26 +116,26 @@ func TestLoadMediaResponseFromDBScan(t *testing.T) {
 }
 
 func TestLoadMediaResponseFromDBScanEmpty(t *testing.T) {
-	cleanup := setupTestMediaStore(t)
+	mp, cleanup := setupTestMediaStore(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	resp, err := LoadMediaResponseFromDBScan(ctx, 999999, nil)
+	resp, err := mp.LoadMediaResponseFromDBScan(ctx, 999999, nil)
 	assert.NoError(t, err)
 	assert.Len(t, resp.Videos, 0)
 	assert.Len(t, resp.Audios, 0)
 }
 
 func TestReindexAndLoadMediaNoDB(t *testing.T) {
-	SetDB(nil)
+	mp := NewMediaProcessor(nil)
 	ctx := context.Background()
-	_, _, err := ReindexAndLoadMedia(ctx, "key", nil, config.BlacklistConfig{}, 0)
+	_, _, err := mp.ReindexAndLoadMedia(ctx, "key", nil, config.BlacklistConfig{}, 0)
 	assert.NoError(t, err)
 }
 
 func TestIndexMediaToDBNoDB(t *testing.T) {
-	SetDB(nil)
+	mp := NewMediaProcessor(nil)
 	ctx := context.Background()
-	_, _, _, err := IndexMediaToDB(ctx, "key", nil, config.BlacklistConfig{}, 0)
+	_, _, _, err := mp.IndexMediaToDB(ctx, "key", nil, config.BlacklistConfig{}, 0)
 	assert.NoError(t, err)
 }

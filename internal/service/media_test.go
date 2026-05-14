@@ -19,7 +19,7 @@ func (m *mockMediaConfigReader) Config() config.Config {
 }
 
 func TestNewMediaService(t *testing.T) {
-	c := cache.NewMediaCache("/tmp/test.json", 5*time.Minute)
+	c := cache.NewMediaCache(nil, "/tmp/test.json", 5*time.Minute)
 	cfg := &mockMediaConfigReader{cfg: config.Default()}
 	svc := NewMediaService(c, cfg)
 	if svc == nil {
@@ -28,7 +28,7 @@ func TestNewMediaService(t *testing.T) {
 }
 
 func TestMediaServiceInvalidateMediaCache(t *testing.T) {
-	c := cache.NewMediaCache("/tmp/test.json", 5*time.Minute)
+	c := cache.NewMediaCache(nil, "/tmp/test.json", 5*time.Minute)
 	cfg := &mockMediaConfigReader{cfg: config.Default()}
 	svc := NewMediaService(c, cfg)
 
@@ -36,7 +36,7 @@ func TestMediaServiceInvalidateMediaCache(t *testing.T) {
 }
 
 func TestMediaServiceGetOrBuildMediaCache(t *testing.T) {
-	c := cache.NewMediaCache(t.TempDir()+"/cache.json", 5*time.Minute)
+	c := cache.NewMediaCache(nil, t.TempDir()+"/cache.json", 5*time.Minute)
 	cfg := &mockMediaConfigReader{cfg: config.Default()}
 	svc := NewMediaService(c, cfg)
 
@@ -50,7 +50,7 @@ func TestMediaServiceGetOrBuildMediaCache(t *testing.T) {
 }
 
 func TestMediaServiceLoadMediaCacheFromDisk(t *testing.T) {
-	c := cache.NewMediaCache(t.TempDir()+"/cache.json", 5*time.Minute)
+	c := cache.NewMediaCache(nil, t.TempDir()+"/cache.json", 5*time.Minute)
 	cfg := &mockMediaConfigReader{cfg: config.Default()}
 	svc := NewMediaService(c, cfg)
 

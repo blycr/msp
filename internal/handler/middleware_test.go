@@ -261,7 +261,7 @@ func TestWithSecurityMiddleware(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test_config.json")
 
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 
 	_ = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Security.IPWhitelist = []string{"192.168.1.0/24"}

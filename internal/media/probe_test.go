@@ -13,27 +13,27 @@ import (
 )
 
 func TestSetProbeCacheTTL(t *testing.T) {
-	origTTL := cacheTTL
-	defer func() { cacheTTL = origTTL }()
+	mp := NewMediaProcessor(nil)
 
-	SetProbeCacheTTL(10 * time.Minute)
-	assert.Equal(t, 10*time.Minute, cacheTTL)
+	mp.SetProbeCacheTTL(10 * time.Minute)
+	assert.Equal(t, int64(10*time.Minute), mp.probeTTL.Load())
 
-	SetProbeCacheTTL(1 * time.Second)
-	assert.Equal(t, 1*time.Second, cacheTTL)
+	mp.SetProbeCacheTTL(1 * time.Second)
+	assert.Equal(t, int64(1*time.Second), mp.probeTTL.Load())
 }
 
 func TestClearProbeCache(t *testing.T) {
-	probeCache.Store("test-key", probeCacheEntry{
+	mp := NewMediaProcessor(nil)
+	mp.probeCache.Store("test-key", probeCacheEntry{
 		info:   CodecInfo{VideoCodec: "h264"},
 		mtime:  12345,
 		expire: time.Now().Add(5 * time.Minute),
 	})
 
-	ClearProbeCache()
+	mp.ClearProbeCache()
 
-	_, ok := probeCache.Load("test-key")
-	assert.False(t, ok, "缓存应该被清除")
+	_, ok := mp.probeCache.Load("test-key")
+	assert.False(t, ok, "cache should be cleared")
 }
 
 func TestGetCacheKey(t *testing.T) {
@@ -42,9 +42,9 @@ func TestGetCacheKey(t *testing.T) {
 		path  string
 		mtime int64
 	}{
-		{"普通路径", "/path/to/file.mp4", 1234567890},
-		{"空路径", "", 0},
-		{"带特殊字符", "/path/with spaces/file.mp4", 9999},
+		{"normal path", "/path/to/file.mp4", 1234567890},
+		{"empty path", "", 0},
+		{"with special chars", "/path/with spaces/file.mp4", 9999},
 	}
 
 	for _, tt := range tests {
@@ -67,10 +67,8 @@ func TestGetFileMtime(t *testing.T) {
 }
 
 func TestProbeCacheExpiry(t *testing.T) {
-	origTTL := cacheTTL
-	defer func() { cacheTTL = origTTL }()
-
-	SetProbeCacheTTL(100 * time.Millisecond)
+	mp := NewMediaProcessor(nil)
+	mp.SetProbeCacheTTL(100 * time.Millisecond)
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.mp4")
@@ -79,61 +77,53 @@ func TestProbeCacheExpiry(t *testing.T) {
 	mtime := getFileMtime(testFile)
 	cacheKey := getCacheKey(testFile, mtime)
 
-	probeCache.Store(cacheKey, probeCacheEntry{
+	mp.probeCache.Store(cacheKey, probeCacheEntry{
 		info:   CodecInfo{VideoCodec: "cached"},
 		mtime:  mtime,
 		expire: time.Now().Add(100 * time.Millisecond),
 	})
 
-	cached, ok := probeCache.Load(cacheKey)
+	cached, ok := mp.probeCache.Load(cacheKey)
 	assert.True(t, ok)
 	entry := cached.(probeCacheEntry)
 	assert.Equal(t, "cached", entry.info.VideoCodec)
 
 	time.Sleep(150 * time.Millisecond)
 
-	cached, ok = probeCache.Load(cacheKey)
+	cached, ok = mp.probeCache.Load(cacheKey)
 	if ok {
 		entry = cached.(probeCacheEntry)
-		assert.True(t, time.Now().After(entry.expire), "缓存应该已过期")
+		assert.True(t, time.Now().After(entry.expire), "cache should be expired")
 	}
 }
 
 func TestCheckFFmpegWithoutPanic(t *testing.T) {
-	ResetPathsForTest()
-	defer ResetPathsForTest()
-
+	mp := NewMediaProcessor(nil)
 	assert.NotPanics(t, func() {
-		_ = CheckFFmpeg()
+		_ = mp.CheckFFmpeg()
 	})
 }
 
 func TestCheckFFprobeWithoutPanic(t *testing.T) {
-	ResetPathsForTest()
-	defer ResetPathsForTest()
-
+	mp := NewMediaProcessor(nil)
 	assert.NotPanics(t, func() {
-		_ = CheckFFprobe()
+		_ = mp.CheckFFprobe()
 	})
 }
 
 func TestFFmpegPathDiscovery(t *testing.T) {
-	ResetPathsForTest()
-	defer ResetPathsForTest()
+	mp := NewMediaProcessor(nil)
 
-	// Test that FFmpegPath does not panic
 	assert.NotPanics(t, func() {
-		_ = FFmpegPath()
+		_ = mp.FFmpegPath()
 	})
 
-	// Test that FFprobePath does not panic
 	assert.NotPanics(t, func() {
-		_ = FFprobePath()
+		_ = mp.FFprobePath()
 	})
 
-	// Test FFmpegAvailable consistency
-	path := FFmpegPath()
-	assert.Equal(t, path != "", FFmpegAvailable())
+	path := mp.FFmpegPath()
+	assert.Equal(t, path != "", mp.FFmpegAvailable())
 }
 
 func TestExeName(t *testing.T) {
@@ -149,12 +139,10 @@ func TestLocalCandidatePaths(t *testing.T) {
 	paths := localCandidatePaths("ffmpeg")
 	assert.NotEmpty(t, paths)
 
-	// Should contain at least executable dir and cwd candidates
 	foundExe := false
 	foundCwd := false
 	for _, p := range paths {
 		if filepath.Base(p) == "ffmpeg" || filepath.Base(p) == "ffmpeg.exe" {
-			// Check if it's from the executable directory or cwd
 			if strings.Contains(p, "bin") {
 				foundExe = true
 			} else {
@@ -162,7 +150,6 @@ func TestLocalCandidatePaths(t *testing.T) {
 			}
 		}
 	}
-	// At least cwd paths should exist (the test binary runs from somewhere)
 	assert.True(t, foundCwd || foundExe, "should contain at least one candidate path")
 }
 
@@ -170,7 +157,6 @@ func TestPlatformCandidatePaths(t *testing.T) {
 	paths := platformCandidatePaths("ffmpeg")
 	assert.NotEmpty(t, paths)
 
-	// All paths should end with the executable name
 	for _, p := range paths {
 		assert.True(t,
 			strings.HasSuffix(p, "ffmpeg") || strings.HasSuffix(p, "ffmpeg.exe"),
@@ -179,8 +165,9 @@ func TestPlatformCandidatePaths(t *testing.T) {
 }
 
 func TestGetCodecInfoWithFakeFile(t *testing.T) {
-	if !CheckFFprobe() {
-		t.Skip("FFprobe 未安装，跳过测试")
+	mp := NewMediaProcessor(nil)
+	if !mp.CheckFFprobe() {
+		t.Skip("FFprobe not installed, skipping test")
 	}
 
 	tmpDir := t.TempDir()
@@ -190,7 +177,7 @@ func TestGetCodecInfoWithFakeFile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	info, err := GetCodecInfo(ctx, fakeFile)
+	info, err := mp.GetCodecInfo(ctx, fakeFile)
 	if err == nil {
 		assert.Empty(t, info.VideoCodec)
 		assert.Empty(t, info.AudioCodec)
@@ -198,9 +185,8 @@ func TestGetCodecInfoWithFakeFile(t *testing.T) {
 }
 
 func TestProbeCacheHit(t *testing.T) {
-	origTTL := cacheTTL
-	defer func() { cacheTTL = origTTL }()
-	SetProbeCacheTTL(5 * time.Minute)
+	mp := NewMediaProcessor(nil)
+	mp.SetProbeCacheTTL(5 * time.Minute)
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "cached.mp4")
@@ -210,14 +196,14 @@ func TestProbeCacheHit(t *testing.T) {
 	cacheKey := getCacheKey(testFile, mtime)
 
 	expected := CodecInfo{VideoCodec: "h264", AudioCodec: "aac"}
-	probeCache.Store(cacheKey, probeCacheEntry{
+	mp.probeCache.Store(cacheKey, probeCacheEntry{
 		info:   expected,
 		mtime:  mtime,
 		expire: time.Now().Add(5 * time.Minute),
 	})
 
 	ctx := context.Background()
-	info, err := GetCodecInfo(ctx, testFile)
+	info, err := mp.GetCodecInfo(ctx, testFile)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, info)
 }

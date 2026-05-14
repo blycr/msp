@@ -28,7 +28,7 @@ func TestHandleConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := server.New(tmpFile.Name())
+	s := server.New(tmpFile.Name(), nil)
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 

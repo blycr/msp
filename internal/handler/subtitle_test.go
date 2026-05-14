@@ -18,7 +18,7 @@ import (
 func newTestServerWithShare(t *testing.T, dir string) *server.Server {
 	t.Helper()
 	cfgPath := filepath.Join(t.TempDir(), "config.json")
-	s := server.New(cfgPath)
+	s := server.New(cfgPath, nil)
 	_ = s.UpdateConfig(func(cfg *config.Config) {
 		cfg.Shares = append(cfg.Shares, domain.Share{Path: dir, Label: "test"})
 	})

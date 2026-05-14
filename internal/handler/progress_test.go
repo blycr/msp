@@ -17,7 +17,7 @@ func setupProgressHandler(t *testing.T) *Handler {
 	t.Helper()
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	sq, err := storage.InitSQLite(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
 		t.Fatalf("failed to init sqlite: %v", err)
@@ -236,7 +236,7 @@ func TestHandleSharesMethodNotAllowed(t *testing.T) {
 func TestHandleSharesAdd(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
-	s := server.New(configPath)
+	s := server.New(configPath, nil)
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
 
