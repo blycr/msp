@@ -137,6 +137,7 @@ chmod +x ./scripts/build.sh
 6.  **Cross Build Artifacts (跨平台交叉编译)**
     - 根据指定的 `Platforms` 和 `Architectures` 组合，设置 `GOOS` 和 `GOARCH` 环境变量
     - 使用 `go build -trimpath -ldflags="-s -w"` 编译优化后的二进制文件
+    - **并发构建**: 多个目标平台同时并行编译（Bash 自动检测 CPU 核心数；PowerShell 默认 4 个并行任务）
     - **输出结构**:
         - `bin/<platform>/<arch>/` : 存放最终的二进制可执行文件
         - `checksums/` : 存放构建产物的 SHA256 校验和文件

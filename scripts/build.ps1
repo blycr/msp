@@ -335,16 +335,18 @@ Invoke-Step 'Cross Build Artifacts' {
   $chkRoot = Join-Path $root 'checksums'
 
   $buildConfigs = @(
-    @{ Platform = 'linux';   Arch = 'amd64'; OutName = 'msp-linux-amd64' },
-    @{ Platform = 'linux';   Arch = 'arm64'; OutName = 'msp-linux-arm64' },
-    @{ Platform = 'linux';   Arch = 'arm';   GOARM = '7'; OutName = 'msp-linux-armv7' },
+    @{ Platform = 'linux';   Arch = 'amd64';   OutName = 'msp-linux-amd64' },
+    @{ Platform = 'linux';   Arch = 'arm64';   OutName = 'msp-linux-arm64' },
+    @{ Platform = 'linux';   Arch = 'arm';     GOARM = '7'; OutName = 'msp-linux-armv7' },
     @{ Platform = 'linux';   Arch = 'loong64'; OutName = 'msp-linux-loong64' },
-    @{ Platform = 'darwin';  Arch = 'amd64'; OutName = 'msp-darwin-amd64' },
-    @{ Platform = 'darwin';  Arch = 'arm64'; OutName = 'msp-darwin-arm64' },
-    @{ Platform = 'windows'; Arch = 'amd64'; OutName = 'msp-windows-amd64.exe' },
-    @{ Platform = 'windows'; Arch = '386';   OutName = 'msp-windows-386.exe' }
+    @{ Platform = 'darwin';  Arch = 'amd64';   OutName = 'msp-darwin-amd64' },
+    @{ Platform = 'darwin';  Arch = 'arm64';   OutName = 'msp-darwin-arm64' },
+    @{ Platform = 'windows'; Arch = 'amd64';   OutName = 'msp-windows-amd64.exe' },
+    @{ Platform = 'windows'; Arch = '386';     OutName = 'msp-windows-386.exe' }
   )
 
+  # 收集需要构建的目标
+  $buildItems = @()
   foreach ($cfg in $buildConfigs) {
     $platform = $cfg.Platform
     $arch = $cfg.Arch
@@ -354,27 +356,99 @@ Invoke-Step 'Cross Build Artifacts' {
     $shouldBuild = $false
     if ($platform -eq 'linux' -and $arch -eq 'amd64') {
       $shouldBuild = (ShouldBuild 'linux' 'amd64') -or (ShouldBuild 'linux' 'x64')
-    } elseif ($platform -eq 'linux' -and $arch -eq 'arm64') {
+    }
+    elseif ($platform -eq 'linux' -and $arch -eq 'arm64') {
       $shouldBuild = (ShouldBuild 'linux' 'arm64')
-    } elseif ($platform -eq 'linux' -and $arch -eq 'arm') {
+    }
+    elseif ($platform -eq 'linux' -and $arch -eq 'arm') {
       $shouldBuild = (ShouldBuild 'arm' 'v7')
-    } elseif ($platform -eq 'linux' -and $arch -eq 'loong64') {
+    }
+    elseif ($platform -eq 'linux' -and $arch -eq 'loong64') {
       $shouldBuild = (ShouldBuild 'linux' 'loong64')
-    } elseif ($platform -eq 'darwin' -and $arch -eq 'amd64') {
+    }
+    elseif ($platform -eq 'darwin' -and $arch -eq 'amd64') {
       $shouldBuild = (ShouldBuild 'macos' 'amd64') -or (ShouldBuild 'macos' 'x64')
-    } elseif ($platform -eq 'darwin' -and $arch -eq 'arm64') {
+    }
+    elseif ($platform -eq 'darwin' -and $arch -eq 'arm64') {
       $shouldBuild = (ShouldBuild 'macos' 'arm64')
-    } elseif ($platform -eq 'windows' -and $arch -eq 'amd64') {
+    }
+    elseif ($platform -eq 'windows' -and $arch -eq 'amd64') {
       $shouldBuild = (ShouldBuild 'windows' 'amd64') -or (ShouldBuild 'windows' 'x64')
-    } elseif ($platform -eq 'windows' -and $arch -eq '386') {
+    }
+    elseif ($platform -eq 'windows' -and $arch -eq '386') {
       $shouldBuild = (ShouldBuild 'windows' '386') -or (ShouldBuild 'windows' 'x86')
     }
 
     if ($shouldBuild) {
-      $outPath = Join-Path $binRoot "$platform/$arch/$outName"
-      Build-Go $platform $arch $outPath $goarm
-      $chkPath = Join-Path $chkRoot "$outName.sha256"
-      Write-Checksum $outPath $chkPath
+      $buildItems += [PSCustomObject]@{
+        Platform = $platform
+        Arch     = $arch
+        OutPath  = Join-Path $binRoot "$platform/$arch/$outName"
+        ChkPath  = Join-Path $chkRoot "$outName.sha256"
+        GOARM    = $goarm
+      }
+    }
+  }
+
+  if ($buildItems.Count -eq 0) {
+    Write-Log 'No targets to build.' 'WARN'
+    return
+  }
+
+  $maxParallel = 4
+  Write-Log "Building $($buildItems.Count) target(s) with up to $maxParallel parallel jobs" 'INFO'
+
+  # 使用 Start-Job 分批并发，兼容 PowerShell 5.1 和 7+
+  for ($i = 0; $i -lt $buildItems.Count; $i += $maxParallel) {
+    $end = [Math]::Min($i + $maxParallel - 1, $buildItems.Count - 1)
+    $batch = $buildItems[$i..$end]
+    $jobs = @()
+
+    foreach ($item in $batch) {
+      $sb = {
+        param($Root, $Platform, $Arch, $OutPath, $ChkPath, $GOARM)
+        $env:GOOS = $Platform
+        $env:GOARCH = $Arch
+        $env:CGO_ENABLED = '0'
+        if ($GOARM) { $env:GOARM = $GOARM }
+        else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
+
+        Push-Location $Root
+        try {
+          $dir = Split-Path $OutPath -Parent
+          if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+
+          & go build -trimpath -ldflags='-s -w' -o $OutPath ./cmd/msp
+          if ($LASTEXITCODE -ne 0) { throw "go build failed for $Platform/$Arch" }
+
+          $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $OutPath
+          $line = $hash.Hash + '  ' + (Split-Path $OutPath -Leaf)
+          $chkDir = Split-Path $ChkPath -Parent
+          if (-not (Test-Path $chkDir)) { New-Item -ItemType Directory -Force -Path $chkDir | Out-Null }
+          $line | Out-File -FilePath $ChkPath -Encoding ascii
+
+          "OK:$Platform/$Arch"
+        }
+        finally {
+          Pop-Location
+        }
+      }
+      $job = Start-Job -ScriptBlock $sb -ArgumentList $root, $item.Platform, $item.Arch, $item.OutPath, $item.ChkPath, $item.GOARM
+      $jobs += $job
+    }
+
+    $jobs | Wait-Job
+    foreach ($job in $jobs) {
+      if ($job.State -eq 'Failed') {
+        $err = $job.ChildJobs[0].JobStateInfo.Reason.Message
+        $jobs | Remove-Job -Force -ErrorAction SilentlyContinue
+        throw "Build failed: $err"
+      }
+      $result = Receive-Job -Job $job
+      if ($result -match '^OK:') {
+        Write-Log "Built: $($result -replace '^OK:','')" 'SUCCESS'
+      }
+      Remove-Job -Job $job
     }
   }
 }

@@ -137,6 +137,7 @@ chmod +x ./scripts/build.sh
 6.  **Cross Build Artifacts**
     - Sets `GOOS` and `GOARCH` based on target platform + architecture
     - Compiles with `go build -trimpath -ldflags="-s -w"` for optimized binaries
+    - **Concurrent builds**: Multiple targets are compiled in parallel (bash auto-detects CPU cores; PowerShell uses 4 parallel jobs)
     - **Output structure**:
         - `bin/<platform>/<arch>/` — compiled binaries
         - `checksums/` — SHA256 checksum files

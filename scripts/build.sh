@@ -296,8 +296,9 @@ write_checksum() {
 }
 
 should_build() {
-  platform="$1"
-  arch_or_variant="$2"
+  local platform="$1"
+  local arch_or_variant="$2"
+  local -a p_arr a_arr
   IFS=',' read -r -a p_arr <<< "$PLATFORMS"
   IFS=',' read -r -a a_arr <<< "$ARCHITECTURES"
 
@@ -309,10 +310,10 @@ should_build() {
     else echo "$a"; fi
   }
 
-  target="$(normalize_arch "$arch_or_variant")"
-  platform_lower="${platform,,}"
+  local target="$(normalize_arch "$arch_or_variant")"
+  local platform_lower="${platform,,}"
 
-  p_match="false"
+  local p_match="false"
   for p in "${p_arr[@]}"; do
     if [[ "${p,,}" == "$platform_lower" ]]; then
       p_match="true"
@@ -335,19 +336,24 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
-invoke_step "Build Frontend" bash -c "
+invoke_step "Build Frontend" bash -c '
+  log() {
+    local ts
+    ts="$(date "+%Y-%m-%d %H:%M:%S")"
+    echo "[$ts][$2] $1"
+  }
   if ! command -v bun >/dev/null 2>&1; then
-    log 'bun not found. Please install bun: https://bun.sh/docs/installation' 'ERROR'
+    log "bun not found. Please install bun: https://bun.sh/docs/installation" "ERROR"
     exit 1
   fi
-  cd '$root/web'
+  cd "'"$root"'/web"
   if [[ ! -d node_modules ]]; then
-    log 'Installing bun dependencies...' 'INFO'
+    log "Installing bun dependencies..." "INFO"
     bun install
   fi
-  log 'Building frontend...' 'INFO'
+  log "Building frontend..." "INFO"
   bun run build
-"
+'
 
 if [[ "$SKIP_TESTS" != "true" ]]; then
   invoke_step "Run Go Tests" bash -c "
@@ -375,50 +381,95 @@ fi
 export -f should_build build_go write_checksum new_dir log
 export PLATFORMS ARCHITECTURES root
 
-invoke_step "Cross Build Artifacts" bash -c "
-  binRoot='$root/bin'
-  chkRoot='$root/checksums'
+# Cross Build Artifacts
+log "Cross Build Artifacts" "INFO"
 
-  build_configs=(
-    'linux:amd64:msp-linux-amd64:'
-    'linux:arm64:msp-linux-arm64:'
-    'linux:arm:msp-linux-armv7:7'
-    'linux:loong64:msp-linux-loong64:'
-    'darwin:amd64:msp-darwin-amd64:'
-    'darwin:arm64:msp-darwin-arm64:'
-    'windows:amd64:msp-windows-amd64.exe:'
-    'windows:386:msp-windows-386.exe:'
-  )
+binRoot="$root/bin"
+chkRoot="$root/checksums"
 
-  for cfg in \"\${build_configs[@]}\"; do
-    IFS=':' read -r platform arch outName goarm <<< \"\$cfg\"
+build_configs=(
+  'linux:amd64:msp-linux-amd64:'
+  'linux:arm64:msp-linux-arm64:'
+  'linux:arm:msp-linux-armv7:7'
+  'linux:loong64:msp-linux-loong64:'
+  'darwin:amd64:msp-darwin-amd64:'
+  'darwin:arm64:msp-darwin-arm64:'
+  'windows:amd64:msp-windows-amd64.exe:'
+  'windows:386:msp-windows-386.exe:'
+)
 
-    should_build_flag=false
-    if [[ \"\$platform\" == 'linux' && \"\$arch\" == 'amd64' ]]; then
-      should_build 'linux' 'amd64' || should_build 'linux' 'x64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'arm64' ]]; then
-      should_build 'linux' 'arm64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'arm' ]]; then
-      should_build 'arm' 'v7' && should_build_flag=true
-    elif [[ \"\$platform\" == 'linux' && \"\$arch\" == 'loong64' ]]; then
-      should_build 'linux' 'loong64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'amd64' ]]; then
-      should_build 'macos' 'amd64' || should_build 'macos' 'x64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'darwin' && \"\$arch\" == 'arm64' ]]; then
-      should_build 'macos' 'arm64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'windows' && \"\$arch\" == 'amd64' ]]; then
-      should_build 'windows' 'amd64' || should_build 'windows' 'x64' && should_build_flag=true
-    elif [[ \"\$platform\" == 'windows' && \"\$arch\" == '386' ]]; then
-      should_build 'windows' '386' || should_build 'windows' 'x86' && should_build_flag=true
+# 收集需要构建的目标
+targets=()
+for cfg in "${build_configs[@]}"; do
+  IFS=':' read -r platform arch outName goarm <<< "$cfg"
+
+  should_build_flag=false
+  if [[ "$platform" == 'linux' && "$arch" == 'amd64' ]]; then
+    should_build 'linux' 'amd64' || should_build 'linux' 'x64' && should_build_flag=true
+  elif [[ "$platform" == 'linux' && "$arch" == 'arm64' ]]; then
+    should_build 'linux' 'arm64' && should_build_flag=true
+  elif [[ "$platform" == 'linux' && "$arch" == 'arm' ]]; then
+    should_build 'arm' 'v7' && should_build_flag=true
+  elif [[ "$platform" == 'linux' && "$arch" == 'loong64' ]]; then
+    should_build 'linux' 'loong64' && should_build_flag=true
+  elif [[ "$platform" == 'darwin' && "$arch" == 'amd64' ]]; then
+    should_build 'macos' 'amd64' || should_build 'macos' 'x64' && should_build_flag=true
+  elif [[ "$platform" == 'darwin' && "$arch" == 'arm64' ]]; then
+    should_build 'macos' 'arm64' && should_build_flag=true
+  elif [[ "$platform" == 'windows' && "$arch" == 'amd64' ]]; then
+    should_build 'windows' 'amd64' || should_build 'windows' 'x64' && should_build_flag=true
+  elif [[ "$platform" == 'windows' && "$arch" == '386' ]]; then
+    should_build 'windows' '386' || should_build 'windows' 'x86' && should_build_flag=true
+  fi
+
+  if [[ "$should_build_flag" == 'true' ]]; then
+    outPath="$binRoot/$platform/$arch/$outName"
+    chkPath="$chkRoot/$outName.sha256"
+    targets+=("$platform:$arch:$outPath:$chkPath:$goarm")
+  fi
+done
+
+if [[ ${#targets[@]} -eq 0 ]]; then
+  log "No targets to build." "WARN"
+else
+  # 计算并发数：CPU 核心数，最小为 4
+  MAX_JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  log "Building ${#targets[@]} target(s) with up to $MAX_JOBS parallel jobs" "INFO"
+
+  pids=()
+
+  wait_batch() {
+    if [[ ${#pids[@]} -eq 0 ]]; then return; fi
+    local failed=0 pid
+    for pid in "${pids[@]}"; do
+      if ! wait "$pid"; then
+        failed=1
+      fi
+    done
+    pids=()
+    if ((failed)); then
+      log "One or more builds failed." "ERROR"
+      exit 1
     fi
+  }
 
-    if [[ \"\$should_build_flag\" == 'true' ]]; then
-      outPath=\"\$binRoot/\$platform/\$arch/\$outName\"
-      build_go \"\$platform\" \"\$arch\" \"\$outPath\" \"\$goarm\"
-      chkPath=\"\$chkRoot/\$outName.sha256\"
-      write_checksum \"\$outPath\" \"\$chkPath\"
+  for target in "${targets[@]}"; do
+    IFS=':' read -r platform arch outPath chkPath goarm <<< "$target"
+    build_go "$platform" "$arch" "$outPath" "$goarm" &
+    pids+=($!)
+    if [[ ${#pids[@]} -ge $MAX_JOBS ]]; then
+      wait_batch
     fi
   done
-"
+  wait_batch
+
+  # checksum 计算很快，保持串行
+  for target in "${targets[@]}"; do
+    IFS=':' read -r platform arch outPath chkPath goarm <<< "$target"
+    write_checksum "$outPath" "$chkPath"
+  done
+
+  log "Cross Build Artifacts done." "SUCCESS"
+fi
 
 log "Build completed." "SUCCESS"
