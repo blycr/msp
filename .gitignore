@@ -137,6 +137,7 @@ temp/
 .trae/
 .claude/
 .qoder/
+.antigravityignore
 vercel.json
 .vercel/
 netlify.toml
