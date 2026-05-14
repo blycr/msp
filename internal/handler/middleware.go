@@ -87,6 +87,8 @@ func (w *statusWriter) Flush() {
 	}
 }
 
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 // WithSecurity applies IP filtering and PIN authentication
 func WithSecurity(config ConfigProvider, session SessionProvider, logger Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,12 +150,12 @@ func applySecurityHeaders(w http.ResponseWriter) {
 // Home/LAN mode does not trust proxy headers.
 func getClientIP(r *http.Request, _ bool) string {
 	ip := r.RemoteAddr
-	if idx := strings.LastIndex(ip, ":"); idx != -1 {
-		ip = ip[:idx]
+	host, _, err := net.SplitHostPort(ip)
+	if err == nil {
+		return host
 	}
-	// Remove brackets for IPv6
-	ip = strings.Trim(ip, "[]")
-	return ip
+	// Fallback for addresses without port (e.g. some test environments)
+	return strings.Trim(ip, "[]")
 }
 
 // isIPAllowed checks if an IP is allowed based on whitelist and blacklist

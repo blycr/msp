@@ -76,8 +76,8 @@ func TestHandleShares_AddNonExistentDir(t *testing.T) {
 	h.HandleShares(w, req)
 	// handleShareAdd 对"目录不存在"返回 error，不含 "exists"/"missing" 英文词，
 	// 所以 HandleShares 走 500 分支（这是当前实现的行为）
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 for non-existent dir, got %d", w.Code)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-existent dir, got %d", w.Code)
 	}
 }
 
@@ -140,9 +140,8 @@ func TestHandleShares_UnsupportedOp(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/shares", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	h.HandleShares(w, req)
-	// unsupported op 应返回 500（applySharesOp 返回普通 error）
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 for unsupported op, got %d", w.Code)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for unsupported op, got %d", w.Code)
 	}
 }
 

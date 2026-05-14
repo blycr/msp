@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -10,6 +11,12 @@ import (
 	"msp/internal/constants"
 	"msp/internal/domain"
 	"msp/internal/util"
+)
+
+var (
+	ErrSharePathNotFound = errors.New("share path does not exist or is not accessible")
+	ErrSharePathMissing  = errors.New("share path is required")
+	ErrUnsupportedOp     = errors.New("unsupported operation")
 )
 
 func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +58,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 	newCfg, err := h.applySharesOp(op, p, label)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "exists") || strings.Contains(err.Error(), "missing") {
+		if errors.Is(err, ErrSharePathNotFound) || errors.Is(err, ErrSharePathMissing) || errors.Is(err, ErrUnsupportedOp) {
 			writeJSON(w, http.StatusBadRequest, domain.SharesOpResponse{Error: &domain.ApiError{Message: err.Error()}})
 		} else {
 			writeJSON(w, http.StatusInternalServerError, domain.SharesOpResponse{Error: &domain.ApiError{Message: constants.ErrMsgWriteConfig}})
@@ -80,13 +87,13 @@ func (h *Handler) applySharesOp(op string, path string, label string) (config.Co
 	case "remove":
 		return h.handleShareRemove(path)
 	default:
-		return config.Config{}, fmt.Errorf("不支持的 op（add/remove）")
+		return config.Config{}, fmt.Errorf("%w: %s", ErrUnsupportedOp, op)
 	}
 }
 
 func (h *Handler) handleShareAdd(p, label string) (config.Config, error) {
 	if p == "" || !util.IsExistingDir(p) {
-		return config.Config{}, fmt.Errorf("目录不存在或不可访问")
+		return config.Config{}, ErrSharePathNotFound
 	}
 
 	var newCfg config.Config
@@ -101,7 +108,7 @@ func (h *Handler) handleShareAdd(p, label string) (config.Config, error) {
 
 func (h *Handler) handleShareRemove(p string) (config.Config, error) {
 	if p == "" {
-		return config.Config{}, fmt.Errorf("缺少 Path")
+		return config.Config{}, ErrSharePathMissing
 	}
 
 	var newCfg config.Config
