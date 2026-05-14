@@ -1,14 +1,12 @@
 # Multi-stage build
 
 # Stage 1: Build Frontend
-FROM node:22-alpine AS frontend-builder
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM oven/bun:1.3-alpine AS frontend-builder
 WORKDIR /app/web
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY web/package.json web/bun.lockb ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN pnpm run build
+RUN bun run build
 
 # Stage 2: Build Backend
 FROM golang:1.25-alpine AS backend-builder

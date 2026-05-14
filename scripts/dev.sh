@@ -142,24 +142,21 @@ start_frontend() {
     FRONTEND_PID=""
   fi
 
-  if ! command -v pnpm >/dev/null 2>&1; then
-    log "pnpm not found. Enabling corepack..." "WARN"
-    corepack enable || {
-      log "Error: pnpm not found and corepack enable failed." "ERROR"
-      exit 1
-    }
+  if ! command -v bun >/dev/null 2>&1; then
+    log "bun not found. Please install bun: https://bun.sh/docs/installation" "ERROR"
+    exit 1
   fi
 
   cd "$WEB_DIR"
 
   if [[ ! -d "node_modules" ]]; then
     log "Installing frontend dependencies..."
-    pnpm install
+    bun install
   fi
 
   log "Starting frontend (Vite)..."
   export MSP_DEV_BACKEND="http://127.0.0.1:$BACKEND_PORT"
-  pnpm run dev &
+  bun run dev &
   FRONTEND_PID=$!
   log "Frontend started (pid=$FRONTEND_PID)" "SUCCESS"
 }

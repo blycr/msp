@@ -119,10 +119,10 @@ chmod +x ./scripts/build.sh
     - 检查 `go` 是否已安装
 
 2.  **Frontend Build (前端构建)**
-    - 检查 `pnpm` 是否安装，未安装则尝试使用 `corepack enable`
+    - 检查 `bun` 是否安装
     - 进入 `web` 目录
-    - 检查 `node_modules`，不存在则执行 `pnpm install`
-    - 执行 `pnpm run build` 生成静态资源
+    - 检查 `node_modules`，不存在则执行 `bun install`
+    - 执行 `bun run build` 生成静态资源
 
 3.  **Go Test (后端测试)** - 可通过 `-T` 跳过
     - 在项目根目录执行 `go test -v ./...` 运行所有 Go 单元测试
@@ -234,7 +234,7 @@ chmod +x ./scripts/dev.sh
 | 工具 | 版本 | 用途 |
 |------|------|------|
 | Go | 1.24+ | 后端编译 |
-| pnpm | 10.x | 前端包管理 |
+| bun | 1.3.x | 前端包管理 |
 
 ### 可选依赖
 
@@ -251,7 +251,7 @@ chmod +x ./scripts/dev.sh
 |------|--------------------------|----------------------|
 | **用途** | 生产环境发布构建 | 本地开发调试 |
 | **平台** | 跨平台 (Windows/Linux/Mac) | 跨平台 (Windows/Linux/Mac) |
-| **前端** | `pnpm run build` (静态构建) | `pnpm run dev` (Dev Server) |
+| **前端** | `bun run build` (静态构建) | `bun run dev` (Dev Server) |
 | **后端** | 交叉编译，去除符号表优化体积 | 本地编译，支持 Debug |
 | **测试** | 执行 `go test` | 不执行 |
 | **Lint** | 执行 `go vet` 和 `golangci-lint` | 不执行 |

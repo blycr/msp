@@ -264,24 +264,21 @@ function ShouldBuild {
 Test-Dependency 'Go' 'go'
 
 Invoke-Step 'Build Frontend' {
-  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-    Write-Log 'pnpm not found. Installing pnpm via corepack...' 'WARN'
-    corepack enable
-    if ($LASTEXITCODE -ne 0) {
-      throw "pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm"
-    }
+  if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+    Write-Log 'bun not found. Please install bun: https://bun.sh/docs/installation' 'ERROR'
+    throw "bun is not installed. Please install bun: https://bun.sh/docs/installation"
   }
 
   Push-Location (Join-Path $root 'web')
   try {
     if (-not (Test-Path 'node_modules')) {
-      Write-Log 'Installing pnpm dependencies...' 'INFO'
-      pnpm install
-      if ($LASTEXITCODE -ne 0) { throw "pnpm install failed. exitCode=$LASTEXITCODE" }
+      Write-Log 'Installing bun dependencies...' 'INFO'
+      bun install
+      if ($LASTEXITCODE -ne 0) { throw "bun install failed. exitCode=$LASTEXITCODE" }
     }
     Write-Log 'Building frontend...' 'INFO'
-    pnpm run build
-    if ($LASTEXITCODE -ne 0) { throw "pnpm run build failed. exitCode=$LASTEXITCODE" }
+    bun run build
+    if ($LASTEXITCODE -ne 0) { throw "bun run build failed. exitCode=$LASTEXITCODE" }
   }
   finally {
     Pop-Location

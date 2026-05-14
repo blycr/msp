@@ -119,10 +119,10 @@ chmod +x ./scripts/build.sh
     - Verifies `go` is installed
 
 2.  **Frontend Build**
-    - Checks for `pnpm`, falls back to `corepack enable` if missing
+    - Checks for `bun`
     - Enters `web/` directory
-    - Runs `pnpm install` if `node_modules` is missing
-    - Runs `pnpm run build` to generate static assets
+    - Runs `bun install` if `node_modules` is missing
+    - Runs `bun run build` to generate static assets
 
 3.  **Go Test** - skippable via `-T`
     - Runs `go test -v ./...` from project root
@@ -234,7 +234,7 @@ chmod +x ./scripts/dev.sh
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Go | 1.24+ | Backend compilation |
-| pnpm | 10.x | Frontend package manager |
+| bun | 1.3.x | Frontend package manager |
 
 ### Optional
 
@@ -251,7 +251,7 @@ chmod +x ./scripts/dev.sh
 |---------|--------------------------|----------------------|
 | **Purpose** | Production release builds | Local development |
 | **Platform** | Cross-platform | Cross-platform |
-| **Frontend** | `pnpm run build` (static) | `pnpm run dev` (Dev Server) |
+| **Frontend** | `bun run build` (static) | `bun run dev` (Dev Server) |
 | **Backend** | Cross-compile, stripped binaries | Local compile, debug-friendly |
 | **Tests** | Runs `go test` | Skipped |
 | **Lint** | Runs `go vet` + `golangci-lint` | Skipped |

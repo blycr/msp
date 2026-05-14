@@ -115,7 +115,7 @@ web/.eslintcache
 yarn-error.log
 pnpm-debug.log*
 
-# Lock files (keep pnpm lock; ignore npm/yarn locks)
+# Lock files (keep bun lock; ignore npm/yarn locks)
 package-lock.json
 yarn.lock
 

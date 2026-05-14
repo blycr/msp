@@ -336,20 +336,17 @@ if ! command -v go >/dev/null 2>&1; then
 fi
 
 invoke_step "Build Frontend" bash -c "
-  if ! command -v pnpm >/dev/null 2>&1; then
-    log 'pnpm not found. Enabling corepack...' 'WARN'
-    corepack enable || {
-      log 'pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm' 'ERROR'
-      exit 1
-    }
+  if ! command -v bun >/dev/null 2>&1; then
+    log 'bun not found. Please install bun: https://bun.sh/docs/installation' 'ERROR'
+    exit 1
   fi
   cd '$root/web'
   if [[ ! -d node_modules ]]; then
-    log 'Installing pnpm dependencies...' 'INFO'
-    pnpm install
+    log 'Installing bun dependencies...' 'INFO'
+    bun install
   fi
   log 'Building frontend...' 'INFO'
-  pnpm run build
+  bun run build
 "
 
 if [[ "$SKIP_TESTS" != "true" ]]; then

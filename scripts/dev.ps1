@@ -120,13 +120,10 @@ function Start-Backend {
 
 function Start-Frontend {
   Stop-Frontend
-  # Check if pnpm is installed
-  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-    Write-Log 'pnpm not found. Enabling corepack...' 'WARN'
-    corepack enable
-    if ($LASTEXITCODE -ne 0) {
-      throw 'pnpm is not installed and corepack enable failed. Please install pnpm: npm install -g pnpm'
-    }
+  # Check if bun is installed
+  if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+    Write-Log 'bun not found. Please install bun: https://bun.sh/docs/installation' 'ERROR'
+    throw 'bun is not installed. Please install bun: https://bun.sh/docs/installation'
   }
 
   Write-Log 'Starting frontend (Vite dev server)...'
@@ -134,11 +131,11 @@ function Start-Frontend {
   Push-Location $webRoot
   try {
     if (-not (Test-Path 'node_modules')) {
-      Write-Log 'Installing pnpm dependencies...'
-      pnpm install
-      if ($LASTEXITCODE -ne 0) { throw "pnpm install failed. exitCode=$LASTEXITCODE" }
+      Write-Log 'Installing bun dependencies...'
+      bun install
+      if ($LASTEXITCODE -ne 0) { throw "bun install failed. exitCode=$LASTEXITCODE" }
     }
-    $cmd = "`$env:MSP_DEV_BACKEND='http://127.0.0.1:$BackendPort'; pnpm run dev"
+    $cmd = "`$env:MSP_DEV_BACKEND='http://127.0.0.1:$BackendPort'; bun run dev"
     $psExe = (Get-Process -Id $PID).Path
     $script:frontendProc = Start-Process -FilePath $psExe -ArgumentList '-NoLogo', '-NoProfile', '-Command', $cmd -WorkingDirectory $webRoot -PassThru
     Write-Log "Frontend started (pid=$($script:frontendProc.Id))" 'SUCCESS'

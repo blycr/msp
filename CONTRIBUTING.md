@@ -8,7 +8,7 @@ To contribute to this project, you will need:
 
 *   **Go**: Version 1.25 or higher.
 *   **Node.js**: Version 20 or higher.
-*   **pnpm**: Enabled via `corepack enable`.
+*   **bun**: Version 1.3 or higher.
 
 ## Getting Started
 
@@ -35,8 +35,8 @@ go build ./cmd/msp
 
 ```bash
 cd web
-pnpm install
-pnpm run build
+bun install
+bun run build
 ```
 
 ## Running Tests

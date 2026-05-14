@@ -50,6 +50,12 @@ export function updateUIForLang() {
 
   const blHint = el("blHint");
   if (blHint) blHint.innerHTML = t("bl_hint");
+
+  // Refresh meta text on language switch
+  if (state.configUrls !== undefined) {
+    const urls = (state.configUrls || []).slice(0, 3).join("  ");
+    bus.emit('meta:update', urls ? t("meta_urls", urls) : t("meta_noip"));
+  }
 }
 
 export function renderList() {
