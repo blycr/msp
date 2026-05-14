@@ -6,6 +6,8 @@ import { updateNavLabels } from '../playlist.js';
 import { restorePlaybackTime, getActiveMedia } from './seek.js';
 import { playItem } from '../player.js';
 
+let hotkeyHandler = null;
+
 export async function resumeLast() {
   if (!state.media) return;
   const kind = gpGet(LS.lastActiveKind);
@@ -67,7 +69,15 @@ export async function resumeLast() {
   }
 }
 
+export function unbindGlobalHotkeys() {
+  if (hotkeyHandler) {
+    document.removeEventListener("keydown", hotkeyHandler, true);
+    hotkeyHandler = null;
+  }
+}
+
 export function bindGlobalHotkeys() {
+  unbindGlobalHotkeys();
   const onKey = (ev) => {
     const active = document.activeElement;
     if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
@@ -169,5 +179,6 @@ export function bindGlobalHotkeys() {
     }
   };
 
+  hotkeyHandler = onKey;
   document.addEventListener("keydown", onKey, true);
 }

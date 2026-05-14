@@ -31,27 +31,30 @@ export function renderLyrics(lines) {
   if (!Array.isArray(lines) || lines.length === 0) {
     const emptyDiv = document.createElement("div");
     emptyDiv.className = "lyrics-empty";
-    // Check for "pure music" explicitly if needed, or just generic message
     emptyDiv.textContent = t("lyrics_pure_music");
     box.appendChild(emptyDiv);
+    if (state.lyrics) state.lyrics.nodes = [];
     return;
   }
   const frag = document.createDocumentFragment();
+  const nodes = [];
   for (const ln of lines) {
     const div = document.createElement("div");
     div.className = "ly";
     div.dataset.t = String(ln.t);
     div.textContent = ln.text || "";
     frag.appendChild(div);
+    nodes.push(div);
   }
   box.appendChild(frag);
+  if (state.lyrics) state.lyrics.nodes = nodes;
 }
 
 export function updateLyricsByTime(t, force) {
   const lines = state.lyrics?.lines || [];
   if (lines.length === 0) return;
   const box = el("lyrics");
-  const nodes = Array.from(box.querySelectorAll(".ly"));
+  const nodes = state.lyrics?.nodes || Array.from(box.querySelectorAll(".ly"));
   if (nodes.length === 0) return;
 
   let idx = 0;

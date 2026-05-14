@@ -60,9 +60,11 @@ export function bindUI() {
     }
   });
 
+  let searchDebounceTimer = 0;
   el("q").addEventListener("input", (ev) => {
     state.q = ev.target.value || "";
-    renderList();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => renderList(), 200);
   });
 
   el("sortField").addEventListener("change", (ev) => {
