@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.2
+
+- **前端内存泄漏修复**：
+  - `destroyPlyr()` 现在对称清理 `window.plyrPlayer`、`window.callPlyr`、`stallCheckTimer`、`volumechange`/`ratechange` 监听器
+  - `audio-track.js` 的 `setInterval` 和事件监听器支持通过 `cleanupAudioTrackHandling()` 清理
+  - `play.js` 切换媒体前 `revokeObjectURL` 释放旧的 Blob URL
+  - `api.js` 对非 JSON 响应（如 502 HTML）不再静默返回 `{}`，改为抛出包含状态码和原文的错误
+  - `lyrics.js` 缓存歌词节点数组，避免每次 `timeupdate` 重复 `querySelectorAll`
+  - 搜索框增加 200ms debounce，减少快速输入时的连续重渲染
+  - `resume.js` 全局热键增加 `unbindGlobalHotkeys()` 对称清理接口
+- **后端错误处理与资源管理**：
+  - `cache/media.go`：`buildAndUpdate` 返回 `error`，媒体构建/序列化失败时跳过缓存更新，避免空数据被缓存
+  - `service/logger.go`：日志轮转 reopen 失败时回退到 `os.Stderr`，防止后续日志全部静默丢失
+  - `handler/config.go`：用 `errors.Is` + sentinel errors 替代脆弱的字符串匹配判断错误类型
+  - `handler/middleware.go`：`getClientIP` 改用 `net.SplitHostPort`，正确支持 IPv6 地址；`statusWriter` 增加 `Unwrap()` 支持 Go 1.20+ 的 `http.ResponseController`
+- **测试补充**：新增 `common_test.go`（`writeJSON`、`decodeJSONBody`、`isPayloadTooLarge`）和 `stream_test.go`（`decidePlaybackMode`、`checkTranscodePolicy`、`resolveMediaTarget`）；修复 `subtitle_test.go` 已有的编译错误
+
 ## 1.2.1
 
 - **测试覆盖率提升**：
