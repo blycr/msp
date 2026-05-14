@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0
+
+- **前端样式重构与组件化**：
+  - 清理 `app.css` 中 5 组重复定义和 2 处死代码（`h1-h6`、`textarea:focus-visible`），移除冗余 `!important` 12 个
+  - 将 1,385 行的 `app.css` 按组件拆分为 10 个文件（`base.css`、`layout.css`、`components/*`、`vendor/plyr.css`、`responsive.css`）
+  - 原生 `<select>` 排序下拉菜单替换为自定义 Dropdown 组件，完全适配 Neo-Industrial 设计系统（硬阴影、主题色、圆角、dark/light 模式）
+  - 自定义 Dropdown 支持键盘导航（↑↓ Enter Esc）和 ARIA 无障碍属性
+- **翻译修复**：补全 `share_settings` 缺失的 i18n 翻译（英文 "Folders" / 中文 "共享目录"），消除中文模式下显示英文 key 的问题
+- **构建脚本并行化**：`build.sh` 和 `build.ps1` 支持本地并发交叉编译（GNU parallel / Start-Job），多目标构建速度提升约 66%
+
 ## 1.3.0
 
 - **MediaProcessor 架构重构**：将 `internal/media/` 包中所有包级全局变量收敛到 `MediaProcessor` 结构体

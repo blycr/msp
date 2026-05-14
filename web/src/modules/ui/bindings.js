@@ -67,14 +67,86 @@ export function bindUI() {
     searchDebounceTimer = setTimeout(() => renderList(), 200);
   });
 
-  el("sortField").addEventListener("change", (ev) => {
-    state.sort.field = ev.target.value;
+  // Custom dropdown for sortField
+  function initDropdown(containerId, onChange) {
+    const container = el(containerId);
+    if (!container) return null;
+    const trigger = container.querySelector('.dropdown__trigger');
+    const menu = container.querySelector('.dropdown__menu');
+    const items = Array.from(container.querySelectorAll('.dropdown__item'));
+
+    function open() {
+      container.classList.add('dropdown--open');
+      trigger.setAttribute('aria-expanded', 'true');
+      menu.hidden = false;
+    }
+    function close() {
+      container.classList.remove('dropdown--open');
+      trigger.setAttribute('aria-expanded', 'false');
+      menu.hidden = true;
+    }
+    function toggle() { menu.hidden ? open() : close(); }
+
+    function select(value) {
+      for (const item of items) {
+        const selected = item.dataset.value === value;
+        item.classList.toggle('dropdown__item--selected', selected);
+        item.setAttribute('aria-selected', String(selected));
+      }
+      const selectedItem = items.find(i => i.dataset.value === value);
+      if (selectedItem) {
+        const valueEl = trigger.querySelector('.dropdown__value');
+        if (valueEl) {
+          valueEl.textContent = selectedItem.textContent;
+          const i18nKey = selectedItem.getAttribute('data-i18n');
+          if (i18nKey) valueEl.setAttribute('data-i18n', i18nKey);
+        }
+      }
+      container.dataset.value = value;
+      if (onChange) onChange(value);
+    }
+
+    trigger.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+    for (const item of items) {
+      item.addEventListener('click', (e) => { e.stopPropagation(); select(item.dataset.value); close(); });
+    }
+    document.addEventListener('click', () => close());
+
+    container.addEventListener('keydown', (e) => {
+      if (menu.hidden) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        return;
+      }
+      const activeIdx = items.findIndex(i => i.classList.contains('dropdown__item--selected'));
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = Math.min(activeIdx + 1, items.length - 1);
+        select(items[next].dataset.value);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = Math.max(activeIdx - 1, 0);
+        select(items[prev].dataset.value);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        close();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    });
+
+    trigger.setAttribute('tabindex', '0');
+    return { select, get value() { return container.dataset.value; } };
+  }
+
+  const sortDropdown = initDropdown('sortField', (value) => {
+    state.sort.field = value;
     lsSet(LS.sortField, state.sort.field);
     renderList();
   });
 
-  if (state.sort.field) {
-    try { el("sortField").value = state.sort.field; } catch {}
+  if (state.sort.field && sortDropdown) {
+    sortDropdown.select(state.sort.field);
   }
 
   const sortBtn = el("sortOrder");

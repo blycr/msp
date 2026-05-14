@@ -1,0 +1,238 @@
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('../assets/fonts/BricolageGrotesque-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('../assets/fonts/BricolageGrotesque-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('../assets/fonts/InstrumentSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('../assets/fonts/InstrumentSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Design Language: Neo-Industrial / Bold */
+
+  /* Fonts */
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "Instrument Sans", system-ui, sans-serif;
+
+  /* Colors - Light Theme */
+  --md-primary: #4f46e5;
+  /* Indigo 600 */
+  --md-primary-2: #4338ca;
+  /* Indigo 700 */
+  --md-surface: #ffffff;
+  --md-bg: #f4f4f5;
+  /* Zinc 100 */
+  --md-text: #18181b;
+  /* Zinc 900 */
+  --md-sub: #71717a;
+  /* Zinc 500 */
+  --md-border: #e4e4e7;
+  /* Zinc 200 */
+  --md-danger: #ef4444;
+  /* Red 500 */
+
+  --md-hover: rgba(0, 0, 0, 0.05);
+  --md-active: rgba(0, 0, 0, 0.1);
+
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --blur-md: 12px;
+
+  /* Elevation - Hard Shadows for "Pop" */
+  --elev-1: 4px 4px 0px 0px rgba(0, 0, 0, 0.05);
+  --shadow-soft: 8px 8px 0px 0px rgba(0, 0, 0, 0.03);
+
+  /* Radius - Slightly tighter */
+  --radius: 12px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+
+  --transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --plyr-color-main: var(--md-primary);
+
+  /* Plyr Audio Adaptation */
+  --plyr-audio-controls-background: transparent;
+  --plyr-audio-control-color: var(--md-text);
+  --plyr-audio-control-color-hover: var(--md-primary);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+[data-theme="dark"] {
+  /* Colors - Dark Theme */
+  --md-primary: #818cf8;
+  /* Indigo 400 */
+  --md-primary-2: #6366f1;
+  /* Indigo 500 */
+
+  --md-bg: #09090b;
+  /* Zinc 950 */
+  --md-surface: #18181b;
+  /* Zinc 900 */
+
+  --md-text: #fafafa;
+  /* Zinc 50 */
+  --md-sub: #a1a1aa;
+  /* Zinc 400 */
+  --md-border: #27272a;
+  /* Zinc 800 */
+  --md-danger: #f87171;
+  /* Red 400 */
+
+  --md-hover: rgba(255, 255, 255, 0.05);
+  --md-active: rgba(255, 255, 255, 0.1);
+
+  --glass-bg: rgba(24, 24, 27, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+
+  --elev-1: 4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 8px 8px 0px 0px rgba(0, 0, 0, 0.3);
+
+  --plyr-color-main: var(--md-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+select:focus-visible {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 2px;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--md-bg);
+  color: var(--md-text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  letter-spacing: 0.015em;
+  text-rendering: optimizeLegibility;
+  transition: background-color 0.25s ease, color 0.25s ease;
+
+  /* Grain Texture */
+  background-image: radial-gradient(var(--md-sub) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+  opacity: 1;
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+[data-theme="light"] body {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+}
+
+[data-theme="dark"] body {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+[data-theme="dark"] .textfield:focus {
+  background: rgba(39, 39, 42, 1);
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] .textfield::placeholder {
+  color: var(--md-sub);
+  opacity: 0.7;
+}
+
+#videoEl,
+#audioEl,
+#imgEl {
+  width: 100%;
+}
+
+
+
+[data-theme="dark"] .toggle:has(input:checked) {
+  background: rgba(129, 140, 248, 0.15);
+}
+
+[data-theme="dark"] .btn--ghost {
+  color: var(--md-sub);
+}
+
+[data-theme="dark"] .btn--ghost:hover {
+  color: var(--md-text);
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+.plyr--audio .plyr__control:hover,
+.plyr--audio .plyr__control[aria-expanded="true"] {
+  background: var(--md-hover) !important;
+  color: var(--md-primary) !important;
+}
+
+button,
+select {
+  color: inherit;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input,
+textarea {
+  color: inherit;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: text;
+  border: none;
+  outline: none;
+}
+
+/* Dark mode input field optimization */
+[data-theme="dark"] .textfield {
+  background: rgba(39, 39, 42, 0.8);
+  border-color: rgba(63, 63, 70, 0.8);
+}
+
+/* Fix select cursor being overridden by textfield class */
+select.textfield {
+  cursor: pointer;
+}

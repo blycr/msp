@@ -1,0 +1,140 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 24px;
+  background: var(--md-surface);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--md-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  contain: layout style;
+  will-change: transform;
+}
+
+.topbar__title {
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  user-select: none;
+  background: linear-gradient(135deg, var(--md-text) 0%, var(--md-sub) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.topbar__title:hover {
+  opacity: 0.8;
+}
+
+.topbar__meta {
+  flex: 1;
+  color: var(--md-sub);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__meta a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.topbar__meta a:hover {
+  color: var(--md-primary);
+  text-decoration: underline;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) minmax(0, 1fr) minmax(280px, 22vw);
+  grid-template-rows: 1fr;
+  gap: 24px;
+  padding: 16px 24px 12px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel {
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+  overflow: hidden;
+  min-height: 0;
+  max-width: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.playlist {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  min-height: 0;
+}
+
+.footer {
+  margin-top: 0;
+  padding: 10px 24px;
+  text-align: center;
+  border-top: 1px solid var(--md-border);
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.footer__line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--md-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.footer__brand {
+  font-weight: 700;
+  color: var(--md-text);
+}
+
+.footer__link {
+  color: var(--md-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer__link:hover {
+  text-decoration: underline;
+  color: var(--md-primary-2);
+}

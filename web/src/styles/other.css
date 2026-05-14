@@ -1,0 +1,61 @@
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Common transitions for theme changes - improved timing */
+.panel,
+.tab,
+.textfield,
+.item,
+.btn--ghost,
+.audioCover,
+.lyrics,
+.dialog,
+.share,
+.topbar,
+.plitem {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Optimize media transitions (opacity only, 0.25s); removed will-change to avoid over-compositing */
+#videoEl,
+.plyr {
+  transition: opacity 0.25s ease;
+}
+
+/* Firefox 兼容性：避免 audioMeta 在 opacity transition 时出现黑块 */
+@supports (-moz-appearance: none) {
+  #audioMeta {
+    transform: translateZ(0);
+  }
+}
+
+/* Ensure tooltip appears above other elements */
+
+
+/* Audio Player Container Override */
+.playerbox:has(#audioEl:not([hidden])) {
+  background: var(--md-surface);
+  justify-content: flex-start;
+  padding: 24px;
+  gap: 24px;
+  gap: 24px;
+
+}
+
+/* Dialog overrides */
+.dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity 0.3s ease;
+}

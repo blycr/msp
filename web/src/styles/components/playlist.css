@@ -1,0 +1,105 @@
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--md-border);
+}
+
+.tab {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--md-sub);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.tab:hover {
+  background: var(--md-hover);
+  color: var(--md-text);
+}
+
+.tab--active {
+  background: var(--md-active) !important;
+  color: var(--md-primary) !important;
+  font-weight: 700;
+}
+
+.playlist__title {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--md-border);
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.playlist__meta {
+  padding: 10px 14px;
+  color: var(--md-sub);
+  font-size: 12px;
+  border-bottom: 1px solid var(--md-border);
+}
+
+.playlist__body {
+  padding: 10px;
+  overflow: auto;
+  flex: 1;
+}
+
+.plitem {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+.plitem:hover {
+  background: var(--md-hover);
+  transform: translateX(2px);
+}
+
+.plitem:focus-visible {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 2px;
+}
+
+.plitem--active {
+  background: var(--md-active);
+}
+
+.plitem__idx {
+  width: 22px;
+  color: var(--md-sub);
+  font-size: 12px;
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.plitem__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.plitem__name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plitem__sub {
+  font-size: 11px;
+  color: var(--md-sub);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

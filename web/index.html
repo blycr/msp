@@ -32,11 +32,19 @@
       <div class="search">
         <input class="textfield" id="q" placeholder="Search..." data-i18n-ph="search_ph" />
         <div class="row" style="margin-top: 8px;">
-          <select class="textfield" id="sortField" style="flex: 1;">
-            <option value="name" data-i18n="sort_name">Name</option>
-            <option value="size" data-i18n="sort_size">Size</option>
-            <option value="date" data-i18n="sort_date">Date</option>
-          </select>
+          <div class="dropdown" id="sortField" style="flex: 1;">
+            <button class="dropdown__trigger textfield" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="dropdown__value" data-i18n="sort_name">Name</span>
+              <svg class="dropdown__arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; flex-shrink: 0;">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="dropdown__menu" role="listbox" hidden>
+              <div class="dropdown__item dropdown__item--selected" role="option" data-value="name" data-i18n="sort_name" aria-selected="true">Name</div>
+              <div class="dropdown__item" role="option" data-value="size" data-i18n="sort_size">Size</div>
+              <div class="dropdown__item" role="option" data-value="date" data-i18n="sort_date">Date</div>
+            </div>
+          </div>
           <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order"
             style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;"
             aria-label="Toggle sort order">
@@ -140,7 +148,7 @@
     <div class="dialog__title" data-i18n="dlg_title">Settings</div>
     <div class="dialog__body">
       <!-- Share Settings Section -->
-      <div class="dialog__subtitle" data-i18n="share_settings">Share Folders</div>
+      <div class="dialog__subtitle" data-i18n="share_settings">Folders</div>
       <div class="dialog__section">
         <div class="dialog__row">
           <input class="textfield dialog__path" id="sharePath" placeholder="Folder Path (e.g. D:\Media)"
