@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0
+
+- **MediaProcessor 架构重构**：将 `internal/media/` 包中所有包级全局变量收敛到 `MediaProcessor` 结构体
+  - 新增 `processor.go`：统一持有 `mediaDB`、`probeCache`、`transcodeLimit`、`hwAccel` 等全部原先分散在 4 个文件中的全局状态
+  - `NewMediaProcessor(db, opts...)` 构造函数采用 Option 模式（`WithTranscodeLimit`）
+  - `cacheTTL` 改为 `atomic.Int64`，`hwDisabled` 改为 `atomic.Bool`，消除数据竞争
+  - 每个实例拥有独立的 `sync.Once`，支持并行测试互不干扰
+  - 迁移函数：`store.go`/`probe.go`/`transcoder.go`/`hwaccel.go` 的核心函数全部改为 `MediaProcessor` 方法
+  - 删除全局函数：`SetDB`、`SetTranscodeLimit`、`ResetPathsForTest`、`ResetHWAccelForTest`
+  - `media.go` 提取 `newMediaResponse` 公共构造函数，消除重复构造逻辑
+- **调用方适配**：`server.New`、`cache.NewMediaCache`、`handler.New`、`service.NewConfigService` 签名更新，显式注入 `MediaProcessor`
+- **测试适配**：所有 media 包测试改用 `NewMediaProcessor`；为常用方法添加 nil-receiver 安全保护；修复 `stream_test.go` pre-existing `gosec G306` 警告
+
 ## 1.2.2
 
 - **前端内存泄漏修复**：
