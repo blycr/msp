@@ -15,6 +15,11 @@ export async function apiRetry(fn, retries = 3, delay = 1000) {
 
 export async function apiGet(url) {
   const res = await fetch(url, { cache: "no-store", credentials: "include" });
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
   if (data?.error?.message) throw new Error(data.error.message);
@@ -29,6 +34,11 @@ export async function apiPost(url, body) {
     credentials: "include",
   });
   if (res.status === 204) return null;
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
   if (data?.error?.message) throw new Error(data.error.message);

@@ -2,10 +2,41 @@ import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { gpGet, gpSet } from '../api.js';
 
+// Module-level refs for symmetric cleanup
+let audioTrackTimer = 0;
+let loadedMetaHandler = null;
+let audioTracksChangeHandler = null;
+
+export function cleanupAudioTrackHandling() {
+  try {
+    if (audioTrackTimer) {
+      clearInterval(audioTrackTimer);
+      audioTrackTimer = 0;
+    }
+  } catch { }
+  try {
+    const videoEl = el("videoEl");
+    if (videoEl && loadedMetaHandler) {
+      videoEl.removeEventListener("loadedmetadata", loadedMetaHandler);
+      loadedMetaHandler = null;
+    }
+  } catch { }
+  try {
+    const videoEl = el("videoEl");
+    if (videoEl?.audioTracks && audioTracksChangeHandler) {
+      videoEl.audioTracks.removeEventListener("change", audioTracksChangeHandler);
+      audioTracksChangeHandler = null;
+    }
+  } catch { }
+}
+
 export function setupAudioTrackHandling(videoEl) {
   if (!videoEl || videoEl.tagName !== "VIDEO") return;
 
-  videoEl.addEventListener("loadedmetadata", () => {
+  // Clean up any previous handlers first
+  cleanupAudioTrackHandling();
+
+  loadedMetaHandler = () => {
     if (videoEl.audioTracks) {
       const audioTracks = videoEl.audioTracks;
       if (audioTracks && audioTracks.length > 1) {
@@ -46,20 +77,22 @@ export function setupAudioTrackHandling(videoEl) {
     } else {
       console.log("未检测到内封字幕轨道。注意: 浏览器对 MKV 内封字幕的支持有限，可能需要外挂字幕。");
     }
-  });
+  };
+  videoEl.addEventListener("loadedmetadata", loadedMetaHandler);
 
   if (videoEl.audioTracks) {
-    videoEl.audioTracks.addEventListener("change", () => {
+    audioTracksChangeHandler = () => {
       const tracks = Array.from(videoEl.audioTracks);
       const enabledTrack = tracks.find(t => t.enabled);
       if (enabledTrack) {
         console.log(`音轨切换至: ${enabledTrack.label || enabledTrack.language || "未知"}`);
       }
-    });
+    };
+    videoEl.audioTracks.addEventListener("change", audioTracksChangeHandler);
   }
 
   let lastAudioTrackIdx = -1;
-  setInterval(() => {
+  audioTrackTimer = setInterval(() => {
     try {
       const tracks = videoEl.audioTracks;
       if (!tracks || tracks.length <= 1) return;

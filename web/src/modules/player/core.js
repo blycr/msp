@@ -2,6 +2,12 @@ import { state, el, canStorage } from '../state.js';
 import { t } from '../i18n.js';
 import { gpGet, gpSet, logRemote } from '../api.js';
 import { streamUrl, getCfg } from '../utils.js';
+import { cleanupAudioTrackHandling } from './audio-track.js';
+
+// Module-level refs for symmetric cleanup
+let plyrStallTimer = 0;
+let volumeChangeHandler = null;
+let rateChangeHandler = null;
 
 export function destroyPlyr() {
   if (state.plyr) {
@@ -14,6 +20,29 @@ export function destroyPlyr() {
       state.plyrPersistTimer = 0;
     }
   } catch { }
+  try {
+    if (plyrStallTimer) {
+      clearInterval(plyrStallTimer);
+      plyrStallTimer = 0;
+    }
+  } catch { }
+  try { delete window.plyrPlayer; } catch { }
+  try { delete window.callPlyr; } catch { }
+  try {
+    if (volumeChangeHandler) {
+      el("videoEl")?.removeEventListener("volumechange", volumeChangeHandler);
+      el("audioEl")?.removeEventListener("volumechange", volumeChangeHandler);
+      volumeChangeHandler = null;
+    }
+  } catch { }
+  try {
+    if (rateChangeHandler) {
+      el("videoEl")?.removeEventListener("ratechange", rateChangeHandler);
+      el("audioEl")?.removeEventListener("ratechange", rateChangeHandler);
+      rateChangeHandler = null;
+    }
+  } catch { }
+  cleanupAudioTrackHandling();
 }
 
 export function resetMediaEl(mediaEl) {
@@ -194,9 +223,10 @@ export function applyPlyr(element, onMediaEnded) {
     }
   });
 
-  const stallCheckTimer = setInterval(() => {
+  plyrStallTimer = setInterval(() => {
     if (!state.plyr || state.plyr.media !== element) {
-      clearInterval(stallCheckTimer);
+      clearInterval(plyrStallTimer);
+      plyrStallTimer = 0;
       return;
     }
 
@@ -284,14 +314,16 @@ export function applyPlyr(element, onMediaEnded) {
     return fn.apply(state.plyr, args);
   };
   try {
-    element.addEventListener("volumechange", () => {
+    volumeChangeHandler = () => {
       gpSet("msp.volume", String(element.volume || 1), 500);
       gpSet("msp.muted", element.muted ? "1" : "0", 500);
-    });
+    };
+    element.addEventListener("volumechange", volumeChangeHandler);
   } catch { }
   try {
-    element.addEventListener("ratechange", () => {
+    rateChangeHandler = () => {
       try { gpSet("msp.rate", String(element.playbackRate || 1)); } catch { }
-    });
+    };
+    element.addEventListener("ratechange", rateChangeHandler);
   } catch { }
 }

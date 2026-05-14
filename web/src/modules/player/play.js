@@ -9,6 +9,15 @@ import { setupErrorHandler } from './transcode.js';
 import { saveProgress, updateResumeButton } from './seek.js';
 import { setupAudioTrackHandling } from './audio-track.js';
 
+let currentBlobUrl = null;
+
+function revokeCurrentBlob() {
+  if (currentBlobUrl) {
+    try { URL.revokeObjectURL(currentBlobUrl); } catch { }
+    currentBlobUrl = null;
+  }
+}
+
 async function getPlaybackUrl(item) {
   const base = streamUrl(item.id);
   const kind = item.kind;
@@ -75,6 +84,7 @@ export async function playItem(item, opts) {
 
   const openBtn = el("btnOpenRaw");
   openBtn.disabled = false;
+  revokeCurrentBlob();
   openBtn.onclick = () => {
     try { state.plyr?.pause?.(); } catch { }
     try { el("videoEl")?.pause?.(); } catch { }
@@ -100,8 +110,8 @@ export async function playItem(item, opts) {
         `video{max-width:100%;max-height:100vh;background:#000}</style></head>` +
         `<body><video controls preload="metadata" src="${src}">${tr}</video></body></html>`;
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
+      currentBlobUrl = URL.createObjectURL(blob);
+      window.open(currentBlobUrl, "_blank", "noopener,noreferrer");
       return;
     }
     window.open(streamUrl(item.id), "_blank", "noopener,noreferrer");
