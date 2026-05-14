@@ -128,10 +128,13 @@ func (l *LoggerService) RotateLogIfNeeded() {
 
 	//nolint:gosec // Log file path is controlled by config/CLI
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
-	if err == nil {
-		l.logFile = f
-		log.SetOutput(f)
+	if err != nil {
+		log.Printf("[ERROR] Failed to reopen log file %s: %v; falling back to stderr", path, err)
+		log.SetOutput(os.Stderr)
+		return
 	}
+	l.logFile = f
+	log.SetOutput(f)
 }
 
 func (l *LoggerService) LogRequest(r *http.Request, status int, start time.Time) {

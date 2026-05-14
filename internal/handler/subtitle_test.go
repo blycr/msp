@@ -8,8 +8,27 @@ import (
 	"strings"
 	"testing"
 
+	"msp/internal/config"
+	"msp/internal/domain"
+	"msp/internal/server"
+	"msp/internal/storage"
 	"msp/internal/util"
 )
+
+func newTestServerWithShare(t *testing.T, dir string) *server.Server {
+	t.Helper()
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	s := server.New(cfgPath)
+	_ = s.UpdateConfig(func(cfg *config.Config) {
+		cfg.Shares = append(cfg.Shares, domain.Share{Path: dir, Label: "test"})
+	})
+	store := storage.NewStore(nil)
+	t.Cleanup(func() {
+		_ = store
+		s.WaitForBackgroundMediaOps()
+	})
+	return s
+}
 
 func TestHandleSubtitleMethodNotAllowed(t *testing.T) {
 	h, _ := setupTestHandler(t)

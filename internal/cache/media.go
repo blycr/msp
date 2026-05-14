@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"hash/fnv"
 	"log"
 	"os"
@@ -133,23 +134,32 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 	c.building = true
 	c.mu.Unlock()
 
-	resp, etag := c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
+	resp, etag, err := c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
+	if err != nil {
+		log.Printf("[WARN] MediaCache build error: %v", err)
+		return domain.MediaResponse{}, ""
+	}
 	return resp, etag
 }
 
-func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, string) {
+func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, string, error) {
 	var resp domain.MediaResponse
 	builtAt := time.Now()
+	var buildErr error
+
 	if media.IsDBAvailable() {
 		r, bt, err := media.ReindexAndLoadMedia(ctx, key, shares, blacklist, maxItems)
 		if err == nil && !bt.IsZero() {
 			resp = r
 			builtAt = bt
 		} else {
+			if err != nil {
+				buildErr = err
+			}
 			var berr error
 			resp, berr = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 			if berr != nil {
-				log.Printf("[WARN] BuildMediaResponse error: %v", berr)
+				buildErr = berr
 			}
 			builtAt = time.Now()
 		}
@@ -157,14 +167,27 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 		var err error
 		resp, err = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
 		if err != nil {
-			log.Printf("[WARN] BuildMediaResponse error: %v", err)
+			buildErr = err
 		}
 	}
+
+	if buildErr != nil {
+		c.mu.Lock()
+		c.building = false
+		c.cond.Broadcast()
+		c.mu.Unlock()
+		return domain.MediaResponse{}, "", buildErr
+	}
+
 	etag := WeakETag(key, builtAt)
 
 	b, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("[WARN] cache marshal error: %v", err)
+		c.mu.Lock()
+		c.building = false
+		c.cond.Broadcast()
+		c.mu.Unlock()
+		return domain.MediaResponse{}, "", fmt.Errorf("marshal cache: %w", err)
 	}
 
 	c.mu.Lock()
@@ -182,11 +205,14 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 
 	go debug.FreeOSMemory()
 
-	return resp, etag
+	return resp, etag, nil
 }
 
 func (c *MediaCache) rebuild(ctx context.Context, key string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) {
-	c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
+	_, _, err := c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
+	if err != nil {
+		log.Printf("[WARN] MediaCache rebuild error: %v", err)
+	}
 }
 
 func (c *MediaCache) LoadFromDisk(key string) bool {
