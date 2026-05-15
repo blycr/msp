@@ -7,6 +7,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'logo.svg'],
+      manifest: false,
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
@@ -18,19 +19,6 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
         ],
-      },
-      manifest: {
-        name: 'MSP Media Share',
-        short_name: 'MSP',
-        description: 'Local LAN Media Share & Preview',
-        theme_color: '#ffffff',
-        icons: [
-          {
-            src: 'logo.svg',
-            sizes: 'any',
-            type: 'image/svg+xml'
-          }
-        ]
       }
     })
   ],

@@ -82,6 +82,20 @@ func (h *Handler) resolveMediaTarget(w http.ResponseWriter, r *http.Request) (st
 		return "", nil, nil, err
 	}
 
+	// TOCTOU defense: re-resolve symlinks after open
+	resolvedTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		_ = f.Close()
+		writeError(w, http.StatusNotFound, "resolve failed")
+		return "", nil, nil, fmt.Errorf("resolve failed")
+	}
+	resolvedTarget = util.NormalizePath(resolvedTarget)
+	if !util.IsAllowedFile(resolvedTarget, shares) {
+		_ = f.Close()
+		writeError(w, http.StatusForbidden, "not allowed")
+		return "", nil, nil, fmt.Errorf("not allowed")
+	}
+
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {
 		_ = f.Close()
@@ -115,6 +129,22 @@ var contentTypeByExt = map[string]string{
 	".vtt":  "text/vtt; charset=utf-8",
 	".srt":  "text/plain; charset=utf-8",
 	".lrc":  "text/plain; charset=utf-8",
+}
+
+// mediaExts lists extensions that are safe to serve inline.
+// Non-media files are forced to attachment to prevent stored XSS.
+var mediaExts = map[string]bool{
+	".mp4": true, ".m4v": true, ".mkv": true, ".webm": true,
+	".avi": true, ".wmv": true, ".mov": true, ".ts": true,
+	".mp3": true, ".aac": true, ".ogg": true, ".flac": true,
+	".wav": true, ".m4a": true,
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+	".webp": true, ".svg": true, ".bmp": true,
+	".vtt": true, ".srt": true, ".lrc": true,
+}
+
+func isMediaExt(ext string) bool {
+	return mediaExts[strings.ToLower(ext)]
 }
 
 func (h *Handler) checkTranscodePolicy(r *http.Request, cfg config.Config, ext string) (bool, error) {
@@ -182,7 +212,11 @@ func (h *Handler) serveDirect(w http.ResponseWriter, r *http.Request, f *os.File
 		w.Header().Set("Cache-Control", "no-store")
 	}
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", st.Name()))
+	disposition := "inline"
+	if !isMediaExt(strings.ToLower(filepath.Ext(st.Name()))) {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, st.Name()))
 	http.ServeContent(w, r, st.Name(), time.Time{}, f)
 }
 

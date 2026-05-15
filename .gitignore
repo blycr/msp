@@ -161,6 +161,11 @@ CLAUDE.md
 OPTIMIZATION.md
 .cursorrules
 
+# Local deployment scripts (Cloudflare Tunnel auto-start)
+scripts/start-msp.ps1
+scripts/stop-msp.ps1
+scripts/create-task.ps1
+
 # Testing helper file
 test.json
 
@@ -211,3 +216,10 @@ trace.*.out
 PATCHES
 MERGE_MSG
 FETCH_HEAD
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Config backups
+config.json.backup.*
+

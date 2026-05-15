@@ -3,10 +3,13 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"msp/internal/constants"
 	"msp/internal/domain"
 )
+
+var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 
 func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -88,7 +91,15 @@ func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
 		writeJSONDecodeError(w, err)
 		return
 	}
+	if req.Level != "" && !validLogLevels[req.Level] {
+		writeError(w, http.StatusBadRequest, "invalid log level")
+		return
+	}
 	if req.Msg != "" {
+		if len(req.Msg) > 500 {
+			req.Msg = req.Msg[:500]
+		}
+		req.Msg = strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(req.Msg)
 		h.logger.Log(req.Level, req.Msg)
 	}
 	w.WriteHeader(http.StatusNoContent)

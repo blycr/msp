@@ -19,10 +19,50 @@ var (
 	ErrUnsupportedOp     = errors.New("unsupported operation")
 )
 
+func filterLocalhostURLs(urls []string) []string {
+	out := make([]string, 0, len(urls))
+	for _, u := range urls {
+		if !strings.Contains(u, "127.0.0.1") && !strings.Contains(u, "[::1]") {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
 func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		view := h.configService.GetConfigView()
+		level := getAccessLevelFromRequest(r)
+		view.AccessLevel = accessLevelString(level)
+
+		switch level {
+		case AccessLAN:
+			view.URLs = filterLocalhostURLs(view.URLs)
+			view.Config.Blacklist = config.BlacklistConfig{}
+			view.Config.Port = 0
+			view.Config.LogLevel = ""
+			view.Config.LogFile = ""
+			view.Config.MaxItems = 0
+			// shares: keep labels but strip paths
+			safeShares := make([]domain.Share, len(view.Config.Shares))
+			for i, sh := range view.Config.Shares {
+				safeShares[i] = domain.Share{Label: sh.Label, Path: ""}
+			}
+			view.Config.Shares = safeShares
+		case AccessRemote:
+			view.URLs = []string{}
+			view.LanIPs = []string{}
+			view.Config.Blacklist = config.BlacklistConfig{}
+			view.Config.Port = 0
+			view.Config.LogLevel = ""
+			view.Config.LogFile = ""
+			view.Config.MaxItems = 0
+			view.Config.Shares = []domain.Share{}
+			view.Config.Security.IPWhitelist = nil
+			view.Config.Security.IPBlacklist = nil
+		}
+
 		writeJSON(w, http.StatusOK, view)
 	case http.MethodPost:
 		var cfg config.Config
@@ -128,6 +168,12 @@ func (h *Handler) handleShareRemove(p string) (config.Config, error) {
 func (h *Handler) HandleIP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if getAccessLevelFromRequest(r) == AccessRemote {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"lanIPs": []string{},
+		})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

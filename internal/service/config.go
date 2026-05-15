@@ -44,6 +44,7 @@ type ConfigView struct {
 	NowUnix          int64      `json:"nowUnix"`
 	FFmpegAvailable  bool       `json:"ffmpegAvailable"`
 	FFprobeAvailable bool       `json:"ffprobeAvailable"`
+	AccessLevel      string     `json:"accessLevel"`
 }
 
 // SafeConfig is the safe view of Config, hiding sensitive information

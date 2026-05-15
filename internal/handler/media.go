@@ -4,8 +4,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"msp/internal/domain"
+)
+
+var (
+	lastRefreshTime time.Time
+	refreshMu       sync.Mutex
+	refreshCooldown = 30 * time.Second
 )
 
 func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
@@ -19,6 +27,16 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	blacklist := cfg.Blacklist
 
 	refresh := r.URL.Query().Get("refresh") == "1"
+	if refresh {
+		refreshMu.Lock()
+		if time.Since(lastRefreshTime) < refreshCooldown {
+			refreshMu.Unlock()
+			writeError(w, http.StatusTooManyRequests, "refresh cooldown")
+			return
+		}
+		lastRefreshTime = time.Now()
+		refreshMu.Unlock()
+	}
 	resp, etag := h.media.GetOrBuildMediaCache(r.Context(), shares, blacklist, refresh)
 
 	resp.VideosTotal = len(resp.Videos)

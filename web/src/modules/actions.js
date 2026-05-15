@@ -13,8 +13,11 @@ export async function loadConfig() {
     const data = await apiGet("/api/config");
     state.config = data.config;
     state.configUrls = data.urls || [];
-    const urls = (state.configUrls).slice(0, 3).join("  ");
-    bus.emit('meta:update', urls ? t("meta_urls", urls) : t("meta_noip"));
+    state.accessLevel = data.accessLevel || 'remote';
+    if (state.accessLevel !== 'remote') {
+      const urls = (state.configUrls).slice(0, 3).join("  ");
+      bus.emit('meta:update', urls ? t("meta_urls", urls) : t("meta_noip"));
+    }
     bus.emit('config:loaded');
   } catch (e) {
     console.error("Failed to load config:", e);
