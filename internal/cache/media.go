@@ -159,7 +159,7 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 				buildErr = err
 			}
 			var berr error
-			resp, berr = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+			resp, berr = media.BuildMediaResponse(ctx, shares, blacklist, maxItems, c.processor.IDCodec())
 			if berr != nil {
 				buildErr = berr
 			}
@@ -167,7 +167,7 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 		}
 	} else {
 		var err error
-		resp, err = media.BuildMediaResponse(ctx, shares, blacklist, maxItems)
+		resp, err = media.BuildMediaResponse(ctx, shares, blacklist, maxItems, c.processor.IDCodec())
 		if err != nil {
 			buildErr = err
 		}
@@ -223,10 +223,9 @@ func (c *MediaCache) LoadFromDisk(key string) bool {
 	}
 	c.mu.Lock()
 	already := c.key == key && !c.builtAt.IsZero()
-	need := c.key != key || c.builtAt.IsZero()
 	c.mu.Unlock()
-	if already || !need {
-		return already
+	if already {
+		return true
 	}
 
 	b, err := os.ReadFile(c.cacheFilePath)

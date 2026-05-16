@@ -74,7 +74,7 @@ func TestHandleSubtitleFileNotFound(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	vttPath := filepath.Join(tmpDir, "nonexistent.vtt")
-	id := util.EncodeID(vttPath)
+	id := util.NewIDCodec(nil).EncodeID(vttPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()
@@ -92,7 +92,7 @@ func TestHandleSubtitleForbiddenFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	vttPath := filepath.Join(tmpDir, "test.vtt")
 	_ = os.WriteFile(vttPath, []byte("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n"), 0600)
-	id := util.EncodeID(vttPath)
+	id := util.NewIDCodec(nil).EncodeID(vttPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()
@@ -112,7 +112,7 @@ func TestHandleSubtitleVTT(t *testing.T) {
 	vttContent := "WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nHello World\n"
 	vttPath := filepath.Join(tmpDir, "test.vtt")
 	_ = os.WriteFile(vttPath, []byte(vttContent), 0600)
-	id := util.EncodeID(vttPath)
+	id := util.NewIDCodec(nil).EncodeID(vttPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestHandleSubtitleSRT(t *testing.T) {
 	srtContent := "1\n00:00:01,000 --> 00:00:05,000\nHello World\n"
 	srtPath := filepath.Join(tmpDir, "test.srt")
 	_ = os.WriteFile(srtPath, []byte(srtContent), 0600)
-	id := util.EncodeID(srtPath)
+	id := util.NewIDCodec(nil).EncodeID(srtPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()
@@ -170,7 +170,7 @@ Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,Hello World
 `
 	assPath := filepath.Join(tmpDir, "test.ass")
 	_ = os.WriteFile(assPath, []byte(assContent), 0600)
-	id := util.EncodeID(assPath)
+	id := util.NewIDCodec(nil).EncodeID(assPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()
@@ -192,7 +192,7 @@ func TestHandleSubtitleUnsupportedFormat(t *testing.T) {
 
 	txtPath := filepath.Join(tmpDir, "test.xyz")
 	_ = os.WriteFile(txtPath, []byte("not a subtitle"), 0600)
-	id := util.EncodeID(txtPath)
+	id := util.NewIDCodec(nil).EncodeID(txtPath)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id, nil)
 	w := httptest.NewRecorder()

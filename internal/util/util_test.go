@@ -10,6 +10,12 @@ import (
 )
 
 func TestEncodeDecodeID(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	codec := NewIDCodec(key)
+
 	tests := []string{
 		"/path/to/file.mp4",
 		"C:\\Windows\\file.mp4",
@@ -18,8 +24,8 @@ func TestEncodeDecodeID(t *testing.T) {
 	}
 
 	for _, path := range tests {
-		encoded := EncodeID(path)
-		decoded, err := DecodeID(encoded)
+		encoded := codec.EncodeID(path)
+		decoded, err := codec.DecodeID(encoded)
 		if err != nil {
 			t.Errorf("DecodeID(%q) error: %v", encoded, err)
 			continue
@@ -31,6 +37,7 @@ func TestEncodeDecodeID(t *testing.T) {
 }
 
 func TestDecodeID_Invalid(t *testing.T) {
+	codec := NewIDCodec(make([]byte, 32))
 	tests := []string{
 		"",
 		"!!!",
@@ -38,7 +45,7 @@ func TestDecodeID_Invalid(t *testing.T) {
 	}
 
 	for _, id := range tests {
-		_, err := DecodeID(id)
+		_, err := codec.DecodeID(id)
 		if err == nil {
 			t.Errorf("DecodeID(%q) expected error, got nil", id)
 		}

@@ -54,7 +54,7 @@ func GetBlockedStringPattern(rule string) string {
 
 type WalkCallback func(item domain.MediaItem, path string, root string) error
 
-func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback) error {
+func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int, cb WalkCallback, idCodec *util.IDCodec) error {
 	limit := maxItems
 	if limit <= 0 {
 		limit = constants.DefaultScanLimit
@@ -66,6 +66,7 @@ func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.Bla
 		seen:      0,
 		dirCache:  make(map[string][]fs.DirEntry),
 		cb:        cb,
+		idCodec:   idCodec,
 	}
 
 	for _, sh := range shares {
@@ -93,6 +94,7 @@ type shareWalker struct {
 	seen      int
 	dirCache  map[string][]fs.DirEntry
 	cb        WalkCallback
+	idCodec   *util.IDCodec
 }
 
 func (w *shareWalker) walkShare(root string, shareLabel string) error {
@@ -127,7 +129,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 		return nil
 	}
 
-	item, err := buildMediaItem(p, d, shareLabel, w.dirCache)
+	item, err := w.buildMediaItem(p, d, shareLabel)
 	if err != nil {
 		log.Printf("[WARN] build media item error: %v", err)
 		return nil
@@ -178,7 +180,7 @@ func shouldSkipFile(d fs.DirEntry, blacklist config.BlacklistConfig) bool {
 	return false
 }
 
-func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[string][]fs.DirEntry) (domain.MediaItem, error) {
+func (w *shareWalker) buildMediaItem(path string, d fs.DirEntry, shareLabel string) (domain.MediaItem, error) {
 	fi, err := d.Info()
 	if err != nil {
 		return domain.MediaItem{}, err
@@ -187,7 +189,7 @@ func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[
 	ext := filepath.Ext(d.Name())
 	kind := ClassifyExt(ext)
 	item := domain.MediaItem{
-		ID:         util.EncodeID(path),
+		ID:         w.idCodec.EncodeID(path),
 		Name:       d.Name(),
 		Ext:        strings.ToLower(ext),
 		Kind:       kind,
@@ -197,15 +199,15 @@ func buildMediaItem(path string, d fs.DirEntry, shareLabel string, dirCache map[
 	}
 
 	if kind == "video" {
-		item.Subtitles = FindSidecarSubtitlesCached(path, dirCache)
+		item.Subtitles = FindSidecarSubtitlesCached(path, w.dirCache, w.idCodec)
 	}
 	if kind == "audio" {
-		cover, lyrics := FindAudioSidecarsCached(path, dirCache)
+		cover, lyrics := FindAudioSidecarsCached(path, w.dirCache)
 		if cover != "" {
-			item.CoverID = util.EncodeID(cover)
+			item.CoverID = w.idCodec.EncodeID(cover)
 		}
 		if lyrics != "" {
-			item.LyricsID = util.EncodeID(lyrics)
+			item.LyricsID = w.idCodec.EncodeID(lyrics)
 		}
 	}
 	return item, nil

@@ -8,6 +8,7 @@ import (
 	"msp/internal/config"
 	"msp/internal/domain"
 	"msp/internal/scanner"
+	"msp/internal/util"
 )
 
 func newMediaResponse(shares []domain.Share) domain.MediaResponse {
@@ -20,7 +21,7 @@ func newMediaResponse(shares []domain.Share) domain.MediaResponse {
 	}
 }
 
-func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, error) {
+func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int, idCodec *util.IDCodec) (domain.MediaResponse, error) {
 	resp := newMediaResponse(shares)
 	copy(resp.Shares, shares)
 
@@ -38,7 +39,7 @@ func BuildMediaResponse(ctx context.Context, shares []domain.Share, blacklist co
 		return nil
 	}
 
-	if err := scanner.WalkShares(ctx, shares, blacklist, maxItems, cb); err != nil {
+	if err := scanner.WalkShares(ctx, shares, blacklist, maxItems, cb, idCodec); err != nil {
 		return domain.MediaResponse{}, err
 	}
 

@@ -22,7 +22,7 @@ func setupTestMediaStore(t *testing.T) (*MediaProcessor, func()) {
 	sq, err := storage.InitSQLite(dbPath)
 	require.NoError(t, err)
 
-	mp := NewMediaProcessor(sq)
+	mp := NewMediaProcessor(sq, nil)
 	return mp, func() {
 		sq.Close()
 	}
@@ -30,7 +30,7 @@ func setupTestMediaStore(t *testing.T) (*MediaProcessor, func()) {
 
 func TestIsDBAvailable(t *testing.T) {
 	t.Run("nil DB", func(t *testing.T) {
-		mp := NewMediaProcessor(nil)
+		mp := NewMediaProcessor(nil, nil)
 		assert.False(t, mp.IsDBAvailable())
 	})
 
@@ -42,7 +42,7 @@ func TestIsDBAvailable(t *testing.T) {
 }
 
 func TestLoadMediaFromDBNoDB(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	ctx := context.Background()
 	_, _, ok, err := mp.LoadMediaFromDB(ctx, "key", nil)
 	assert.NoError(t, err)
@@ -127,14 +127,14 @@ func TestLoadMediaResponseFromDBScanEmpty(t *testing.T) {
 }
 
 func TestReindexAndLoadMediaNoDB(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	ctx := context.Background()
 	_, _, err := mp.ReindexAndLoadMedia(ctx, "key", nil, config.BlacklistConfig{}, 0)
 	assert.NoError(t, err)
 }
 
 func TestIndexMediaToDBNoDB(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	ctx := context.Background()
 	_, _, _, err := mp.IndexMediaToDB(ctx, "key", nil, config.BlacklistConfig{}, 0)
 	assert.NoError(t, err)

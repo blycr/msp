@@ -338,7 +338,7 @@ func TestWalkShares(t *testing.T) {
 			return nil
 		}
 
-		err := WalkShares(context.Background(), shares, blacklist, 0, cb)
+		err := WalkShares(context.Background(), shares, blacklist, 0, cb, nil)
 		require.NoError(t, err)
 
 		// 应该有 3 个媒体文件（2 视频 + 1 音频）
@@ -357,7 +357,7 @@ func TestWalkShares(t *testing.T) {
 			return nil
 		}
 
-		err := WalkShares(context.Background(), shares, blacklist, 2, cb)
+		err := WalkShares(context.Background(), shares, blacklist, 2, cb, nil)
 		require.NoError(t, err)
 
 		// 应该只有 2 个
@@ -376,7 +376,7 @@ func TestWalkShares(t *testing.T) {
 			return nil
 		}
 
-		err := WalkShares(ctx, shares, blacklist, 0, cb)
+		err := WalkShares(ctx, shares, blacklist, 0, cb, nil)
 		// 应该返回上下文取消错误
 		assert.Error(t, err)
 	})
@@ -394,7 +394,7 @@ func TestFindSidecarSubtitles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "movie.en.srt"), []byte("subtitle"), 0600))
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.srt"), []byte("subtitle"), 0600))
 
-	subs := FindSidecarSubtitles(videoPath)
+	subs := FindSidecarSubtitles(videoPath, nil)
 
 	// 应该找到 2 个字幕（zh 和 en）
 	assert.Len(t, subs, 2)
@@ -499,8 +499,8 @@ func TestBuildMediaItem(t *testing.T) {
 	}
 	require.NotNil(t, videoEntry)
 
-	cache := make(map[string][]os.DirEntry)
-	item, err := buildMediaItem(videoPath, videoEntry, "Videos", cache)
+	w := &shareWalker{idCodec: nil}
+	item, err := w.buildMediaItem(videoPath, videoEntry, "Videos")
 	require.NoError(t, err)
 
 	assert.Equal(t, "movie.mp4", item.Name)
@@ -660,12 +660,12 @@ func TestFindSidecarSubtitlesCached(t *testing.T) {
 
 	cache := make(map[string][]os.DirEntry)
 
-	subs := FindSidecarSubtitlesCached(videoPath, cache)
+	subs := FindSidecarSubtitlesCached(videoPath, cache, nil)
 	assert.Len(t, subs, 3)
 
 	assert.True(t, cache[tmpDir] != nil)
 
-	subs2 := FindSidecarSubtitlesCached(videoPath, cache)
+	subs2 := FindSidecarSubtitlesCached(videoPath, cache, nil)
 	assert.Len(t, subs2, 3)
 }
 
@@ -677,7 +677,7 @@ func TestFindSidecarSubtitlesNoMatch(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.zh.srt"), []byte("not matching"), 0600))
 
-	subs := FindSidecarSubtitles(videoPath)
+	subs := FindSidecarSubtitles(videoPath, nil)
 	assert.Nil(t, subs)
 }
 

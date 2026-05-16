@@ -16,32 +16,32 @@ func TestValidHWAccelModes(t *testing.T) {
 }
 
 func TestDetectHWAccel_NoneMode(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	result := mp.DetectHWAccel(HWAccelNone)
 	assert.NotNil(t, result)
 	assert.False(t, result.Available, "none mode should disable hardware acceleration")
 }
 
 func TestDetectHWAccel_AutoMode(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	result := mp.DetectHWAccel(HWAccelAuto)
 	assert.NotNil(t, result)
 }
 
 func TestDetectHWAccel_Idempotent(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	r1 := mp.DetectHWAccel(HWAccelNone)
 	r2 := mp.DetectHWAccel(HWAccelAuto)
 	assert.Equal(t, r1, r2, "DetectHWAccel must return the same pointer on repeated calls")
 }
 
 func TestGetHWAccel_BeforeDetection(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	assert.Nil(t, mp.GetHWAccel())
 }
 
 func TestDisableHWAccel(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.DetectHWAccel(HWAccelNone)
 
 	mp.hwAccel.result = &HWAccelResult{Available: true, Encoder: "h264_nvenc", Mode: HWAccelNVENC}
@@ -52,7 +52,7 @@ func TestDisableHWAccel(t *testing.T) {
 }
 
 func TestBuildVideoArgs_Software(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	initArgs, codecArgs := mp.BuildVideoArgs("2m")
 	assert.Nil(t, initArgs)
 	assert.Contains(t, codecArgs, "-vcodec")
@@ -62,14 +62,14 @@ func TestBuildVideoArgs_Software(t *testing.T) {
 }
 
 func TestBuildVideoArgs_SoftwareNoBitrate(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	initArgs, codecArgs := mp.BuildVideoArgs("")
 	assert.Nil(t, initArgs)
 	assert.NotContains(t, codecArgs, "-b:v")
 }
 
 func TestBuildVideoArgs_Hardware(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.hwAccel.result = &HWAccelResult{
 		Available: true,
 		Encoder:   "h264_nvenc",
@@ -91,7 +91,7 @@ func TestHWCandidates_NotEmpty(t *testing.T) {
 }
 
 func TestFormatHWAccelStatus(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 
 	// Trigger path discovery so we can override the discovered value
 	_ = mp.FFmpegPath()

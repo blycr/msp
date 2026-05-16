@@ -101,19 +101,19 @@ func TestTranscodeOptionsValidate(t *testing.T) {
 }
 
 func TestCheckFFmpeg(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	result := mp.CheckFFmpeg()
 	_ = result
 }
 
 func TestCheckFFprobe(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	result := mp.CheckFFprobe()
 	_ = result
 }
 
 func TestGetCodecInfo(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	if !mp.CheckFFprobe() {
 		t.Skip("FFprobe not installed, skipping test")
 	}
@@ -139,7 +139,7 @@ func TestGetCodecInfo(t *testing.T) {
 }
 
 func TestTranscodeStreamValidation(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	tmpDir := t.TempDir()
 
 	t.Run("directory instead of file", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestTranscodeStreamValidation(t *testing.T) {
 }
 
 func TestTranscodeStreamConcurrency(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	if !mp.CheckFFmpeg() {
 		t.Skip("FFmpeg not installed, skipping test")
 	}
@@ -225,7 +225,7 @@ func TestTranscodeStreamConcurrency(t *testing.T) {
 }
 
 func TestLimitReleaser(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.transcode.limit = make(chan struct{}, 2)
 
 	mp.transcode.limit <- struct{}{}
@@ -246,7 +246,7 @@ func TestLimitReleaser(t *testing.T) {
 }
 
 func TestSetTranscodeLimit(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 
 	mp.SetTranscodeLimit(6)
 	assert.Equal(t, 6, cap(mp.transcode.limit))
@@ -259,14 +259,14 @@ func TestSetTranscodeLimit(t *testing.T) {
 }
 
 func TestKillAllTranscodeProcessesNoPanic(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	assert.NotPanics(t, func() {
 		mp.KillAllTranscodeProcesses()
 	})
 }
 
 func TestKillAllTranscodeProcessesCleanup(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.transcode.mu.Lock()
 	mp.transcode.active = make(map[*exec.Cmd]struct{})
 	mp.transcode.mu.Unlock()
@@ -279,7 +279,7 @@ func TestKillAllTranscodeProcessesCleanup(t *testing.T) {
 }
 
 func TestRemoveProcess(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.transcode.active = make(map[*exec.Cmd]struct{})
 
 	cmd := &exec.Cmd{}

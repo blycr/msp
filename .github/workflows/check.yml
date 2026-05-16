@@ -46,7 +46,13 @@ jobs:
           bun run build
 
       - name: Run Go Tests
-        run: go test -v -race ./...
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
 
       - name: Run Go Vet
         run: go vet ./...

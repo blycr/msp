@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"msp/internal/domain"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -205,39 +206,17 @@ func isValidIPOrCIDR(s string) bool {
 
 	// 检查 CIDR 格式
 	if strings.Contains(s, "/") {
-		parts := strings.Split(s, "/")
-		if len(parts) != 2 {
-			return false
-		}
-		// 验证前缀长度
-		prefix, err := strconv.Atoi(parts[1])
-		if err != nil || prefix < 0 || prefix > 32 {
-			return false
-		}
-		s = parts[0]
+		_, _, err := net.ParseCIDR(s)
+		return err == nil
 	}
 
 	// 验证 IP 地址
 	return isValidIP(s)
 }
 
-// isValidIP 验证 IPv4 地址
+// isValidIP 验证 IP 地址（IPv4 或 IPv6）
 func isValidIP(s string) bool {
-	parts := strings.Split(s, ".")
-	if len(parts) != 4 {
-		return false
-	}
-
-	for _, part := range parts {
-		n, err := strconv.Atoi(part)
-		if err != nil {
-			return false
-		}
-		if n < 0 || n > 255 {
-			return false
-		}
-	}
-	return true
+	return net.ParseIP(s) != nil
 }
 
 // validateBlacklist 验证黑名单配置

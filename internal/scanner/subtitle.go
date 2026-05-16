@@ -23,11 +23,14 @@ func IsLyricsExt(ext string) bool {
 	return ext == ".lrc"
 }
 
-func FindSidecarSubtitles(mediaAbs string) []domain.Subtitle {
-	return FindSidecarSubtitlesCached(mediaAbs, make(map[string][]fs.DirEntry))
+func FindSidecarSubtitles(mediaAbs string, idCodec *util.IDCodec) []domain.Subtitle {
+	return FindSidecarSubtitlesCached(mediaAbs, make(map[string][]fs.DirEntry), idCodec)
 }
 
-func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry) []domain.Subtitle {
+func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry, idCodec *util.IDCodec) []domain.Subtitle {
+	if cache == nil {
+		cache = make(map[string][]fs.DirEntry)
+	}
 	dir := filepath.Dir(mediaAbs)
 	base := strings.TrimSuffix(filepath.Base(mediaAbs), filepath.Ext(mediaAbs))
 	ents, ok := cache[dir]
@@ -41,7 +44,7 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry)
 		cache[dir] = ents
 	}
 
-	out := collectSubtitles(dir, base, ents)
+	out := collectSubtitles(dir, base, ents, idCodec)
 	if len(out) == 0 {
 		return nil
 	}
@@ -117,7 +120,7 @@ func extractBaseVariants(base string) []string {
 	return variants
 }
 
-func collectSubtitles(dir, base string, ents []fs.DirEntry) []domain.Subtitle {
+func collectSubtitles(dir, base string, ents []fs.DirEntry, idCodec *util.IDCodec) []domain.Subtitle {
 	baseVariants := extractBaseVariants(base)
 	var out []domain.Subtitle
 
@@ -152,7 +155,7 @@ func collectSubtitles(dir, base string, ents []fs.DirEntry) []domain.Subtitle {
 		}
 
 		abs := filepath.Join(dir, name)
-		id := util.EncodeID(abs)
+		id := idCodec.EncodeID(abs)
 		src := "/api/stream?id=" + id
 		if ext == ".srt" || ext == ".ass" || ext == ".ssa" {
 			src = "/api/subtitle?id=" + id

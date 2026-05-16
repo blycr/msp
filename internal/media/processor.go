@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"msp/internal/storage"
+	"msp/internal/util"
 )
 
 // MediaProcessor consolidates all media package state that was previously
@@ -37,6 +38,8 @@ type MediaProcessor struct {
 		result   *HWAccelResult
 		disabled atomic.Bool
 	}
+
+	idCodec *util.IDCodec
 }
 
 // Option configures a MediaProcessor during construction.
@@ -54,8 +57,8 @@ func WithTranscodeLimit(n int) Option {
 
 // NewMediaProcessor creates a new MediaProcessor with the given database
 // connection and options.
-func NewMediaProcessor(db *storage.SQLite, opts ...Option) *MediaProcessor {
-	mp := &MediaProcessor{db: db}
+func NewMediaProcessor(db *storage.SQLite, idCodec *util.IDCodec, opts ...Option) *MediaProcessor {
+	mp := &MediaProcessor{db: db, idCodec: idCodec}
 	mp.probeTTL.Store(int64(5 * time.Minute))
 	mp.transcode.limit = make(chan struct{}, 2)
 	mp.transcode.active = make(map[*exec.Cmd]struct{})
@@ -81,4 +84,12 @@ func (mp *MediaProcessor) SetTranscodeLimit(n int) {
 	// Only safe because no active transcodes exist at startup.
 	mp.transcode.limit = make(chan struct{}, n)
 	log.Printf("[INFO] Transcode concurrency limit set to %d", n)
+}
+
+// IDCodec returns the IDCodec used by this processor.
+func (mp *MediaProcessor) IDCodec() *util.IDCodec {
+	if mp == nil {
+		return nil
+	}
+	return mp.idCodec
 }

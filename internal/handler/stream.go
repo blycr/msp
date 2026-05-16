@@ -59,12 +59,12 @@ func (h *Handler) resolveMediaTarget(w http.ResponseWriter, r *http.Request) (st
 		return "", nil, nil, fmt.Errorf("missing id")
 	}
 
-	target, err := util.DecodeID(id)
+	target, err := h.idCodec.DecodeID(id)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "bad id")
 		return "", nil, nil, err
 	}
-	//nolint:gosec // Validated via util.DecodeID and IsAllowedFile below
+	//nolint:gosec // Validated via idCodec.DecodeID and IsAllowedFile below
 	target = util.NormalizePath(target)
 
 	cfg := h.config.Config()
@@ -232,12 +232,12 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, err := util.DecodeID(id)
+	target, err := h.idCodec.DecodeID(id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, domain.ProbeResponse{Error: &domain.ApiError{Message: constants.ErrMsgBadID}})
 		return
 	}
-	//nolint:gosec // Validated via util.DecodeID
+	//nolint:gosec // Validated via idCodec.DecodeID
 	target = util.NormalizePath(target)
 
 	cfg := h.config.Config()
@@ -252,7 +252,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	video, audio := scanner.SniffContainerCodecs(target, ext)
 	var subs []domain.Subtitle
 	if scanner.ClassifyExt(ext) == "video" {
-		subs = scanner.FindSidecarSubtitles(target)
+		subs = scanner.FindSidecarSubtitles(target, h.idCodec)
 	}
 
 	kind := scanner.ClassifyExt(ext)

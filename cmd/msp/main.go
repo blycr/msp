@@ -53,14 +53,20 @@ func main() {
 		log.Printf("Warning: Failed to initialize database: %v", err)
 	}
 
-	processor := media.NewMediaProcessor(sq)
-
 	idKeyPath := filepath.Join(util.MustExeDir(), "msp.key")
 	idKey, err := util.LoadOrCreateKey(idKeyPath)
 	if err != nil {
 		log.Printf("Warning: Failed to load/create ID key: %v", err)
-	} else {
-		util.SetIDKey(idKey)
+	}
+	idCodec := util.NewIDCodec(idKey)
+
+	processor := media.NewMediaProcessor(sq, idCodec)
+
+	// Migrate old-format PlaybackProgress media_ids to deterministic IDs.
+	if sq != nil && idCodec != nil {
+		if err := migrateProgressMediaIDs(sq, idCodec); err != nil {
+			log.Printf("Warning: Failed to migrate progress media IDs: %v", err)
+		}
 	}
 
 	s := server.New(cfgPath, processor)
@@ -84,7 +90,7 @@ func main() {
 
 	store := storage.NewStore(sq)
 
-	mux := registerRoutes(s, processor, store, webRoot)
+	mux := registerRoutes(s, processor, store, webRoot, idCodec)
 
 	port := s.GetPort()
 	addr := ":" + util.Itoa(port)
@@ -140,7 +146,7 @@ func shutdownGracefully(srv *http.Server, s *server.Server, processor *media.Med
 	log.Println("Shutdown complete")
 }
 
-func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *storage.Store, webRoot fs.FS) *http.ServeMux {
+func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *storage.Store, webRoot fs.FS, idCodec *util.IDCodec) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/favicon.ico", http.NotFoundHandler())
 
@@ -152,6 +158,7 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 		Progress:  store,
 		Prefs:     store,
 		Processor: processor,
+		IDCodec:   idCodec,
 	})
 
 	mux.Handle("/api/config", http.HandlerFunc(h.HandleConfig))
@@ -246,4 +253,43 @@ func initHWAccel(processor *media.MediaProcessor, s *server.Server) {
 
 	log.Printf("转码引擎: %s (并发上限: %d)", processor.FormatHWAccelStatus(), maxJobs)
 	fmt.Printf("转码引擎: %s (并发上限: %d)\n", processor.FormatHWAccelStatus(), maxJobs)
+}
+
+// migrateProgressMediaIDs migrates old PlaybackProgress records whose
+// media_id was generated with a random nonce to the new deterministic
+// format. The old IDs remain decryptable because the AES-GCM algorithm
+// itself has not changed — only the nonce derivation is now deterministic.
+func migrateProgressMediaIDs(sq *storage.SQLite, codec *util.IDCodec) error {
+	if sq == nil || codec == nil {
+		return nil
+	}
+	progressList, err := sq.ListAllProgress(context.Background())
+	if err != nil {
+		return fmt.Errorf("list progress: %w", err)
+	}
+	var migrated int
+	for _, p := range progressList {
+		path, err := codec.DecodeID(p.MediaID)
+		if err != nil {
+			// Old ID may be corrupted or plain base64; skip.
+			continue
+		}
+		newID := codec.EncodeID(path)
+		if newID == p.MediaID {
+			continue // already deterministic
+		}
+		if err := sq.DeleteProgress(context.Background(), p.MediaID); err != nil {
+			log.Printf("[WARN] migrate progress: failed to delete old ID %q: %v", p.MediaID, err)
+			continue
+		}
+		if err := sq.SetProgress(context.Background(), newID, p.Time); err != nil {
+			log.Printf("[WARN] migrate progress: failed to set new ID %q: %v", newID, err)
+			continue
+		}
+		migrated++
+	}
+	if migrated > 0 {
+		log.Printf("[INFO] Migrated %d playback progress records to deterministic IDs", migrated)
+	}
+	return nil
 }

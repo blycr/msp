@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.6.0
+
+- **修复：确定性 MediaID（根治 v1.5.1 临时补丁）**
+  - `internal/util/crypto_id.go`：`EncodeID` 的 nonce 从随机 `io.ReadFull(rand.Reader)` 改为 `HMAC-SHA256(key, path)[:nonceSize]` 确定性派生。同一文件始终生成相同 ID。
+  - 新增 `IDCodec` 结构体，彻底消除 `globalIDKey` 包级全局变量，改为依赖注入。
+  - `internal/storage/sqlite.go`：`UpsertMediaItems` 的 `OnConflict` 从 `path` 改回 `id`，恢复标准主键冲突策略。
+  - `cmd/msp/main.go`：启动时自动执行 `PlaybackProgress` 旧 `media_id` 迁移（旧 ID → DecodeID 还原路径 → 新确定性 ID → 更新记录），失败仅记录日志不中断启动。
+- **架构：全面依赖注入化**
+  - `internal/media/processor.go`：`MediaProcessor` 持有 `idCodec`。
+  - `internal/scanner/scanner.go` / `subtitle.go`：`WalkShares`、`FindSidecarSubtitlesCached` 等函数接收 `idCodec` 参数。
+  - `internal/handler/handler.go` / `stream.go`：`Handler` 通过 `Deps.IDCodec` 注入，`stream.go` 使用 `h.idCodec.DecodeID`。
+- **文档修复**
+  - `README.md`：删除 Acknowledgements 中已移除的 Gin 框架引用。
+  - `README.md`：更新 Firefox 已知问题说明（已做 GPU 层兼容性处理）。
+- **CI / 覆盖率**
+  - `.github/workflows/check.yml`：`go test` 增加 `-coverprofile=coverage.out`。
+  - `.github/workflows/check.yml`：新增 coverage artifact 上传步骤。
+  - `README.md`：增加 Codecov coverage badge。
+- **可观测性**
+  - `internal/storage/sqlite.go`：12 个数据库操作函数在 `s.db == nil` 时增加 `[WARN]` 日志，消除静默失败。
+- **测试**
+  - 新增 `internal/handler/integration_test.go`：覆盖扫描→入库→API 返回全链路、MediaID 稳定性、Range 请求、字幕集成。
+- **配置验证**
+  - `internal/config/validate.go`：`isValidIP` 改为 `net.ParseIP`，支持 IPv6；`isValidIPOrCIDR` 改为 `net.ParseCIDR`，支持 IPv6 CIDR。
+- **代码清理**
+  - `internal/cache/media.go`：`LoadFromDisk` 消除冗余布尔逻辑（`already || !need` 恒等于 `already`）。
+
 ## 1.5.1
 
 - **修复：添加共享目录后前端不显示媒体**

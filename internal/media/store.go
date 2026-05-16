@@ -139,7 +139,7 @@ func (mp *MediaProcessor) performScan(ctx context.Context, tx *gorm.DB, scanID i
 		return nil
 	}
 
-	if err := scanner.WalkShares(ctx, shares, blacklist, limit, cb); err != nil {
+	if err := scanner.WalkShares(ctx, shares, blacklist, limit, cb, mp.idCodec); err != nil {
 		return 0, fmt.Errorf("walk shares: %w", err)
 	}
 

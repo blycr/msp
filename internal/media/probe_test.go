@@ -13,7 +13,7 @@ import (
 )
 
 func TestSetProbeCacheTTL(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 
 	mp.SetProbeCacheTTL(10 * time.Minute)
 	assert.Equal(t, int64(10*time.Minute), mp.probeTTL.Load())
@@ -23,7 +23,7 @@ func TestSetProbeCacheTTL(t *testing.T) {
 }
 
 func TestClearProbeCache(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.probeCache.Store("test-key", probeCacheEntry{
 		info:   CodecInfo{VideoCodec: "h264"},
 		mtime:  12345,
@@ -67,7 +67,7 @@ func TestGetFileMtime(t *testing.T) {
 }
 
 func TestProbeCacheExpiry(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.SetProbeCacheTTL(100 * time.Millisecond)
 
 	tmpDir := t.TempDir()
@@ -98,21 +98,21 @@ func TestProbeCacheExpiry(t *testing.T) {
 }
 
 func TestCheckFFmpegWithoutPanic(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	assert.NotPanics(t, func() {
 		_ = mp.CheckFFmpeg()
 	})
 }
 
 func TestCheckFFprobeWithoutPanic(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	assert.NotPanics(t, func() {
 		_ = mp.CheckFFprobe()
 	})
 }
 
 func TestFFmpegPathDiscovery(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 
 	assert.NotPanics(t, func() {
 		_ = mp.FFmpegPath()
@@ -165,7 +165,7 @@ func TestPlatformCandidatePaths(t *testing.T) {
 }
 
 func TestGetCodecInfoWithFakeFile(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	if !mp.CheckFFprobe() {
 		t.Skip("FFprobe not installed, skipping test")
 	}
@@ -185,7 +185,7 @@ func TestGetCodecInfoWithFakeFile(t *testing.T) {
 }
 
 func TestProbeCacheHit(t *testing.T) {
-	mp := NewMediaProcessor(nil)
+	mp := NewMediaProcessor(nil, nil)
 	mp.SetProbeCacheTTL(5 * time.Minute)
 
 	tmpDir := t.TempDir()

@@ -136,7 +136,7 @@ func TestResolveMediaTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		outsideFile := filepath.Join(tmpDir, "outside.mp4")
 		_ = os.WriteFile(outsideFile, []byte("x"), 0600)
-		id := util.EncodeID(outsideFile)
+		id := util.NewIDCodec(nil).EncodeID(outsideFile)
 		r := httptest.NewRequest(http.MethodGet, "/api/stream?id="+id, nil)
 		_, _, _, err := h.resolveMediaTarget(w, r)
 		if err == nil {

@@ -13,7 +13,7 @@ import (
 func TestBuildMediaResponseEmpty(t *testing.T) {
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "Empty", Path: "/nonexistent_path_12345"}}
-	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestBuildMediaResponseWithFiles(t *testing.T) {
 		{Label: "Videos", Path: videoDir},
 		{Label: "Audio", Path: audioDir},
 	}
-	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestBuildMediaResponseMaxItems(t *testing.T) {
 
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "V", Path: tmpDir}}
-	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 2)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 2, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildMediaResponseSorted(t *testing.T) {
 
 	ctx := context.Background()
 	shares := []domain.Share{{Label: "V", Path: tmpDir}}
-	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0)
+	resp, err := BuildMediaResponse(ctx, shares, config.BlacklistConfig{}, 0, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

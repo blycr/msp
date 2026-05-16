@@ -10,6 +10,7 @@ import (
 	"msp/internal/media"
 	"msp/internal/service"
 	"msp/internal/storage"
+	"msp/internal/util"
 )
 
 type ConfigProvider interface {
@@ -41,6 +42,7 @@ type Deps struct {
 	Progress  storage.ProgressStore
 	Prefs     storage.PrefsStore
 	Processor *media.MediaProcessor
+	IDCodec   *util.IDCodec
 }
 
 type Handler struct {
@@ -52,6 +54,7 @@ type Handler struct {
 	prefs         storage.PrefsStore
 	configService *service.ConfigService
 	processor     *media.MediaProcessor
+	idCodec       *util.IDCodec
 }
 
 const (
@@ -69,5 +72,6 @@ func New(deps Deps) *Handler {
 		prefs:         deps.Prefs,
 		configService: service.NewConfigService(deps.Config, deps.Media, deps.Processor),
 		processor:     deps.Processor,
+		idCodec:       deps.IDCodec,
 	}
 }

@@ -89,7 +89,11 @@ func (s *SQLite) DB() *gorm.DB {
 // ProgressStore implementation
 
 func (s *SQLite) GetProgress(ctx context.Context, mediaID string) (float64, error) {
-	if s.db == nil || mediaID == "" {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.GetProgress: database not initialized")
+		return 0, nil
+	}
+	if mediaID == "" {
 		return 0, nil
 	}
 	var p domain.PlaybackProgress
@@ -101,7 +105,11 @@ func (s *SQLite) GetProgress(ctx context.Context, mediaID string) (float64, erro
 }
 
 func (s *SQLite) SetProgress(ctx context.Context, mediaID string, t float64) error {
-	if s.db == nil || mediaID == "" {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.SetProgress: database not initialized")
+		return nil
+	}
+	if mediaID == "" {
 		return nil
 	}
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
@@ -112,10 +120,34 @@ func (s *SQLite) SetProgress(ctx context.Context, mediaID string, t float64) err
 	}).Error
 }
 
+func (s *SQLite) DeleteProgress(ctx context.Context, mediaID string) error {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.DeleteProgress: database not initialized")
+		return nil
+	}
+	if mediaID == "" {
+		return nil
+	}
+	return s.db.WithContext(ctx).Delete(&domain.PlaybackProgress{}, "media_id = ?", mediaID).Error
+}
+
+func (s *SQLite) ListAllProgress(ctx context.Context) ([]domain.PlaybackProgress, error) {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.ListAllProgress: database not initialized")
+		return nil, nil
+	}
+	var list []domain.PlaybackProgress
+	if err := s.db.WithContext(ctx).Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 // PrefsStore implementation
 
 func (s *SQLite) GetAllPrefs(ctx context.Context) (map[string]string, error) {
 	if s.db == nil {
+		log.Printf("[WARN] SQLite.GetAllPrefs: database not initialized")
 		return map[string]string{}, nil
 	}
 	var prefs []domain.UserPref
@@ -130,7 +162,11 @@ func (s *SQLite) GetAllPrefs(ctx context.Context) (map[string]string, error) {
 }
 
 func (s *SQLite) SetPrefs(ctx context.Context, kv map[string]string) error {
-	if s.db == nil || len(kv) == 0 {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.SetPrefs: database not initialized")
+		return nil
+	}
+	if len(kv) == 0 {
 		return nil
 	}
 
@@ -150,7 +186,11 @@ func (s *SQLite) SetPrefs(ctx context.Context, kv map[string]string) error {
 // Media-related database operations
 
 func (s *SQLite) GetScanMeta(ctx context.Context, cacheKey string) (domain.MediaScan, bool, error) {
-	if s.db == nil || cacheKey == "" {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.GetScanMeta: database not initialized")
+		return domain.MediaScan{}, false, nil
+	}
+	if cacheKey == "" {
 		return domain.MediaScan{}, false, nil
 	}
 	var scan domain.MediaScan
@@ -166,7 +206,11 @@ func (s *SQLite) SetScanMeta(ctx context.Context, tx *gorm.DB, cacheKey string, 
 	if tx != nil {
 		dbConn = tx
 	}
-	if dbConn == nil || cacheKey == "" {
+	if dbConn == nil {
+		log.Printf("[WARN] SQLite.SetScanMeta: database not initialized")
+		return nil
+	}
+	if cacheKey == "" {
 		return nil
 	}
 	meta.CacheKey = cacheKey
@@ -181,6 +225,7 @@ func (s *SQLite) UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *domain.
 		dbConn = tx
 	}
 	if dbConn == nil {
+		log.Printf("[WARN] SQLite.UpsertMediaItem: database not initialized")
 		return nil
 	}
 	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
@@ -194,11 +239,15 @@ func (s *SQLite) UpsertMediaItems(ctx context.Context, tx *gorm.DB, items []doma
 	if tx != nil {
 		dbConn = tx
 	}
-	if dbConn == nil || len(items) == 0 {
+	if dbConn == nil {
+		log.Printf("[WARN] SQLite.UpsertMediaItems: database not initialized")
+		return nil
+	}
+	if len(items) == 0 {
 		return nil
 	}
 	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "path"}},
+		Columns:   []clause.Column{{Name: "id"}},
 		UpdateAll: true,
 	}).Create(&items).Error
 }
@@ -208,7 +257,11 @@ func (s *SQLite) DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int6
 	if tx != nil {
 		dbConn = tx
 	}
-	if dbConn == nil || scanID <= 0 || len(shareRoots) == 0 {
+	if dbConn == nil {
+		log.Printf("[WARN] SQLite.DeleteStaleByScan: database not initialized")
+		return nil
+	}
+	if scanID <= 0 || len(shareRoots) == 0 {
 		return nil
 	}
 	return dbConn.WithContext(ctx).Where("scan_id != ? AND share_root IN ?", scanID, shareRoots).Delete(&domain.MediaItem{}).Error
@@ -220,6 +273,7 @@ func (s *SQLite) DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, share
 		dbConn = tx
 	}
 	if dbConn == nil {
+		log.Printf("[WARN] SQLite.DeleteByShareRootsNotIn: database not initialized")
 		return nil
 	}
 	if len(shareRoots) == 0 {
@@ -229,7 +283,11 @@ func (s *SQLite) DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, share
 }
 
 func (s *SQLite) QueryMediaItems(ctx context.Context, scanID int64, kind string) ([]domain.MediaItem, error) {
-	if s.db == nil || scanID <= 0 || kind == "" {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.QueryMediaItems: database not initialized")
+		return nil, nil
+	}
+	if scanID <= 0 || kind == "" {
 		return nil, nil
 	}
 	var items []domain.MediaItem
@@ -241,7 +299,11 @@ func (s *SQLite) QueryMediaItems(ctx context.Context, scanID int64, kind string)
 }
 
 func (s *SQLite) CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error) {
-	if s.db == nil || scanID <= 0 || kind == "" {
+	if s.db == nil {
+		log.Printf("[WARN] SQLite.CountMediaItems: database not initialized")
+		return 0, nil
+	}
+	if scanID <= 0 || kind == "" {
 		return 0, nil
 	}
 	var count int64

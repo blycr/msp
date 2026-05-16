@@ -8,6 +8,7 @@
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
 ![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
 ![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
+![Codecov](https://img.shields.io/codecov/c/github/blycr/msp?style=flat-square)
 [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/blycr/msp)
 
 <h3>Your Personal LAN Cinema.</h3>
@@ -31,7 +32,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 - Browser client: desktop and mobile modern browsers.
 - Local-first: no cloud account, no tracking.
 
-> **Note for Firefox users:** The audio metadata panel (`audioMeta`) may occasionally render as a black block. For the best experience, a Chromium-based browser is recommended.
+> **Note for Firefox users:** Compatibility treatments (GPU layer compositing) have been applied for the audio metadata panel (`audioMeta`). If rendering issues persist, a Chromium-based browser is recommended.
 
 ## Playback Behavior
 
@@ -102,5 +103,4 @@ MIT License © 2024-Present [blycr](https://github.com/blycr)
 ## Acknowledgements
 
 *   [Plyr](https://github.com/sampotts/plyr) - A simple, accessible HTML5 media player.
-*   [Gin](https://github.com/gin-gonic/gin) - HTTP web framework written in Go.
 *   [GORM](https://gorm.io/) - The fantastic ORM library for Golang.

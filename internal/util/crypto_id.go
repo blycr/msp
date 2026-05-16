@@ -3,18 +3,25 @@ package util
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"io"
 	"os"
 )
 
-var globalIDKey []byte
+// IDCodec encrypts and decrypts media path IDs using AES-GCM with a
+// deterministic nonce derived from the path via HMAC-SHA256.
+// A nil key causes EncodeID to fall back to plain base64.
+type IDCodec struct {
+	key []byte
+}
 
-// SetIDKey sets the global AES-GCM key used for ID encryption/decryption.
-func SetIDKey(key []byte) {
-	globalIDKey = key
+// NewIDCodec creates a new IDCodec. A nil key causes EncodeID to fall back
+// to plain base64.
+func NewIDCodec(key []byte) *IDCodec {
+	return &IDCodec{key: key}
 }
 
 // LoadOrCreateKey loads an existing 32-byte key from path, or generates
@@ -36,11 +43,11 @@ func LoadOrCreateKey(path string) ([]byte, error) {
 
 // EncodeID encrypts an absolute path into a URL-safe base64 string.
 // Falls back to plain base64 if no key is configured.
-func EncodeID(path string) string {
-	if globalIDKey == nil {
+func (c *IDCodec) EncodeID(path string) string {
+	if c == nil || c.key == nil {
 		return base64.RawURLEncoding.EncodeToString([]byte(path))
 	}
-	block, err := aes.NewCipher(globalIDKey)
+	block, err := aes.NewCipher(c.key)
 	if err != nil {
 		return base64.RawURLEncoding.EncodeToString([]byte(path))
 	}
@@ -49,16 +56,18 @@ func EncodeID(path string) string {
 		return base64.RawURLEncoding.EncodeToString([]byte(path))
 	}
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return base64.RawURLEncoding.EncodeToString([]byte(path))
-	}
+	// Derive deterministic nonce from path using HMAC-SHA256.
+	mac := hmac.New(sha256.New, c.key)
+	mac.Write([]byte(path))
+	sum := mac.Sum(nil)
+	copy(nonce, sum[:gcm.NonceSize()])
 	ciphertext := gcm.Seal(nonce, nonce, []byte(path), nil)
 	return base64.RawURLEncoding.EncodeToString(ciphertext)
 }
 
 // DecodeID decrypts a URL-safe base64 ID back to the original path.
 // Falls back to plain base64 if no key is configured.
-func DecodeID(id string) (string, error) {
+func (c *IDCodec) DecodeID(id string) (string, error) {
 	if id == "" {
 		return "", errors.New("empty id")
 	}
@@ -66,10 +75,10 @@ func DecodeID(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if globalIDKey == nil {
+	if c == nil || c.key == nil {
 		return string(b), nil
 	}
-	block, err := aes.NewCipher(globalIDKey)
+	block, err := aes.NewCipher(c.key)
 	if err != nil {
 		return "", err
 	}
