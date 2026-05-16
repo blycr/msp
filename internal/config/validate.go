@@ -146,10 +146,19 @@ func validateSecurity(sec *SecurityConfig) []error {
 
 	// 验证 PIN 码
 	if sec.PINEnabled {
-		if err := validatePIN(sec.PIN); err != nil {
+		// If a plaintext PIN is provided, validate its format.
+		// Otherwise ensure a hash exists.
+		if sec.PIN != "" {
+			if err := validatePIN(sec.PIN); err != nil {
+				errors = append(errors, &ValidationError{
+					Field:   "security.pin",
+					Message: err.Error(),
+				})
+			}
+		} else if sec.PINHash == "" {
 			errors = append(errors, &ValidationError{
-				Field:   "security.pin",
-				Message: err.Error(),
+				Field:   "security.pinHash",
+				Message: "PIN 已启用但未配置",
 			})
 		}
 	}

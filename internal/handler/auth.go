@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"crypto/subtle"
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"msp/internal/constants"
 )
@@ -57,8 +58,8 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject if PIN is enabled but not configured (empty)
-	if cfg.Security.PIN == "" {
+	// Reject if PIN is enabled but no hash is stored.
+	if cfg.Security.PINHash == "" {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid":   false,
 			"enabled": true,
@@ -87,7 +88,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	valid := constantTimeCompare(req.PIN, cfg.Security.PIN)
+	valid := bcrypt.CompareHashAndPassword([]byte(cfg.Security.PINHash), []byte(req.PIN)) == nil
 	if valid {
 		resetPINAttempt(clientIP)
 		sessionToken, err := h.session.CreateSession()
@@ -120,15 +121,4 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func constantTimeCompare(a, b string) bool {
-	// Pad to same length to prevent length-based timing leak
-	maxLen := len(a)
-	if len(b) > maxLen {
-		maxLen = len(b)
-	}
-	aBytes := make([]byte, maxLen)
-	bBytes := make([]byte, maxLen)
-	copy(aBytes, a)
-	copy(bBytes, b)
-	return subtle.ConstantTimeCompare(aBytes, bBytes) == 1
-}
+

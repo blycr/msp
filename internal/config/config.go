@@ -1,7 +1,10 @@
 package config
 
 import (
+	"log"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"msp/internal/constants"
 	"msp/internal/domain"
@@ -91,8 +94,12 @@ type SecurityConfig struct {
 	// PINEnabled enables PIN authentication
 	PINEnabled bool `json:"pinEnabled"`
 
-	// PIN is the authentication code (default: "0000")
+	// PIN is the plaintext authentication code (transient, never stored).
+	// When non-empty, it is hashed into PINHash and cleared on save.
 	PIN string `json:"pin"`
+
+	// PINHash stores the bcrypt hash of the PIN. This is the persistent field.
+	PINHash string `json:"pinHash"`
 }
 
 type Config struct {
@@ -303,10 +310,26 @@ func applySecurityDefaults(cfg *Config) bool {
 		changed = true
 	}
 	// Safety: if PIN is enabled but not configured, disable it to avoid lockout.
-	if cfg.Security.PINEnabled && cfg.Security.PIN == "" {
+	if cfg.Security.PINEnabled && cfg.Security.PINHash == "" && cfg.Security.PIN == "" {
 		cfg.Security.PINEnabled = false
 		changed = true
 	}
 	// TrustProxy defaults to false for security
 	return changed
+}
+
+// SanitizeSecurity hashes a plaintext PIN into PINHash and clears PIN.
+// Call this after loading config from disk and before saving.
+func SanitizeSecurity(cfg *Config) {
+	if cfg.Security.PIN == "" {
+		return
+	}
+	// Use bcrypt with default cost (10). PINs are 4-8 digits, well within 72-byte limit.
+	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Security.PIN), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("[WARN] Failed to hash PIN: %v", err)
+		return
+	}
+	cfg.Security.PINHash = string(hash)
+	cfg.Security.PIN = ""
 }

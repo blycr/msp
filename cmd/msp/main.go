@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"msp/internal/config"
 	"msp/internal/handler"
 	"msp/internal/media"
 	"msp/internal/server"
@@ -73,6 +74,13 @@ func main() {
 
 	if err := s.LoadOrInitConfig(); err != nil {
 		log.Fatal(err)
+	}
+
+	// Migrate plaintext PIN to bcrypt hash if present.
+	if err := s.UpdateConfig(func(cfg *config.Config) {
+		config.SanitizeSecurity(cfg)
+	}); err != nil {
+		log.Printf("[WARN] Failed to hash PIN: %v", err)
 	}
 
 	s.SetupLogger()

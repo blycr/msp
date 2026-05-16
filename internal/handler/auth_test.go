@@ -14,26 +14,6 @@ import (
 	"msp/internal/storage"
 )
 
-func TestConstantTimeCompare(t *testing.T) {
-	tests := []struct {
-		a, b string
-		want bool
-	}{
-		{"1234", "1234", true},
-		{"1234", "1235", false},
-		{"", "", true},
-		{"abc", "ab", false},
-		{"ab", "abc", false},
-		{"abc", "ABC", false},
-	}
-	for _, tt := range tests {
-		got := constantTimeCompare(tt.a, tt.b)
-		if got != tt.want {
-			t.Errorf("constantTimeCompare(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
-		}
-	}
-}
-
 // setupTestHandlerWithRealServer 创建一个具有真实 server 和临时目录 share 的 Handler
 func setupTestHandlerWithRealServer(t *testing.T) (*Handler, *server.Server, string) {
 	t.Helper()

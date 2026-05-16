@@ -102,6 +102,7 @@ func (s *ConfigService) GetConfigView() ConfigView {
 
 func (s *ConfigService) UpdateConfig(cfg config.Config) (config.Config, error) {
 	config.ApplyDefaults(&cfg)
+	config.SanitizeSecurity(&cfg)
 	cfg.Shares = util.NormalizeShares(cfg.Shares)
 
 	validShares := make([]domain.Share, 0, len(cfg.Shares))

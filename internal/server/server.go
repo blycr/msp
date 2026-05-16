@@ -103,6 +103,7 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 	defer s.mu.Unlock()
 	fn(&s.cfg)
 	config.ApplyDefaults(&s.cfg)
+	config.SanitizeSecurity(&s.cfg)
 	return s.saveConfigLocked()
 }
 

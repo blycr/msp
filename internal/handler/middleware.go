@@ -181,12 +181,14 @@ type bucket struct {
 type RateLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*bucket
+	maxSize int
 }
 
 // NewRateLimiter creates a new in-memory rate limiter.
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
 		buckets: make(map[string]*bucket),
+		maxSize: 10000,
 	}
 }
 
@@ -198,6 +200,16 @@ func (rl *RateLimiter) Allow(ip string, rate float64, capacity float64) bool {
 
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+
+	// Evict a random bucket if at capacity and this is a new IP.
+	if len(rl.buckets) >= rl.maxSize {
+		if _, exists := rl.buckets[ip]; !exists {
+			for k := range rl.buckets {
+				delete(rl.buckets, k)
+				break
+			}
+		}
+	}
 
 	b, exists := rl.buckets[ip]
 	if !exists {

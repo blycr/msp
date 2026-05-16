@@ -53,7 +53,7 @@
     "ipBlacklist": [],
     "trustProxy": false,
     "pinEnabled": false,
-    "pin": "0000"
+    "pinHash": ""
   },
   "logLevel": "info",
   "logFile": "",
