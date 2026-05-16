@@ -23,11 +23,22 @@ var (
 	pinAttemptsMu    sync.RWMutex
 	maxPINFailures   = 5
 	pinBlockDuration = 15 * time.Minute
+	maxPinAttempts   = 1000
 )
 
 func getPINAttempt(ip string) *pinAttempt {
 	pinAttemptsMu.Lock()
 	defer pinAttemptsMu.Unlock()
+
+	// Evict a random entry if at capacity and this is a new IP.
+	if len(pinAttempts) >= maxPinAttempts {
+		if _, exists := pinAttempts[ip]; !exists {
+			for k := range pinAttempts {
+				delete(pinAttempts, k)
+				break
+			}
+		}
+	}
 
 	entry, exists := pinAttempts[ip]
 	if !exists {

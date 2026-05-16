@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.1
+
+- **安全：PIN 明文存储 → bcrypt 哈希**
+  - `SecurityConfig` 新增 `PINHash` 字段，config.json 中不再持久化明文 PIN。
+  - 新增 `config.SanitizeSecurity`：自动将明文 PIN 哈希为 bcrypt 并存入 `PINHash`，清空 `PIN`。
+  - `auth.go`：`HandlePIN` 验证改为 `bcrypt.CompareHashAndPassword`。
+  - 启动时自动迁移旧版明文 PIN；配置热重载后新 PIN 也会自动哈希。
+- **安全：RateLimiter / PIN 暴力破解防护的内存上限**
+  - `RateLimiter` 新增 `maxSize = 10000`，超限后随机驱逐，防止 IP 轮换攻击导致的内存无限增长。
+  - `pinAttempts` 新增 `maxPinAttempts = 1000`，超限后随机驱逐。
+- **工程：消除 sqlite.go DRY 违反**
+  - 提取 `guard()` / `guardTx()` 内部 wrapper，替换 14 处重复的 `if s.db == nil` 守卫逻辑。
+- **可观测性**
+  - `DeleteByShareRootsNotIn` 在执行无条件全表删除时输出 `[WARN]` 日志。
+
 ## 1.6.0
 
 - **修复：确定性 MediaID（根治 v1.5.1 临时补丁）**

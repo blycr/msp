@@ -279,6 +279,7 @@ func (s *SQLite) DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, share
 		return nil
 	}
 	if len(shareRoots) == 0 {
+		log.Printf("[WARN] SQLite.DeleteByShareRootsNotIn: deleting all media items (no active shares)")
 		return dbConn.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&domain.MediaItem{}).Error
 	}
 	return dbConn.WithContext(ctx).Where("share_root NOT IN ?", shareRoots).Delete(&domain.MediaItem{}).Error
