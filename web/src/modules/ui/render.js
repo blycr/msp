@@ -16,6 +16,9 @@ export function setMeta(text) {
 }
 
 export function showDlg(show) {
+  if (show && state.accessLevel !== 'local') {
+    return;
+  }
   el("dlgBackdrop").hidden = !show;
   el("dlg").hidden = !show;
 }
@@ -59,7 +62,7 @@ export function updateUIForLang() {
   if (blHint) blHint.innerHTML = t("bl_hint");
 
   // Refresh meta text on language switch
-  if (state.configUrls !== undefined) {
+  if (state.configUrls !== undefined && state.accessLevel !== 'remote') {
     const urls = (state.configUrls || []).slice(0, 3).join("  ");
     bus.emit('meta:update', urls ? t("meta_urls", urls) : t("meta_noip"));
   }
@@ -71,7 +74,8 @@ export function renderList() {
   box.innerHTML = "";
 
   if (!state.media || (state.media.shares || []).length === 0) {
-    hint.textContent = t("hint_noshare");
+    const hintKey = state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote';
+    hint.textContent = t(hintKey);
     return;
   }
 

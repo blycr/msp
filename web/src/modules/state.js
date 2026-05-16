@@ -90,6 +90,7 @@ export const state = {
     order: 1,
   },
   scanning: false,
+  accessLevel: 'local',
 };
 
 // Initialize sort from LS

@@ -55,6 +55,14 @@ func main() {
 
 	processor := media.NewMediaProcessor(sq)
 
+	idKeyPath := filepath.Join(util.MustExeDir(), "msp.key")
+	idKey, err := util.LoadOrCreateKey(idKeyPath)
+	if err != nil {
+		log.Printf("Warning: Failed to load/create ID key: %v", err)
+	} else {
+		util.SetIDKey(idKey)
+	}
+
 	s := server.New(cfgPath, processor)
 
 	if err := s.LoadOrInitConfig(); err != nil {
@@ -83,13 +91,15 @@ func main() {
 
 	printStartupBanner(cfgPath, port)
 
-	finalHandler := handler.WithRecovery(handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithGzip(mux))))
+	limiter := handler.NewRateLimiter()
+	finalHandler := handler.WithRecovery(handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithRateLimit(limiter, handler.WithAdminLockdown(handler.WithGzip(mux))))))
 
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           finalHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 

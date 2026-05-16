@@ -102,6 +102,7 @@ func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fn(&s.cfg)
+	config.ApplyDefaults(&s.cfg)
 	return s.saveConfigLocked()
 }
 

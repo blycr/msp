@@ -9,8 +9,8 @@ func TestDefaultValues(t *testing.T) {
 	if DefaultPort != 8099 {
 		t.Errorf("DefaultPort = %d, want 8099", DefaultPort)
 	}
-	if DefaultPIN != "0000" {
-		t.Errorf("DefaultPIN = %s, want 0000", DefaultPIN)
+	if DefaultPIN != "" {
+		t.Errorf("DefaultPIN = %s, want empty string", DefaultPIN)
 	}
 }
 

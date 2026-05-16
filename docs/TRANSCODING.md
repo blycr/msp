@@ -89,7 +89,7 @@ func (mp *MediaProcessor) resolveFFmpegPaths() {
 
 ```
 # FFmpeg 找到
-[INFO] FFmpeg found: C:\Users\blycr\bin\ffmpeg.exe
+[INFO] FFmpeg found: C:\Users\<username>\bin\ffmpeg.exe
 转码引擎: hardware (h264_nvenc) (并发上限: 4)
 
 # FFmpeg 未找到

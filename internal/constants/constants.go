@@ -9,8 +9,8 @@ const (
 	// DefaultPort 是 HTTP 服务的默认端口
 	DefaultPort = 8099
 
-	// DefaultPIN 是默认的 PIN 码
-	DefaultPIN = "0000"
+	// DefaultPIN 是默认的 PIN 码（空表示未设置）
+	DefaultPIN = ""
 )
 
 // 文件系统权限

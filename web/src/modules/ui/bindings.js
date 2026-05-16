@@ -11,6 +11,16 @@ import { renderShares, updateBlacklistUI } from './shares.js';
 import { applyConfigToUI } from './settings.js';
 
 export function bindUI() {
+  // Hide settings button for non-local access
+  const settingsBtn = el("btnSettings");
+  function updateSettingsBtn() {
+    if (settingsBtn) {
+      settingsBtn.hidden = state.accessLevel !== 'local';
+    }
+  }
+  updateSettingsBtn();
+  bus.on('config:loaded', updateSettingsBtn);
+
   el("langBtn").addEventListener("click", () => {
     state.lang = state.lang === "en" ? "zh" : "en";
     lsSet(LS.lang, state.lang);

@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.0
+
+- **安全审计全面修复**（14 项漏洞，P0–P3）：
+  - **PIN 暴力破解防护**：5 次错误后锁定 15 分钟，per-IP 计数器
+  - **取消弱默认 PIN**：`DefaultPIN` 从 `"0000"` 改为 `""`
+  - **常数时间 PIN 比较**：`crypto/subtle.ConstantTimeCompare`
+  - **配置死锁防护**：`pinEnabled=true` + `pin=""` 自动降级为 `false`
+  - **全局限流器**：Token-Bucket（per-IP，Local 豁免），`/api/pin` 1/5s、`/api/media?refresh=1` 1/30s
+  - **三级访问分级**：Local（完整功能）/ LAN（隐藏设置+过滤配置）/ Remote（清空敏感字段+管理 API 403）
+  - **Cloudflare Tunnel 识别**：回环+CF 头时识别为 Remote
+  - **TOCTOU 竞态修复**：Open 后二次 `EvalSymlinks` + `IsAllowedFile`
+  - **Inline XSS 防护**：非媒体文件强制 `Content-Disposition: attachment`
+  - **Refresh DoS 冷却**：全局 30s
+  - **CSP + HSTS**：完整 Content-Security-Policy；HTTPS 时 HSTS
+  - **AES-GCM 媒体 ID 加密**：替代 base64 路径编码，启动时自动生成 `msp.key`
+  - **客户端日志注入防护**：level 白名单 + 消息截断 500 字符 + 换行过滤
+  - **WriteTimeout 60s**、IP 黑白名单 CF 修复、移除废弃 `X-XSS-Protection`
+- **前端访问分级配套**：设置按钮按环境显示/隐藏、分级提示翻译
+- **⚠️ 破坏性变更**：旧 base64 ID 书签失效（需重新收藏）
+
 ## 1.4.0
 
 - **前端样式重构与组件化**：

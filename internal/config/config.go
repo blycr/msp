@@ -302,8 +302,9 @@ func applySecurityDefaults(cfg *Config) bool {
 		cfg.Security.IPBlacklist = []string{}
 		changed = true
 	}
-	if cfg.Security.PIN == "" {
-		cfg.Security.PIN = constants.DefaultPIN
+	// Safety: if PIN is enabled but not configured, disable it to avoid lockout.
+	if cfg.Security.PINEnabled && cfg.Security.PIN == "" {
+		cfg.Security.PINEnabled = false
 		changed = true
 	}
 	// TrustProxy defaults to false for security

@@ -1,8 +1,6 @@
 package util
 
 import (
-	"encoding/base64"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -14,24 +12,6 @@ import (
 	"msp/internal/constants"
 	"msp/internal/domain"
 )
-
-// EncodeID 将绝对路径编码为 Base64 URL 安全的字符串。
-func EncodeID(absPath string) string {
-	b := []byte(absPath)
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-// DecodeID 将 Base64 编码的 ID 解码回原始路径。
-func DecodeID(id string) (string, error) {
-	b, err := base64.RawURLEncoding.DecodeString(id)
-	if err != nil {
-		return "", err
-	}
-	if len(b) == 0 {
-		return "", errors.New("empty")
-	}
-	return string(b), nil
-}
 
 // NormalizePath 规范化路径，去除引号，转换为系统路径分隔符，并返回绝对路径。
 func NormalizePath(p string) string {
