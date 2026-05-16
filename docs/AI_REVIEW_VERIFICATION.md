@@ -1,10 +1,26 @@
 # MSP 项目外部 AI 评审核验报告
 
 > 核验日期: 2026-05-16  
+> 修复版本: **v1.6.0** (2026-05-16)  
 > 核验对象:
 > - `docs/review_by_haiku_4_6.md`
 > - `docs/review_by_sonnet_4_6.md`
 > - 当前代码基线: HEAD (含未提交变更)
+
+---
+
+## 修复状态
+
+| 优先级 | 问题 | 修复状态 | 相关 PR/Commit |
+|--------|------|----------|----------------|
+| P0 | AES-GCM 随机 nonce 导致 MediaID 不稳定 | ✅ 已修复 | v1.6.0 |
+| P0 | globalIDKey 包级全局变量 | ✅ 已修复（改为 IDCodec 依赖注入） | v1.6.0 |
+| P1 | README 错误引用 Gin | ✅ 已修复 | v1.6.0 |
+| P1 | 缺少覆盖率 Badge / CI 上报 | ✅ 已修复 | v1.6.0 |
+| P2 | 多处数据库操作静默失败 | ✅ 已修复（12 处增加 WARN 日志） | v1.6.0 |
+| P2 | 缺少集成测试 | ✅ 已修复（新增 integration_test.go） | v1.6.0 |
+| P3 | isValidIP 仅支持 IPv4 | ✅ 已修复（改为 net.ParseIP） | v1.6.0 |
+| P3 | cache/media.go LoadFromDisk 逻辑冗余 | ✅ 已修复 | v1.6.0 |
 
 ---
 

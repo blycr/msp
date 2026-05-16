@@ -211,6 +211,10 @@ main.go
     │
     ├──► 设置 GC 参数、日志格式
     │
+    ├──► 初始化 IDCodec
+    │       └── util.NewIDCodec(key) — 加载/生成 msp.key
+    │           └── 确定性 nonce：HMAC-SHA256(key, path)[:gcm.NonceSize()]
+    │
     ├──► 创建 Server 实例
     │       └── New(cfgPath, processor)
     │           ├── 初始化 SessionService
@@ -293,8 +297,8 @@ Handler.HandleMedia()
     │                       │       │       ├── 扫描文件系统
     │                       │       │       ├── 写入数据库
     │                       │       │       └── 返回结果
-    │                       │       └── 否 -> media.BuildMediaResponse()
-    │                       │               └── scanner.WalkShares()
+    │                       │       └── 否 -> media.BuildMediaResponse(idCodec)
+    │                       │               └── scanner.WalkShares(idCodec)
     │                       │                       ├── 遍历共享目录
     │                       │                       ├── 过滤黑名单
     │                       │                       ├── 分类文件类型
@@ -318,7 +322,7 @@ Handler.HandleMedia()
 Handler.HandleStream()
     │
     ├──► 解析并验证媒体 ID
-    │       └── util.DecodeID() -> 文件路径
+    │       └── h.idCodec.DecodeID() -> 文件路径
     │
     ├──► 安全验证 util.IsAllowedFile()
     │       └── 确保文件在共享目录内
@@ -594,7 +598,7 @@ DetectHWAccel(mode)
 ### 7.2 文件扫描过滤逻辑 (internal/scanner/scanner.go)
 
 ```
-WalkShares(ctx, shares, blacklist, limit, callback)
+WalkShares(ctx, shares, blacklist, limit, callback, idCodec)
     │
     ├── 遍历每个共享目录
     │
@@ -612,7 +616,7 @@ WalkShares(ctx, shares, blacklist, limit, callback)
     │       └── 大小规则过滤
     │
     └── 构建 MediaItem 并回调
-            ├── 生成 ID（路径 Base64）
+            ├── 生成 ID（AES-GCM 加密路径，确定性 nonce）
             ├── 分类文件类型 ClassifyExt()
             ├── 视频文件 -> 查找外挂字幕
             └── 音频文件 -> 查找封面和歌词

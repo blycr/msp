@@ -31,7 +31,7 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 - 浏览器客户端：支持桌面端与移动端现代浏览器。
 - 本地优先：不依赖云账号，不做数据追踪。
 
-> **Firefox 用户提示：** 音频信息面板（`audioMeta`）偶尔可能出现黑块渲染问题。如需最佳体验，推荐使用 Chromium 内核浏览器。
+> **Firefox 用户提示：** 已针对音频信息面板（`audioMeta`）应用 GPU 层兼容性处理（`translateZ(0)`）。如仍出现渲染问题，推荐使用 Chromium 内核浏览器。
 
 ## 播放策略
 
@@ -102,5 +102,4 @@ cd msp
 ## 致谢
 
 *   [Plyr](https://github.com/sampotts/plyr) - 简单、灵活的 HTML5 媒体播放器。
-*   [Gin](https://github.com/gin-gonic/gin) - 高性能 Go Web 框架。
 *   [GORM](https://gorm.io/) - 优秀的 Golang ORM 库。
