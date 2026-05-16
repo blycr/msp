@@ -149,9 +149,25 @@ func (s *Server) checkAndReloadConfig() {
 
 	config.ApplyDefaults(&cfg)
 
+	oldPIN := cfg.Security.PIN
+	config.SanitizeSecurity(&cfg)
+
 	s.mu.Lock()
 	s.cfg = cfg
 	s.cfgModTime = stat.ModTime()
+
+	// If a plaintext PIN was hashed during reload, persist it back to disk
+	// to avoid the next HandlePIN seeing an empty PINHash.
+	if oldPIN != "" && cfg.Security.PIN == "" {
+		if err := s.saveConfigLocked(); err != nil {
+			s.Log("error", "Failed to save config after PIN sanitization: "+err.Error())
+		} else {
+			if st, err := os.Stat(s.cfgPath); err == nil {
+				s.cfgModTime = st.ModTime()
+			}
+		}
+	}
+
 	s.mu.Unlock()
 
 	s.logger.UpdateConfig(cfg.LogLevel, cfg.LogFile)
