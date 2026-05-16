@@ -73,7 +73,13 @@ export function renderList() {
   const hint = el("hint");
   box.innerHTML = "";
 
-  if (!state.media || (state.media.shares || []).length === 0) {
+  const hasItems = state.media && (
+    (state.media.videos || []).length > 0 ||
+    (state.media.audios || []).length > 0 ||
+    (state.media.images || []).length > 0 ||
+    (state.media.others || []).length > 0
+  );
+  if (!hasItems) {
     const hintKey = state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote';
     hint.textContent = t(hintKey);
     return;

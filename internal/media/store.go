@@ -63,22 +63,20 @@ func (mp *MediaProcessor) IndexMediaToDB(ctx context.Context, cacheKey string, s
 		_ = tx.Rollback()
 	}()
 
-	seen, err := mp.performScan(ctx, tx, scanID, validShares, blacklist, maxItems)
-	if err != nil {
-		return 0, time.Time{}, false, err
-	}
-
 	limit := maxItems
 	if limit <= 0 {
 		limit = constants.DBScanLimit
 	}
-	complete = seen < limit
 
-	if complete {
-		if err := mp.cleanupStaleData(ctx, tx, scanID, shareRoots); err != nil {
-			return 0, time.Time{}, false, err
-		}
+	if err := mp.cleanupStaleData(ctx, tx, scanID, shareRoots); err != nil {
+		return 0, time.Time{}, false, err
 	}
+
+	seen, err := mp.performScan(ctx, tx, scanID, validShares, blacklist, maxItems)
+	if err != nil {
+		return 0, time.Time{}, false, err
+	}
+	complete = seen < limit
 
 	if err := mp.db.SetScanMeta(ctx, tx, cacheKey, domain.MediaScan{ScanID: scanID, BuiltAt: builtAt.UnixNano(), Complete: complete}); err != nil {
 		return 0, time.Time{}, false, err
@@ -114,11 +112,17 @@ func (mp *MediaProcessor) performScan(ctx context.Context, tx *gorm.DB, scanID i
 
 	const batchSize = 100
 	batch := make([]domain.MediaItem, 0, batchSize)
+	batchPaths := make(map[string]bool, batchSize)
 
 	cb := func(item domain.MediaItem, path string, root string) error {
 		item.ScanID = scanID
 		item.ShareRoot = root
 		item.Path = path
+
+		if batchPaths[path] {
+			return nil
+		}
+		batchPaths[path] = true
 		batch = append(batch, item)
 
 		if len(batch) >= batchSize {
@@ -126,6 +130,9 @@ func (mp *MediaProcessor) performScan(ctx context.Context, tx *gorm.DB, scanID i
 				return fmt.Errorf("batch upsert media items: %w", err)
 			}
 			batch = batch[:0]
+			for k := range batchPaths {
+				delete(batchPaths, k)
+			}
 		}
 
 		seen++
@@ -158,6 +165,7 @@ func (mp *MediaProcessor) cleanupStaleData(ctx context.Context, tx *gorm.DB, sca
 // LoadMediaResponseFromDBScan 从指定的扫描会话加载媒体响应。
 func (mp *MediaProcessor) LoadMediaResponseFromDBScan(ctx context.Context, scanID int64, shares []domain.Share) (domain.MediaResponse, error) {
 	resp := newMediaResponse(shares)
+	copy(resp.Shares, shares)
 
 	videos, err := mp.db.QueryMediaItems(ctx, scanID, "video")
 	if err != nil {

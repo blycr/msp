@@ -279,7 +279,7 @@ export function applyPlyr(element, onMediaEnded) {
 
       state.plyr.once("ready", () => {
         element.currentTime = targetTime;
-        if (!isPaused) state.plyr.play().catch(() => { });
+        if (!isPaused && state.plyr) state.plyr.play().catch(() => { });
       });
     });
   }

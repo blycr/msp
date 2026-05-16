@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.1
+
+- **修复：添加共享目录后前端不显示媒体**
+  - `internal/media/store.go`：`LoadMediaResponseFromDBScan` 添加 `copy(resp.Shares, shares)`；`IndexMediaToDB` 先清理旧数据再扫描，避免 DB 唯一约束冲突；batch 内增加路径去重。
+  - `internal/storage/sqlite.go`：`UpsertMediaItems` 的 `OnConflict` 从 `id` 改为 `path`（适配 AES-GCM 随机 nonce 导致每次扫描 id 不同的问题）。
+  - `web/src/modules/ui/render.js`：`renderList()` 改为检查实际媒体项（videos/audios/images/others）而非仅 shares 数组。
+  - `web/src/modules/actions.js`：`loadMedia(true)` 后若 `scanning: true` 自动启动轮询（1.5s / 15 次），无需手动刷新。
+- **修复：控制台双重时间戳日志**
+  - `internal/service/logger.go`：移除手动时间戳拼接，消除 `log.Println` 与 `log.SetFlags` 的双重时间戳。
+- **修复：Local/LAN 访问触发 429 Too Many Requests**
+  - `internal/handler/media.go`：`refreshCooldown` 仅对非 Local 生效。
+  - `internal/handler/middleware.go`：LAN 访问豁免限流；限流范围收紧为仅 4 个管理端点（`POST /api/pin`、`GET /api/media?refresh=1`、`POST /api/config`、`POST /api/shares`），stream/probe/progress/subtitle/log 等正常播放 API 不限流。
+- **修复：播放时 `TypeError: Cannot read properties of null (reading 'play')`**
+  - `web/src/modules/player/play.js` 和 `core.js`：所有 `state.plyr.play()` 调用前添加 null 检查，防止 Plyr `ready` 异步回调执行时实例已被销毁。
+
 ## 1.5.0
 
 - **安全审计全面修复**（14 项漏洞，P0–P3）：

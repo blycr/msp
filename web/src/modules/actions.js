@@ -80,6 +80,31 @@ export async function loadMedia(refresh, limit) {
   if (!refresh && !isLimitedRequest) {
     bus.emit('media:resume');
   }
+
+  // If a refresh triggered a background scan, start polling
+  if (refresh && state.scanning) {
+    startMediaPolling();
+  }
+}
+
+let mediaPollTimer = 0;
+
+function startMediaPolling() {
+  if (mediaPollTimer) {
+    clearInterval(mediaPollTimer);
+    mediaPollTimer = 0;
+  }
+  let polls = 0;
+  mediaPollTimer = setInterval(async () => {
+    polls++;
+    if (polls > 15 || !state.scanning) {
+      clearInterval(mediaPollTimer);
+      mediaPollTimer = 0;
+      return;
+    }
+    await loadMedia(false).catch(() => { });
+    bus.emit('media:loaded');
+  }, 1500);
 }
 
 export async function boot() {
@@ -137,16 +162,9 @@ export async function boot() {
       await loadMedia(false).catch(() => { }); // Use non-refresh first to get what's in DB
 
       // If still scanning or empty, poll for a while to update the list incrementally
-      let polls = 0;
-      const poll = setInterval(async () => {
-        polls++;
-        if (polls > 10 || !state.scanning) {
-          clearInterval(poll);
-          return;
-        }
-        await loadMedia(false).catch(() => { });
-        bus.emit('media:loaded');
-      }, 2000);
+      if (state.scanning) {
+        startMediaPolling();
+      }
     }, 50);
   } catch (e) {
     bus.emit('meta:update', t("meta_fail"));

@@ -227,23 +227,24 @@ func minFloat64(a, b float64) float64 {
 func getRateLimitConfig(path, method string, isRefresh bool) (rate float64, capacity float64) {
 	switch {
 	case path == "/api/pin" && method == http.MethodPost:
-		return 0.2, 5 // 1 per 5s, burst 5
+		return 0.2, 5 // 1 per 5s, burst 5 — brute-force protection
 	case path == "/api/media" && isRefresh:
-		return 0.033, 1 // 1 per 30s, burst 1
-	case path == "/api/stream":
-		return 2, 10 // 2/s, burst 10
-	case strings.HasPrefix(path, "/api/"):
-		return 10, 20 // 10/s, burst 20
+		return 0.033, 1 // 1 per 30s, burst 1 — scan abuse protection
+	case path == "/api/config" && method == http.MethodPost:
+		return 0.2, 3 // 1 per 5s, burst 3 — config tampering protection
+	case path == "/api/shares" && method == http.MethodPost:
+		return 0.2, 3 // 1 per 5s, burst 3 — share tampering protection
 	default:
-		return 0, 0 // no limit for static assets
+		return 0, 0 // no limit for streaming, progress, subtitles, logs, etc.
 	}
 }
 
 // WithRateLimit applies token-bucket rate limiting per IP.
-// Local access is exempt from rate limiting.
+// Local and LAN access are exempt from rate limiting.
 func WithRateLimit(limiter *RateLimiter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if getAccessLevelFromRequest(r) == AccessLocal {
+		level := getAccessLevelFromRequest(r)
+		if level == AccessLocal || level == AccessLAN {
 			next.ServeHTTP(w, r)
 			return
 		}

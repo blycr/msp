@@ -193,8 +193,10 @@ export async function playItem(item, opts) {
         state.plyr.once("ready", async () => {
           let perFileTime = 0;
           try { perFileTime = await getProgress(item.id); } catch { }
-          if (perFileTime > 0) state.plyr.currentTime = perFileTime;
-          state.plyr.play().catch(() => { });
+          if (state.plyr) {
+            if (perFileTime > 0) state.plyr.currentTime = perFileTime;
+            state.plyr.play().catch(() => { });
+          }
         });
       } else {
         getProgress(item.id).then(t => {
@@ -326,7 +328,7 @@ export async function playItem(item, opts) {
 
           if (options.autoplay) {
             setTimeout(() => {
-              state.plyr.play().catch(() => { });
+              if (state.plyr) state.plyr.play().catch(() => { });
               forceCaptions();
               state.plyr.on("ended", onMediaEnded);
               state.isSwitchingMedia = false;
@@ -385,8 +387,10 @@ export async function playItem(item, opts) {
         state.plyr.once("ready", async () => {
           let perFileTime = 0;
           try { perFileTime = await getProgress(item.id); } catch { }
-          if (perFileTime > 0) state.plyr.currentTime = perFileTime;
-          state.plyr.play().catch(() => { });
+          if (state.plyr) {
+            if (perFileTime > 0) state.plyr.currentTime = perFileTime;
+            state.plyr.play().catch(() => { });
+          }
         });
       } else {
         getProgress(item.id).then(t => {

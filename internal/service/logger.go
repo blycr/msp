@@ -88,8 +88,7 @@ func (l *LoggerService) Log(level string, msg string) {
 	}
 
 	if shouldLog {
-		ts := time.Now().Format(constants.LogTimeFormat)
-		line := fmt.Sprintf("%s [%s] %s", ts, strings.ToUpper(level), msg)
+		line := fmt.Sprintf("[%s] %s", strings.ToUpper(level), msg)
 		log.Println(line)
 
 		if cnt := atomic.AddInt32(&l.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {

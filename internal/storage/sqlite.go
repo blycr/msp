@@ -198,7 +198,7 @@ func (s *SQLite) UpsertMediaItems(ctx context.Context, tx *gorm.DB, items []doma
 		return nil
 	}
 	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
+		Columns:   []clause.Column{{Name: "path"}},
 		UpdateAll: true,
 	}).Create(&items).Error
 }

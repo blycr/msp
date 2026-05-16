@@ -27,7 +27,7 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 	blacklist := cfg.Blacklist
 
 	refresh := r.URL.Query().Get("refresh") == "1"
-	if refresh {
+	if refresh && getAccessLevelFromRequest(r) != AccessLocal {
 		refreshMu.Lock()
 		if time.Since(lastRefreshTime) < refreshCooldown {
 			refreshMu.Unlock()
