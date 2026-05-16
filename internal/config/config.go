@@ -302,8 +302,11 @@ func applySecurityDefaults(cfg *Config) bool {
 		cfg.Security.IPBlacklist = []string{}
 		changed = true
 	}
-	// REMOVED: do NOT auto-fill PIN with a weak default.
-	// If PIN is enabled but empty, authentication will be rejected until configured.
+	// Safety: if PIN is enabled but not configured, disable it to avoid lockout.
+	if cfg.Security.PINEnabled && cfg.Security.PIN == "" {
+		cfg.Security.PINEnabled = false
+		changed = true
+	}
 	// TrustProxy defaults to false for security
 	return changed
 }
