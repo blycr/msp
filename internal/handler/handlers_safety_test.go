@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,7 +67,7 @@ func TestHandlePINRejectsLargePayload(t *testing.T) {
 	}
 }
 
-func TestHandlePINCookieSecureAlwaysDisabled(t *testing.T) {
+func TestHandlePINCookieSecureWhenHTTPS(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
 
@@ -80,26 +81,71 @@ func TestHandlePINCookieSecureAlwaysDisabled(t *testing.T) {
 
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
-	req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(`{"pin":"1234"}`))
-	req.Header.Set("X-Forwarded-Proto", "https")
-	w := httptest.NewRecorder()
 
-	h.HandlePIN(w, req)
-
-	resp := w.Result()
-	defer func() { _ = resp.Body.Close() }()
-	found := false
-	for _, c := range resp.Cookies() {
-		if c.Name == "msp_session" {
-			found = true
-			if c.Secure {
-				t.Fatal("home mode should not set secure cookie")
+	// Case 1: direct TLS connection → Secure cookie
+	t.Run("direct TLS", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(`{"pin":"1234"}`))
+		req.TLS = &tls.ConnectionState{} // simulate TLS
+		w := httptest.NewRecorder()
+		h.HandlePIN(w, req)
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		found := false
+		for _, c := range resp.Cookies() {
+			if c.Name == "msp_session" {
+				found = true
+				if !c.Secure {
+					t.Fatal("TLS connection should set secure cookie")
+				}
 			}
 		}
-	}
-	if !found {
-		t.Fatal("session cookie not found")
-	}
+		if !found {
+			t.Fatal("session cookie not found")
+		}
+	})
+
+	// Case 2: HTTPS via proxy (X-Forwarded-Proto) → Secure cookie
+	t.Run("HTTPS via proxy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(`{"pin":"1234"}`))
+		req.Header.Set("X-Forwarded-Proto", "https")
+		w := httptest.NewRecorder()
+		h.HandlePIN(w, req)
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		found := false
+		for _, c := range resp.Cookies() {
+			if c.Name == "msp_session" {
+				found = true
+				if !c.Secure {
+					t.Fatal("HTTPS via proxy should set secure cookie")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("session cookie not found")
+		}
+	})
+
+	// Case 3: plain HTTP → no Secure cookie
+	t.Run("plain HTTP", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(`{"pin":"1234"}`))
+		w := httptest.NewRecorder()
+		h.HandlePIN(w, req)
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		found := false
+		for _, c := range resp.Cookies() {
+			if c.Name == "msp_session" {
+				found = true
+				if c.Secure {
+					t.Fatal("plain HTTP should not set secure cookie")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("session cookie not found")
+		}
+	})
 }
 
 func TestServeSRTRejectsLargeFile(t *testing.T) {

@@ -20,6 +20,7 @@ func SetIDKey(key []byte) {
 // LoadOrCreateKey loads an existing 32-byte key from path, or generates
 // and persists a new one with 0600 permissions.
 func LoadOrCreateKey(path string) ([]byte, error) {
+	//nolint:gosec // path is a fixed key file path (msp.key), not user input
 	if data, err := os.ReadFile(path); err == nil && len(data) == 32 {
 		return data, nil
 	}
@@ -58,6 +59,9 @@ func EncodeID(path string) string {
 // DecodeID decrypts a URL-safe base64 ID back to the original path.
 // Falls back to plain base64 if no key is configured.
 func DecodeID(id string) (string, error) {
+	if id == "" {
+		return "", errors.New("empty id")
+	}
 	b, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
 		return "", err
