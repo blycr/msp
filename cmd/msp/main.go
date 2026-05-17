@@ -77,10 +77,12 @@ func main() {
 	}
 
 	// Migrate plaintext PIN to bcrypt hash if present.
-	if err := s.UpdateConfig(func(cfg *config.Config) {
-		config.SanitizeSecurity(cfg)
-	}); err != nil {
-		log.Printf("[WARN] Failed to hash PIN: %v", err)
+	if s.Config().Security.PIN != "" {
+		if err := s.UpdateConfig(func(cfg *config.Config) {
+			config.SanitizeSecurity(cfg)
+		}); err != nil {
+			log.Printf("Warning: Failed to hash PIN: %v", err)
+		}
 	}
 
 	s.SetupLogger()

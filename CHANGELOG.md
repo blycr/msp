@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.2
+
+- **代码质量**：`internal/handler/auth.go`：`sync.RWMutex` → `sync.Mutex`（仅使用 `Lock()`，无读锁场景）。
+- **效率**：`cmd/msp/main.go`：启动 PIN 迁移增加守卫条件，无明文 PIN 时跳过无意义的 `UpdateConfig` 调用，减少启动 I/O。
+- **日志**：`cmd/msp/main.go`：统一启动日志格式 `Warning:`（与项目其余日志风格一致）。
+- **代码质量**：`internal/server/server.go`：`checkAndReloadConfig` 预计算 `needsSave`，扁平化深层嵌套条件。
+- **工程改进**：`internal/server/server.go`：`saveConfigLocked` 保存成功后自动 `os.Stat` 并同步 `cfgModTime`，消除 `checkAndReloadConfig` 调用方的重复同步逻辑，同时修复 `UpdateConfig` 不更新 `cfgModTime` 导致后续不必要重载的问题。
+- **代码清理**：撤销 `internal/handler/common.go` 引入的 `evictRandomEntry` 泛化函数，恢复 `auth.go` 和 `middleware.go` 的内联驱逐逻辑（更直接可读，避免为抽象而抽象）。
+- **文档归档**：两份 AI 评审核验报告已归档至 `docs/archive/`（`AI_REVIEW_VERIFICATION.md`、`AI_REVIEW_VERIFICATION_KIMI.md`）。
+
 ## 1.6.1
 
 - **安全：PIN 明文存储 → bcrypt 哈希**

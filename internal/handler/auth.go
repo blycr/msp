@@ -20,7 +20,7 @@ type pinAttempt struct {
 
 var (
 	pinAttempts      = make(map[string]*pinAttempt)
-	pinAttemptsMu    sync.RWMutex
+	pinAttemptsMu    sync.Mutex
 	maxPINFailures   = 5
 	pinBlockDuration = 15 * time.Minute
 	maxPinAttempts   = 1000

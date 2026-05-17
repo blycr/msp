@@ -89,7 +89,13 @@ func (s *Server) saveConfigLocked() error {
 	if err := os.WriteFile(tmp, b, 0600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.cfgPath)
+	if err := os.Rename(tmp, s.cfgPath); err != nil {
+		return err
+	}
+	if st, err := os.Stat(s.cfgPath); err == nil {
+		s.cfgModTime = st.ModTime()
+	}
+	return nil
 }
 
 func (s *Server) Config() config.Config {
@@ -151,21 +157,19 @@ func (s *Server) checkAndReloadConfig() {
 
 	oldPIN := cfg.Security.PIN
 	config.SanitizeSecurity(&cfg)
+	needsSave := oldPIN != "" && cfg.Security.PIN == ""
 
 	s.mu.Lock()
 	s.cfg = cfg
-	s.cfgModTime = stat.ModTime()
 
 	// If a plaintext PIN was hashed during reload, persist it back to disk
-	// to avoid the next HandlePIN seeing an empty PINHash.
-	if oldPIN != "" && cfg.Security.PIN == "" {
+	// so the next HandlePIN sees the hash instead of an empty PINHash.
+	if needsSave {
 		if err := s.saveConfigLocked(); err != nil {
 			s.Log("error", "Failed to save config after PIN sanitization: "+err.Error())
-		} else {
-			if st, err := os.Stat(s.cfgPath); err == nil {
-				s.cfgModTime = st.ModTime()
-			}
 		}
+	} else {
+		s.cfgModTime = stat.ModTime()
 	}
 
 	s.mu.Unlock()

@@ -55,3 +55,4 @@ func writeJSONDecodeError(w http.ResponseWriter, err error) {
 		"error": &domain.ApiError{Message: constants.ErrMsgInvalidJSON},
 	})
 }
+
