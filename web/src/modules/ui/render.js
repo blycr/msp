@@ -3,6 +3,8 @@ import { t } from '../i18n.js';
 import { currentList, filterFiles, sortFiles } from '../playlist.js';
 import { formatName, formatBytes, formatTime } from '../utils.js';
 import { bus } from '../eventbus.js';
+import { getFolderContents } from '../folder.js';
+import { addFavorite, removeFavorite } from '../api.js';
 
 export function setMeta(text) {
   const meta = el("meta");
@@ -33,6 +35,7 @@ export function updateUIForLang() {
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const k = el.getAttribute("data-i18n");
     if (k === "preview_none" && state.current) return;
+    if (k === "mode_folder" || k === "mode_flat") return;
     if (k) el.textContent = t(k);
   });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => {
@@ -68,10 +71,42 @@ export function updateUIForLang() {
   }
 }
 
+function renderContinueWatching(box) {
+  if (!state.continueWatching || state.continueWatching.length === 0) return;
+  if (state.q) return; // 搜索模式下不显示
+
+  const section = document.createElement('div');
+  section.className = 'continue-watching';
+  section.innerHTML = `<div class="continue-watching__title">${t('continue_watching')}</div>`;
+
+  const list = document.createElement('div');
+  list.className = 'continue-watching__list';
+
+  for (const item of state.continueWatching) {
+    const elBtn = document.createElement('button');
+    elBtn.className = 'continue-watching__item';
+    elBtn.dataset.id = item.id;
+    elBtn.innerHTML = `
+      <span class="continue-watching__name">${formatName(item)}</span>
+      <span class="continue-watching__progress">${formatTime(item.time)}</span>
+    `;
+    elBtn.addEventListener('click', () => {
+      bus.emit('play:request', item, { resume: true });
+    });
+    list.appendChild(elBtn);
+  }
+  section.appendChild(list);
+  box.prepend(section);
+}
+
 export function renderList() {
   const box = el("list");
   const hint = el("hint");
   box.innerHTML = "";
+
+  if (state.tab !== 'favorites') {
+    renderContinueWatching(box);
+  }
 
   const hasItems = state.media && (
     (state.media.videos || []).length > 0 ||
@@ -82,6 +117,11 @@ export function renderList() {
   if (!hasItems) {
     const hintKey = state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote';
     hint.textContent = t(hintKey);
+    return;
+  }
+
+  if (state.browseMode === 'folder' && state.tab !== 'favorites') {
+    renderFolderView(box, hint);
     return;
   }
 
@@ -111,30 +151,7 @@ export function renderList() {
   const pageItems = list.slice(start, start + pageSize);
 
   for (const item of pageItems) {
-    const row = document.createElement("div");
-    row.className = "item";
-    row.addEventListener("click", () => bus.emit('play:request', item, { user: true, autoplay: true }));
-
-    const main = document.createElement("div");
-    main.className = "item__main";
-
-    const name = document.createElement("div");
-    name.className = "item__name";
-    name.textContent = formatName(item);
-
-    const sub = document.createElement("div");
-    sub.className = "item__sub";
-    sub.textContent = `${item.shareLabel || ""}  ·  ${formatBytes(item.size)}  ·  ${formatTime(item.modTime)}`;
-
-    main.appendChild(name);
-    main.appendChild(sub);
-
-    const badge = document.createElement("div");
-    badge.className = "badge";
-    badge.textContent = (item.ext || "").replace(".", "").toUpperCase();
-
-    row.appendChild(main);
-    row.appendChild(badge);
+    const row = renderFileRow(item);
     box.appendChild(row);
   }
 
@@ -172,3 +189,151 @@ export function renderList() {
     box.appendChild(pager);
   }
 }
+
+function renderFolderView(box, hint) {
+  const allItems = [
+    ...(state.media?.videos || []),
+    ...(state.media?.audios || []),
+    ...(state.media?.images || []),
+    ...(state.media?.others || []),
+  ];
+  const { folders, files } = getFolderContents(allItems, state.currentFolder);
+
+  if (state.currentFolder) {
+    const breadcrumb = document.createElement('div');
+    breadcrumb.className = 'folder-breadcrumb';
+    const parts = state.currentFolder.split('/');
+
+    const backBtn = document.createElement('button');
+    backBtn.className = 'btn btn--ghost folder-back';
+    backBtn.textContent = '\u2190 ' + t('folder_back');
+    backBtn.addEventListener('click', () => {
+      if (parts.length <= 1) {
+        state.currentFolder = null;
+      } else {
+        state.currentFolder = parts.slice(0, -1).join('/');
+      }
+      renderList();
+    });
+    breadcrumb.appendChild(backBtn);
+
+    const pathSpan = document.createElement('span');
+    pathSpan.className = 'folder-breadcrumb__path';
+    pathSpan.textContent = state.currentFolder;
+    breadcrumb.appendChild(pathSpan);
+    box.appendChild(breadcrumb);
+  }
+
+  for (const folder of folders) {
+    const row = document.createElement('div');
+    row.className = 'item item--folder';
+    row.addEventListener('click', () => {
+      state.currentFolder = folder.path;
+      renderList();
+    });
+    const icon = document.createElement('span');
+    icon.className = 'folder-icon';
+    icon.textContent = '\uD83D\uDCC1';
+    const name = document.createElement('div');
+    name.className = 'item__name';
+    name.textContent = folder.name;
+    const count = document.createElement('div');
+    count.className = 'item__sub';
+    count.textContent = folder.count > 0 ? `${folder.count} ${t('folder_items')}` : '';
+    const main = document.createElement('div');
+    main.className = 'item__main';
+    main.appendChild(name);
+    main.appendChild(count);
+    row.appendChild(icon);
+    row.appendChild(main);
+    box.appendChild(row);
+  }
+
+  for (const item of files) {
+    const row = renderFileRow(item);
+    box.appendChild(row);
+  }
+
+  if (hint) {
+    hint.textContent = `${folders.length} ${t('folder_folders')} \u00B7 ${files.length} ${t('folder_files')}`;
+  }
+}
+
+function renderFileRow(item) {
+  const row = document.createElement("div");
+  row.className = "item";
+  row.addEventListener("click", () => bus.emit('play:request', item, { user: true, autoplay: true }));
+
+  if (item.kind === "video") {
+    const thumb = document.createElement("img");
+    thumb.className = "file-thumb";
+    thumb.src = `/api/thumbnail?id=${encodeURIComponent(item.id)}`;
+    thumb.loading = "lazy";
+    thumb.alt = "";
+    row.appendChild(thumb);
+  }
+
+  const main = document.createElement("div");
+  main.className = "item__main";
+
+  const name = document.createElement("div");
+  name.className = "item__name";
+  name.textContent = formatName(item);
+
+  const sub = document.createElement("div");
+  sub.className = "item__sub";
+  sub.textContent = `${item.shareLabel || ""}  \u00B7  ${formatBytes(item.size)}  \u00B7  ${formatTime(item.modTime)}`;
+
+  main.appendChild(name);
+  main.appendChild(sub);
+
+  const badge = document.createElement("div");
+  badge.className = "badge";
+  badge.textContent = (item.ext || "").replace(".", "").toUpperCase();
+
+  row.appendChild(main);
+  row.appendChild(badge);
+
+  // Favorite button
+  const favBtn = document.createElement('button');
+  favBtn.className = 'fav-btn' + (state.favoriteIds?.has(item.id) ? ' fav-btn--active' : '');
+  favBtn.textContent = state.favoriteIds?.has(item.id) ? '\u2605' : '\u2606';
+  favBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (state.favoriteIds?.has(item.id)) {
+      await removeFavorite(item.id);
+      state.favoriteIds.delete(item.id);
+    } else {
+      await addFavorite(item.id);
+      if (!state.favoriteIds) state.favoriteIds = new Set();
+      state.favoriteIds.add(item.id);
+    }
+    renderList();
+  });
+  row.appendChild(favBtn);
+
+  return row;
+}
+
+bus.on('transcode:status', (status) => {
+  let indicator = document.getElementById('transcodeStatus');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'transcodeStatus';
+    indicator.className = 'transcode-status';
+    const playerBox = el('playerBox');
+    if (playerBox) playerBox.prepend(indicator);
+  }
+
+  if (!status) {
+    indicator.hidden = true;
+    return;
+  }
+
+  indicator.hidden = false;
+  if (status === 'checking') {
+    indicator.textContent = t('transcode_checking');
+  } else if (status === 'transcoding') {
+    indicator.innerHTML = `<span class="transcode-status__spinner"></span>${t('transcode_preparing')}`;
+  }
+});

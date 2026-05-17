@@ -120,6 +120,26 @@ export async function getProgress(id) {
   }
 }
 
+export async function loadRecentProgress(limit = 5) {
+  return apiGet(`/api/progress/recent?limit=${limit}`);
+}
+
+export async function loadFavorites() {
+  return apiGet('/api/favorites');
+}
+
+export async function addFavorite(mediaId) {
+  return apiPost('/api/favorites', { mediaId });
+}
+
+export async function removeFavorite(mediaId) {
+  const res = await fetch(`/api/favorites?id=${encodeURIComponent(mediaId)}`, {
+    method: 'DELETE', credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
 // Prefs Logic
 export async function loadPrefs() {
   try {

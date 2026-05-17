@@ -66,7 +66,7 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 		}
 	}
 
-	if err := db.AutoMigrate(&domain.MediaItem{}, &domain.MediaScan{}, &domain.UserPref{}, &domain.PlaybackProgress{}); err != nil {
+	if err := db.AutoMigrate(&domain.MediaItem{}, &domain.MediaScan{}, &domain.UserPref{}, &domain.PlaybackProgress{}, &domain.Favorite{}); err != nil {
 		return nil, err
 	}
 
@@ -163,6 +163,22 @@ func (s *SQLite) ListAllProgress(ctx context.Context) ([]domain.PlaybackProgress
 		return nil, err
 	}
 	return list, nil
+}
+
+func (s *SQLite) ListRecentProgress(ctx context.Context, limit int) ([]domain.PlaybackProgress, error) {
+	dbConn, ok := s.guard("ListRecentProgress")
+	if !ok {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	var items []domain.PlaybackProgress
+	err := dbConn.WithContext(ctx).
+		Order("updated_at DESC").
+		Limit(limit).
+		Find(&items).Error
+	return items, err
 }
 
 // PrefsStore implementation
@@ -328,4 +344,44 @@ func ByKind(kind string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("kind = ?", kind)
 	}
+}
+
+// FavoriteStore implementation
+
+func (s *SQLite) ListFavorites(ctx context.Context) ([]domain.Favorite, error) {
+	dbConn, ok := s.guard("ListFavorites")
+	if !ok {
+		return nil, nil
+	}
+	var items []domain.Favorite
+	err := dbConn.WithContext(ctx).Order("created_at DESC").Find(&items).Error
+	return items, err
+}
+
+func (s *SQLite) AddFavorite(ctx context.Context, mediaID string) error {
+	dbConn, ok := s.guard("AddFavorite")
+	if !ok {
+		return nil
+	}
+	return dbConn.WithContext(ctx).
+		Where(domain.Favorite{MediaID: mediaID}).
+		FirstOrCreate(&domain.Favorite{MediaID: mediaID}).Error
+}
+
+func (s *SQLite) RemoveFavorite(ctx context.Context, mediaID string) error {
+	dbConn, ok := s.guard("RemoveFavorite")
+	if !ok {
+		return nil
+	}
+	return dbConn.WithContext(ctx).Delete(&domain.Favorite{}, "media_id = ?", mediaID).Error
+}
+
+func (s *SQLite) IsFavorite(ctx context.Context, mediaID string) (bool, error) {
+	dbConn, ok := s.guard("IsFavorite")
+	if !ok {
+		return false, nil
+	}
+	var count int64
+	err := dbConn.WithContext(ctx).Model(&domain.Favorite{}).Where("media_id = ?", mediaID).Count(&count).Error
+	return count > 0, err
 }

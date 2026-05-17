@@ -41,6 +41,7 @@ type Deps struct {
 	Logger    Logger
 	Progress  storage.ProgressStore
 	Prefs     storage.PrefsStore
+	Favorites storage.FavoriteStore
 	Processor *media.MediaProcessor
 	IDCodec   *util.IDCodec
 }
@@ -52,6 +53,7 @@ type Handler struct {
 	logger        Logger
 	progress      storage.ProgressStore
 	prefs         storage.PrefsStore
+	favorites     storage.FavoriteStore
 	configService *service.ConfigService
 	processor     *media.MediaProcessor
 	idCodec       *util.IDCodec
@@ -70,6 +72,7 @@ func New(deps Deps) *Handler {
 		logger:        deps.Logger,
 		progress:      deps.Progress,
 		prefs:         deps.Prefs,
+		favorites:     deps.Favorites,
 		configService: service.NewConfigService(deps.Config, deps.Media, deps.Processor),
 		processor:     deps.Processor,
 		idCodec:       deps.IDCodec,

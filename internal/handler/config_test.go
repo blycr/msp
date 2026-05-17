@@ -30,7 +30,7 @@ func TestHandleConfig(t *testing.T) {
 
 	s := server.New(tmpFile.Name(), nil)
 	store := storage.NewStore(nil)
-	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 
 	t.Run("GET Config", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/config", nil)

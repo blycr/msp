@@ -37,6 +37,7 @@ var (
 	_ handler.Logger             = (*server.Server)(nil)
 	_ storage.ProgressStore      = (*storage.SQLite)(nil)
 	_ storage.PrefsStore         = (*storage.SQLite)(nil)
+	_ storage.FavoriteStore      = (*storage.SQLite)(nil)
 )
 
 func main() {
@@ -167,6 +168,7 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 		Logger:    s,
 		Progress:  store,
 		Prefs:     store,
+		Favorites: store,
 		Processor: processor,
 		IDCodec:   idCodec,
 	})
@@ -180,6 +182,9 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 	mux.Handle("/api/ip", http.HandlerFunc(h.HandleIP))
 	mux.Handle("/api/prefs", http.HandlerFunc(h.HandlePrefs))
 	mux.Handle("/api/progress", http.HandlerFunc(h.HandleProgress))
+	mux.Handle("/api/progress/recent", http.HandlerFunc(h.HandleRecentProgress))
+	mux.Handle("/api/thumbnail", http.HandlerFunc(h.HandleThumbnail))
+	mux.Handle("/api/favorites", http.HandlerFunc(h.HandleFavorites))
 	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
 	mux.Handle("/api/pin", http.HandlerFunc(h.HandlePIN))
 

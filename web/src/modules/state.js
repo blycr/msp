@@ -91,6 +91,12 @@ export const state = {
   },
   scanning: false,
   accessLevel: 'local',
+  continueWatching: [],
+  browseMode: 'flat',
+  currentFolder: null,
+  favoriteIds: null,
+  queue: [],
+  queueActive: false,
 };
 
 // Initialize sort from LS

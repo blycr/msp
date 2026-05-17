@@ -1,4 +1,5 @@
 import { state, el, LS } from '../state.js';
+import { bus } from '../eventbus.js';
 import { t } from '../i18n.js';
 import { gpGet, logRemote, probeItem, probeText, rememberEnabled, getProgress } from '../api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from '../utils.js';
@@ -19,6 +20,10 @@ function revokeCurrentBlob() {
 }
 
 async function getPlaybackUrl(item) {
+  if (item.kind === "video" || item.kind === "audio") {
+    bus.emit('transcode:status', 'checking');
+  }
+
   const base = streamUrl(item.id);
   const kind = item.kind;
   const transcodeCfg = kind === "video" ? "playback.video.transcode" : "playback.audio.transcode";
@@ -26,10 +31,12 @@ async function getPlaybackUrl(item) {
   if (getCfg(transcodeCfg, false)) {
     const p = await probeItem(item.id);
     if (p?.playback?.mode === "transcode") {
+      bus.emit('transcode:status', 'transcoding');
       return { url: base + "&transcode=1", mode: "transcode" };
     }
   }
 
+  bus.emit('transcode:status', null);
   return { url: base, mode: "direct" };
 }
 
@@ -182,6 +189,9 @@ export async function playItem(item, opts) {
 
     audio.removeEventListener("ended", onMediaEnded);
     audio.addEventListener("ended", onMediaEnded);
+    audio.addEventListener('canplay', () => {
+      bus.emit('transcode:status', null);
+    }, { once: true });
     setupErrorHandler(audio, onMediaEnded);
 
     applyPlyr(audio, onMediaEnded);
@@ -353,6 +363,9 @@ export async function playItem(item, opts) {
         const switchPlayback = await getPlaybackUrl(item);
         if (token !== state.selectionToken) return;
         video.src = switchPlayback.url;
+        video.addEventListener('canplay', () => {
+          bus.emit('transcode:status', null);
+        }, { once: true });
         setTracks(video, item.subtitles || []);
         try { video.load(); } catch { }
         if (options.autoplay) {
@@ -376,6 +389,9 @@ export async function playItem(item, opts) {
     video.src = videoPlayback.url;
     setTracks(video, item.subtitles || []);
     video.style.display = "block";
+    video.addEventListener('canplay', () => {
+      bus.emit('transcode:status', null);
+    }, { once: true });
     updateFitBtnFromVideo(video);
     setupErrorHandler(video, onMediaEnded);
     applyPlyr(video, onMediaEnded);

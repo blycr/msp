@@ -129,7 +129,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 		return nil
 	}
 
-	item, err := w.buildMediaItem(p, d, shareLabel)
+	item, err := w.buildMediaItem(p, d, shareLabel, root)
 	if err != nil {
 		log.Printf("[WARN] build media item error: %v", err)
 		return nil
@@ -180,7 +180,7 @@ func shouldSkipFile(d fs.DirEntry, blacklist config.BlacklistConfig) bool {
 	return false
 }
 
-func (w *shareWalker) buildMediaItem(path string, d fs.DirEntry, shareLabel string) (domain.MediaItem, error) {
+func (w *shareWalker) buildMediaItem(path string, d fs.DirEntry, shareLabel string, root string) (domain.MediaItem, error) {
 	fi, err := d.Info()
 	if err != nil {
 		return domain.MediaItem{}, err
@@ -188,6 +188,12 @@ func (w *shareWalker) buildMediaItem(path string, d fs.DirEntry, shareLabel stri
 
 	ext := filepath.Ext(d.Name())
 	kind := ClassifyExt(ext)
+	relDir, _ := filepath.Rel(root, filepath.Dir(path))
+	relPath := d.Name()
+	if relDir != "." {
+		relPath = filepath.ToSlash(relDir) + "/" + d.Name()
+	}
+
 	item := domain.MediaItem{
 		ID:         w.idCodec.EncodeID(path),
 		Name:       d.Name(),
@@ -196,6 +202,7 @@ func (w *shareWalker) buildMediaItem(path string, d fs.DirEntry, shareLabel stri
 		ShareLabel: shareLabel,
 		Size:       fi.Size(),
 		ModTime:    fi.ModTime().Unix(),
+		RelPath:    relPath,
 	}
 
 	if kind == "video" {

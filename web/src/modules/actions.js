@@ -1,7 +1,7 @@
 import { registerSW } from 'virtual:pwa-register';
 import { state, el, lsSet, LS, lsGet } from './state.js';
 import { t, initLang } from './i18n.js';
-import { apiGet, apiRetry, loadPrefs, gpGet } from './api.js';
+import { apiGet, apiRetry, loadPrefs, gpGet, loadRecentProgress, loadFavorites } from './api.js';
 import { updateResumeButton, hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
@@ -164,6 +164,33 @@ export async function boot() {
       // If still scanning or empty, poll for a while to update the list incrementally
       if (state.scanning) {
         startMediaPolling();
+      }
+      
+      try {
+        const progressData = await loadRecentProgress(5);
+        if (progressData?.items?.length && state.media) {
+          const allMedia = [
+            ...(state.media.videos || []),
+            ...(state.media.audios || []),
+          ];
+          state.continueWatching = progressData.items
+            .map(p => {
+              const media = allMedia.find(m => m.id === p.mediaId);
+              if (!media) return null;
+              return { ...media, time: p.time };
+            })
+            .filter(Boolean);
+          bus.emit('media:loaded'); // Trigger re-render
+        }
+      } catch (e) {
+        console.warn("Failed to load continue watching:", e);
+      }
+
+      try {
+        const favData = await loadFavorites();
+        state.favoriteIds = new Set((favData?.items || []).map(f => f.mediaId));
+      } catch (e) {
+        console.warn("Failed to load favorites:", e);
       }
     }, 50);
   } catch (e) {

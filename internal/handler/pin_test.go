@@ -34,7 +34,7 @@ func TestPINAuthentication(t *testing.T) {
 	}
 
 	store := storage.NewStore(nil)
-	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/config", h.HandleConfig)

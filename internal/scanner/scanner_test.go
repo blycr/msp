@@ -500,7 +500,7 @@ func TestBuildMediaItem(t *testing.T) {
 	require.NotNil(t, videoEntry)
 
 	w := &shareWalker{idCodec: nil}
-	item, err := w.buildMediaItem(videoPath, videoEntry, "Videos")
+	item, err := w.buildMediaItem(videoPath, videoEntry, "Videos", tmpDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "movie.mp4", item.Name)

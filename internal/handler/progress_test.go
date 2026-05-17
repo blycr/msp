@@ -24,7 +24,7 @@ func setupProgressHandler(t *testing.T) *Handler {
 	}
 	t.Cleanup(func() { sq.Close() })
 	store := storage.NewStore(sq)
-	return New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	return New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 }
 
 func TestHandleProgressGetNoID(t *testing.T) {
@@ -104,6 +104,42 @@ func TestHandleProgressInvalidJSON(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleRecentProgress(t *testing.T) {
+	h := setupProgressHandler(t)
+
+	// Post some progress
+	body := `{"id":"test-id-1","time":10.5}`
+	reqPost := httptest.NewRequest(http.MethodPost, "/api/progress", strings.NewReader(body))
+	reqPost.Header.Set("Content-Type", "application/json")
+	wPost := httptest.NewRecorder()
+	h.HandleProgress(wPost, reqPost)
+
+	if wPost.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 on post, got %d", wPost.Code)
+	}
+
+	// Get recent progress
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/progress/recent?limit=5", nil)
+	wGet := httptest.NewRecorder()
+	h.HandleRecentProgress(wGet, reqGet)
+
+	if wGet.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", wGet.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(wGet.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	items, ok := resp["items"].([]any)
+	if !ok {
+		t.Fatalf("expected items array in response")
+	}
+	if len(items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(items))
 	}
 }
 
@@ -238,7 +274,7 @@ func TestHandleSharesAdd(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.json")
 	s := server.New(configPath, nil)
 	store := storage.NewStore(nil)
-	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 
 	shareDir := filepath.Join(tmpDir, "media")
 	_ = os.MkdirAll(shareDir, 0750)

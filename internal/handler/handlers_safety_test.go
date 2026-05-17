@@ -54,7 +54,7 @@ func TestHandlePINRejectsLargePayload(t *testing.T) {
 	}
 
 	store := storage.NewStore(nil)
-	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 	tooLargePIN := strings.Repeat("1", int(defaultJSONBodyLimit)+1)
 	body := `{"pin":"` + tooLargePIN + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/pin", strings.NewReader(body))
@@ -80,7 +80,7 @@ func TestHandlePINCookieSecureWhenHTTPS(t *testing.T) {
 	}
 
 	store := storage.NewStore(nil)
-	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store})
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 
 	// Case 1: direct TLS connection → Secure cookie
 	t.Run("direct TLS", func(t *testing.T) {

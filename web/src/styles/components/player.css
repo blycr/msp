@@ -161,3 +161,31 @@
   color: var(--md-sub);
   font-size: 14px;
 }
+
+/* Transcode Status */
+.transcode-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--md-on-surface-variant);
+  background: var(--md-surface-variant);
+  border-radius: var(--radius-sm, 4px);
+  margin-bottom: 8px;
+  pointer-events: none;
+}
+.transcode-status[hidden] { display: none; }
+.transcode-status__spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--md-border);
+  border-top-color: var(--md-primary);
+  border-radius: 50%;
+  animation: transcode-spin 0.8s linear infinite;
+}
+@keyframes transcode-spin { to { transform: rotate(360deg); } }

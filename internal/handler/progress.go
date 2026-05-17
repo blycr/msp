@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"msp/internal/constants"
@@ -103,4 +104,25 @@ func (h *Handler) HandleLog(w http.ResponseWriter, r *http.Request) {
 		h.logger.Log(req.Level, req.Msg)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleRecentProgress returns recently played media with progress.
+// GET /api/progress/recent?limit=10
+func (h *Handler) HandleRecentProgress(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	limitStr := r.URL.Query().Get("limit")
+	limit := 10
+	if v, err := strconv.Atoi(limitStr); err == nil && v > 0 && v <= 50 {
+		limit = v
+	}
+	items, err := h.progress.ListRecentProgress(r.Context(), limit)
+	if err != nil {
+		log.Printf("Error in ListRecentProgress: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list recent progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }

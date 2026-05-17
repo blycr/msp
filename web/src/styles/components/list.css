@@ -116,3 +116,93 @@
   font-variant-numeric: tabular-nums;
   font-size: 14px;
 }
+
+/* Continue Watching */
+.continue-watching {
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--md-border);
+  margin-bottom: 8px;
+}
+.continue-watching__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--md-on-surface-variant);
+  padding: 0 12px 6px;
+}
+.continue-watching__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.continue-watching__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-sm, 4px);
+  transition: background 0.15s;
+  font: inherit;
+  color: var(--md-on-surface);
+  width: 100%;
+}
+.continue-watching__item:hover {
+  background: var(--md-surface-variant);
+}
+.continue-watching__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.continue-watching__progress {
+  font-size: 11px;
+  color: var(--md-primary);
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+/* Video Thumbnails */
+.file-thumb {
+  width: 48px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+  background: var(--md-surface-variant);
+  margin-right: 8px;
+}
+.file-thumb[src=""],
+.file-thumb:not([src]) {
+  display: none;
+}
+
+/* Folder Browse */
+.item--folder { cursor: pointer; }
+.folder-icon { font-size: 20px; margin-right: 8px; flex-shrink: 0; }
+.folder-breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; font-size: 12px;
+  color: var(--md-on-surface-variant);
+  border-bottom: 1px solid var(--md-border);
+  margin-bottom: 4px;
+}
+.folder-breadcrumb__path {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.folder-back { font-size: 12px; padding: 2px 8px; }
+
+/* Favorite */
+.fav-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--md-on-surface-variant);
+  padding: 4px; flex-shrink: 0; transition: color 0.15s;
+}
+.fav-btn:hover { color: var(--md-primary); }
+.fav-btn--active { color: var(--md-primary); }

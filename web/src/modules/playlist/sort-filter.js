@@ -3,6 +3,16 @@ import { t } from '../i18n.js';
 
 export function currentList() {
   if (!state.media) return [];
+  if (state.tab === "favorites") {
+    if (!state.favoriteIds?.size) return [];
+    const all = [
+      ...(state.media.videos || []),
+      ...(state.media.audios || []),
+      ...(state.media.images || []),
+      ...(state.media.others || []),
+    ];
+    return all.filter(x => state.favoriteIds.has(x.id));
+  }
   switch (state.tab) {
     case "video": return state.media.videos || [];
     case "audio": return state.media.audios || [];

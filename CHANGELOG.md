@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.6.3
+
+- **继续观看（Continue Watching）**
+  - 后端：新增 `/api/progress/recent` 端点，按 `updated_at` 降序返回最近播放的进度记录。
+  - 后端：`ProgressStore` / `SQLite` / `Store` 新增 `ListRecentProgress` 实现。
+  - 前端：启动时自动加载最近 5 条播放进度，与媒体库做 join 后显示在侧边栏顶部。
+  - 前端：搜索模式下自动隐藏"继续观看"区域。
+  - 前端：点击继续观看条目直接跳转播放并恢复进度。
+
+- **文件夹层级浏览（Folder Browse）**
+  - 后端：`MediaItem` 新增 `RelPath` 字段，`scanner.go` 计算相对于 share root 的路径（含子目录）。
+  - 前端：新建 `folder.js` 从扁平媒体列表提取文件夹树结构。
+  - 前端：`render.js` 支持 `flat` / `folder` 双模式渲染，文件夹模式下显示面包屑导航、子文件夹和当前目录文件。
+  - 前端：侧边栏增加"Folder / Flat"模式切换按钮。
+  - 前端：状态扩展 `browseMode`、`currentFolder`。
+
+- **收藏/标记（Favorites）**
+  - 后端：新增 `Favorite` 领域类型，`FavoriteStore` 接口（List/Add/Remove/Is）。
+  - 后端：`SQLite` / `Store` 实现收藏 CRUD，`AutoMigrate` 自动建表。
+  - 后端：新增 `/api/favorites` REST 端点（GET/POST/DELETE）。
+  - 前端：启动时加载收藏状态到 `favoriteIds` Set。
+  - 前端：每个文件列表项右侧显示星标按钮（☆/★），点击即时切换并同步后端。
+  - 前端：新增第五个 `Favorites` Tab，跨类型聚合显示所有已收藏媒体。
+  - 前端：收藏 Tab 下自动隐藏"继续观看"和文件夹浏览，保持聚焦。
+  - 前端：收藏 Tab 内支持搜索、排序、分页。
+
+- **视频缩略图（Video Thumbnails）**
+  - 后端：新增 `/api/thumbnail?id=xxx` 端点，使用 ffmpeg 截取第 5 秒画面并缓存到 `thumbs/` 目录。
+  - 后端：信号量限制最多 2 个并发缩略图生成任务，避免 ffmpeg 风暴。
+  - 前端：视频列表项左侧显示懒加载缩略图。
+
+- **转码进度反馈（Transcode Status）**
+  - 前端：播放视频/音频时，播放器上方显示"检测兼容性..."提示。
+  - 前端：若进入转码模式，提示变为"正在转码，请稍候..."并带旋转动画。
+  - 前端：媒体可播放后提示自动消失。
+
 ## 1.6.2
 
 - **代码质量**：`internal/handler/auth.go`：`sync.RWMutex` → `sync.Mutex`（仅使用 `Lock()`，无读锁场景）。

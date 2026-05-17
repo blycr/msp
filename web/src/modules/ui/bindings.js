@@ -191,6 +191,11 @@ export function bindUI() {
           fitBtn.textContent = fit === "cover" ? t("fit_cover") : t("fit_contain");
         } catch { }
       }
+      // Hide shuffle/loop for favorites tab (cross-kind)
+      const shuffleWrap = el("shuffleWrap");
+      if (shuffleWrap) {
+        shuffleWrap.hidden = state.tab === "favorites" || state.tab === "other";
+      }
     });
   }
 
@@ -235,4 +240,15 @@ export function bindUI() {
 
   el("btnPrev").addEventListener("click", () => playPrev(true));
   el("btnNext").addEventListener("click", () => playNext(true));
+
+  // Browse mode toggle
+  const browseModeBtn = el('browseMode');
+  if (browseModeBtn) {
+    browseModeBtn.addEventListener('click', () => {
+      state.browseMode = state.browseMode === 'flat' ? 'folder' : 'flat';
+      state.currentFolder = null;
+      browseModeBtn.textContent = state.browseMode === 'flat' ? t('mode_folder') : t('mode_flat');
+      renderList();
+    });
+  }
 }

@@ -27,6 +27,7 @@ type MediaItem struct {
 	LyricsID   string     `json:"lyricsId,omitempty" gorm:"column:audio_lyrics"`
 	ScanID     int64      `json:"-" gorm:"index:idx_scan_id;index:idx_scan_kind;index:idx_scan_share_label"`
 	ShareRoot  string     `json:"-"`
+	RelPath    string     `json:"relPath,omitempty" gorm:"column:rel_path"`
 	CreatedAt  time.Time  `json:"-"`
 	UpdatedAt  time.Time  `json:"-"`
 }
@@ -49,6 +50,11 @@ type PlaybackProgress struct {
 	MediaID   string    `json:"mediaId" gorm:"primaryKey"`
 	Time      float64   `json:"time" gorm:"not null"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
+}
+
+type Favorite struct {
+	MediaID   string    `json:"mediaId" gorm:"primaryKey"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type MediaResponse struct {

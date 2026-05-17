@@ -9,6 +9,7 @@ const I18N = {
     tab_video: "Video",
     tab_audio: "Audio",
     tab_image: "Image",
+    tab_favorites: "Favorites",
     tab_other: "Other",
     search_ph: "Search filename (Pinyin/Regex)...",
     sort_name: "Name",
@@ -100,6 +101,16 @@ const I18N = {
     err_plyr_init: "Plyr not initialized",
     err_plyr_method: "Unsupported Plyr method: {0}",
     lyrics_pure_music: "· Pure Music ·",
+    
+    continue_watching: "Continue Watching",
+    transcode_checking: "Checking compatibility...",
+    transcode_preparing: "Transcoding video, please wait...",
+    mode_folder: "Folder",
+    mode_flat: "Flat",
+    folder_back: "Back",
+    folder_items: "items",
+    folder_folders: "folders",
+    folder_files: "files",
   },
   zh: {
     title: "MSP 媒体分享预览",
@@ -109,6 +120,7 @@ const I18N = {
     tab_video: "视频",
     tab_audio: "音频",
     tab_image: "图片",
+    tab_favorites: "收藏",
     tab_other: "其他",
     search_ph: "搜索文件名 (支持拼音/正则/模糊)…",
     sort_name: "按名称排序",
@@ -199,6 +211,16 @@ const I18N = {
     pin_submit: "提交",
     pin_error: "PIN 码错误，请重试。",
     pin_checking: "验证中...",
+    
+    continue_watching: "继续观看",
+    transcode_checking: "正在检测兼容性...",
+    transcode_preparing: "正在转码，请稍候...",
+    mode_folder: "文件夹",
+    mode_flat: "平铺",
+    folder_back: "返回",
+    folder_items: "项",
+    folder_folders: "个文件夹",
+    folder_files: "个文件",
   }
 };
 
