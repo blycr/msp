@@ -3,38 +3,37 @@
 ## 1.6.3
 
 - **继续观看（Continue Watching）**
-  - 后端：新增 `/api/progress/recent` 端点，按 `updated_at` 降序返回最近播放的进度记录。
-  - 后端：`ProgressStore` / `SQLite` / `Store` 新增 `ListRecentProgress` 实现。
-  - 前端：启动时自动加载最近 5 条播放进度，与媒体库做 join 后显示在侧边栏顶部。
-  - 前端：搜索模式下自动隐藏"继续观看"区域。
-  - 前端：点击继续观看条目直接跳转播放并恢复进度。
+  - 后端：新增 `RecentProgress` 领域类型；`ProgressStore` / `Store` 新增 `ListRecentProgress(limit int)` 方法，按 `updated_at` 降序分页查询。
+  - 后端：新增 `GET /api/progress/recent?limit=N` 端点，默认上限 10 条。
+  - 前端：启动时自动拉取最近 5 条进度并与媒体库 join 映射，渲染为侧边栏顶部续播卡片。
+  - 前端：搜索模式下自动隐藏"继续观看"区域，避免与搜索结果竞争视觉焦点。
+  - 前端：点击续播条目直接调用 `playItem()` 并恢复进度，无需二次确认。
 
 - **文件夹层级浏览（Folder Browse）**
-  - 后端：`MediaItem` 新增 `RelPath` 字段，`scanner.go` 计算相对于 share root 的路径（含子目录）。
-  - 前端：新建 `folder.js` 从扁平媒体列表提取文件夹树结构。
-  - 前端：`render.js` 支持 `flat` / `folder` 双模式渲染，文件夹模式下显示面包屑导航、子文件夹和当前目录文件。
-  - 前端：侧边栏增加"Folder / Flat"模式切换按钮。
-  - 前端：状态扩展 `browseMode`、`currentFolder`。
+  - 后端：`MediaItem` 新增 `RelPath` 字段；`scanner.go` 在扫描阶段通过 `filepath.Rel` 计算相对于 share root 的目录路径。
+  - 前端：新建 `folder.js`，从扁平 `mediaItems` 实时提取目录树结构，支持无限层级嵌套。
+  - 前端：`render.js` 支持 `flat` / `folder` 双模式渲染；文件夹模式显示面包屑导航、子文件夹列表和当前目录文件。
+  - 前端：侧边栏新增 Folder / Flat 模式切换按钮；状态扩展 `browseMode`、`currentFolder`。
 
 - **收藏/标记（Favorites）**
-  - 后端：新增 `Favorite` 领域类型，`FavoriteStore` 接口（List/Add/Remove/Is）。
-  - 后端：`SQLite` / `Store` 实现收藏 CRUD，`AutoMigrate` 自动建表。
-  - 后端：新增 `/api/favorites` REST 端点（GET/POST/DELETE）。
-  - 前端：启动时加载收藏状态到 `favoriteIds` Set。
-  - 前端：每个文件列表项右侧显示星标按钮（☆/★），点击即时切换并同步后端。
-  - 前端：新增第五个 `Favorites` Tab，跨类型聚合显示所有已收藏媒体。
-  - 前端：收藏 Tab 下自动隐藏"继续观看"和文件夹浏览，保持聚焦。
-  - 前端：收藏 Tab 内支持搜索、排序、分页。
+  - 后端：新增 `Favorite` 领域类型和 `FavoriteStore` 接口（List/Add/Remove/Is）。
+  - 后端：`SQLite` / `Store` 实现收藏 CRUD；`AutoMigrate` 自动创建 `favorites` 表。
+  - 后端：新增 `/api/favorites` REST 端点（GET / POST / DELETE），添加操作幂等。
+  - 前端：启动时批量拉取收藏状态到 `favoriteIds` Set，本地即时更新并后台同步。
+  - 前端：文件列表项右侧渲染星标按钮（☆/★），点击即时切换并同步后端。
+  - 前端：新增第五个 `Favorites` Tab，跨视频/音频/图片类型聚合显示已收藏媒体，支持搜索、排序、分页。
+  - 前端：收藏 Tab 下自动隐藏"继续观看"和文件夹浏览控件，保持界面聚焦。
 
 - **视频缩略图（Video Thumbnails）**
-  - 后端：新增 `/api/thumbnail?id=xxx` 端点，使用 ffmpeg 截取第 5 秒画面并缓存到 `thumbs/` 目录。
-  - 后端：信号量限制最多 2 个并发缩略图生成任务，避免 ffmpeg 风暴。
-  - 前端：视频列表项左侧显示懒加载缩略图。
+  - 后端：新增 `GET /api/thumbnail?id=xxx` 端点，调用 ffmpeg 截取第 5 秒画面输出 JPEG。
+  - 后端：缩略图缓存到 `<exe_dir>/thumbs/<media_id>.jpg`，带 `If-Modified-Since` 和 24h HTTP 缓存头。
+  - 后端：信号量限制最多 2 个并发 ffmpeg 缩略图生成任务，避免进程风暴；ffmpeg 不可用时返回 404。
+  - 前端：视频列表项左侧渲染缩略图，使用 `loading="lazy"` 延迟加载，ffmpeg 不可用时优雅降级为默认图标。
 
 - **转码进度反馈（Transcode Status）**
-  - 前端：播放视频/音频时，播放器上方显示"检测兼容性..."提示。
-  - 前端：若进入转码模式，提示变为"正在转码，请稍候..."并带旋转动画。
-  - 前端：媒体可播放后提示自动消失。
+  - 前端：播放视频/音频时，若 probe 判定需要转码，播放器上方显示浮动状态条。
+  - 前端：状态机分"检测兼容性..."和"正在转码，请稍候..."两阶段，后者带旋转 CSS 动画。
+  - 前端：媒体元素触发 `canplay` 后状态条自动淡出消失，消除"网络慢"与"正在转码"的不确定性。
 
 ## 1.6.2
 

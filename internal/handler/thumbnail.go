@@ -71,13 +71,14 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 生成缩略图
-	if err := os.MkdirAll(thumbDir, 0755); err != nil {
+	if err := os.MkdirAll(thumbDir, 0750); err != nil {
 		log.Printf("[WARN] thumbnail: mkdir failed: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to create cache dir")
 		return
 	}
 
 	ffmpegPath := h.processor.FFmpegPath()
+	// #nosec G204 — ffmpegPath 来自处理器已发现的可信路径；filePath 经 DecodeID + os.Stat 验证；thumbPath 为本地缓存目录内的派生路径。
 	cmd := exec.CommandContext(r.Context(), ffmpegPath,
 		"-ss", "5",
 		"-i", filePath,
