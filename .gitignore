@@ -170,6 +170,7 @@ test.json
 
 # Optional Go vendor dir (if not vendoring dependencies)
 vendor/
+!web/src/styles/vendor/
 
 # Documentation drafts
 docs/*.draft.md

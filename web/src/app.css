@@ -6,5 +6,6 @@
 @import url('./styles/components/dialog.css');
 @import url('./styles/components/player.css');
 @import url('./styles/components/playlist.css');
+@import url('./styles/vendor/plyr.css');
 @import url('./styles/responsive.css');
 @import url('./styles/other.css');
