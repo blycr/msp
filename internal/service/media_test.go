@@ -46,6 +46,7 @@ func TestMediaServiceGetOrBuildMediaCache(t *testing.T) {
 	if etag == "" {
 		t.Error("etag should not be empty after build")
 	}
+	c.WaitForBackground()
 	_ = resp
 }
 
