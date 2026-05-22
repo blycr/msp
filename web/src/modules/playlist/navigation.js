@@ -51,7 +51,7 @@ export function playAtIndex(i, autoplay, user) {
   state.playlist.index = actualIndex;
   bus.emit('playlist:updated');
   updateNavButtons();
-  bus.emit('play:request', items[actualIndex], { fromPlaylist: true, autoplay: !!autoplay, user: !!user });
+  bus.emit('play:request', items[actualIndex], { fromPlaylist: true, autoplay: !!autoplay, user: !!user, autoSwitch: true });
 }
 
 export function playPrev(autoplay = true) {

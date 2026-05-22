@@ -3,7 +3,7 @@ import { t } from '../i18n.js';
 import { getCfg } from '../utils.js';
 import { gpGet, gpSet } from '../api.js';
 import { setPlaylist, renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent } from '../playlist.js';
-import { updateResumeButton, setFitBtnVisible } from '../player.js';
+import { setFitBtnVisible } from '../player.js';
 import { renderList } from './render.js';
 import { renderShares, updateBlacklistUI } from './shares.js';
 

@@ -19,7 +19,6 @@ export {
   getActiveMedia,
   saveProgress,
   hasResumeCandidate,
-  updateResumeButton,
   restorePlaybackTime
 } from './seek.js';
 

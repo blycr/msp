@@ -24,7 +24,6 @@ const I18N = {
     next: "Next",
     shuffle: "Shuffle",
     loop: "Loop",
-    resume: "Resume",
     open_raw: "Open Raw",
     fit_mode: "Fit Mode: Adapt",
     empty_tip: "Select a file to preview",
@@ -101,8 +100,6 @@ const I18N = {
     err_plyr_init: "Plyr not initialized",
     err_plyr_method: "Unsupported Plyr method: {0}",
     lyrics_pure_music: "· Pure Music ·",
-    
-    continue_watching: "Continue Watching",
     transcode_checking: "Checking compatibility...",
     transcode_preparing: "Transcoding video, please wait...",
     mode_folder: "Folder",
@@ -135,7 +132,6 @@ const I18N = {
     next: "下一个",
     shuffle: "随机",
     loop: "循环",
-    resume: "继续播放",
     open_raw: "在新标签打开",
     fit_mode: "填充模式：适配",
     empty_tip: "从左侧选择一个媒体文件进行预览",
@@ -211,8 +207,6 @@ const I18N = {
     pin_submit: "提交",
     pin_error: "PIN 码错误，请重试。",
     pin_checking: "验证中...",
-    
-    continue_watching: "继续观看",
     transcode_checking: "正在检测兼容性...",
     transcode_preparing: "正在转码，请稍候...",
     mode_folder: "文件夹",

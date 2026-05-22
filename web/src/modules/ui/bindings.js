@@ -4,7 +4,7 @@ import { getCfg } from '../utils.js';
 import { apiPost, gpSet } from '../api.js';
 import { bus } from '../eventbus.js';
 import { renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent, playPrev, playNext } from '../playlist.js';
-import { updateResumeButton, resumeLast, setFitBtnVisible } from '../player.js';
+import { resumeLast, setFitBtnVisible } from '../player.js';
 import { createArrowDownIcon, createArrowUpIcon } from '../icons.js';
 import { showDlg, updateUIForLang, renderList } from './render.js';
 import { renderShares, updateBlacklistUI } from './shares.js';
@@ -228,14 +228,6 @@ export function bindUI() {
       try { fitBtn.textContent = next === "cover" ? t("fit_cover") : t("fit_contain"); } catch { }
       gpSet("msp.video.fit", next);
     });
-  } catch { }
-
-  try {
-    const btnResume = el("btnResume");
-    btnResume.disabled = true;
-    btnResume.hidden = true;
-    btnResume.addEventListener("click", () => resumeLast());
-    updateResumeButton();
   } catch { }
 
   el("btnPrev").addEventListener("click", () => playPrev(true));

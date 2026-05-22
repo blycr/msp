@@ -120,10 +120,6 @@ export async function getProgress(id) {
   }
 }
 
-export async function loadRecentProgress(limit = 5) {
-  return apiGet(`/api/progress/recent?limit=${limit}`);
-}
-
 export async function loadFavorites() {
   return apiGet('/api/favorites');
 }

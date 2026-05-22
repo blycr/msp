@@ -1,5 +1,5 @@
 import { bus } from './eventbus.js';
-import { updateResumeButton, resumeLast } from './player.js';
+import { resumeLast } from './player.js';
 import { bindUI } from './ui/bindings.js';
 import { setMeta, showDlg, updateUIForLang, renderList } from './ui/render.js';
 import { renderShares, updateBlacklistUI } from './ui/shares.js';
@@ -18,7 +18,6 @@ bus.on('config:loaded', () => {
 });
 bus.on('media:loaded', () => {
   renderList();
-  updateResumeButton();
 });
 bus.on('media:resume', () => {
   resumeLast();

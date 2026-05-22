@@ -55,14 +55,6 @@ export function hasResumeCandidate() {
   return false;
 }
 
-export function updateResumeButton() {
-  const btn = el("btnResume");
-  if (!btn) return;
-  const show = !state.current && hasResumeCandidate();
-  btn.hidden = !show;
-  btn.disabled = !show;
-}
-
 export async function restorePlaybackTime(kind, id, mediaEl) {
   let timeVal = 0;
   try {

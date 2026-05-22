@@ -7,7 +7,7 @@ import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from '../lyri
 import { setPlaylist, updateNavLabels, playNext, buildPlaylist, generatePlayOrder } from '../playlist.js';
 import { resetMediaEl, hideAllMedia, showPreviewError, setFitBtnVisible, updateFitBtnFromVideo, setTracks, applyPlyr } from './core.js';
 import { setupErrorHandler } from './transcode.js';
-import { saveProgress, updateResumeButton } from './seek.js';
+import { saveProgress } from './seek.js';
 import { setupAudioTrackHandling } from './audio-track.js';
 
 let currentBlobUrl = null;
@@ -73,7 +73,6 @@ export async function playItem(item, opts) {
     if (mediaEl) mediaEl.volume = Number(savedVol);
   }
   updateNavLabels();
-  updateResumeButton();
 
   setFitBtnVisible(state.tab === "video" && item.kind === "video");
 
@@ -202,19 +201,26 @@ export async function playItem(item, opts) {
       if (state.plyr) {
         state.plyr.once("ready", async () => {
           let perFileTime = 0;
-          try { perFileTime = await getProgress(item.id); } catch { }
+          if (!options.autoSwitch) {
+            try { perFileTime = await getProgress(item.id); } catch { }
+          }
           if (state.plyr) {
             if (perFileTime > 0) state.plyr.currentTime = perFileTime;
             state.plyr.play().catch(() => { });
           }
         });
       } else {
-        getProgress(item.id).then(t => {
-          if (t > 0) audio.currentTime = t;
+        if (options.autoSwitch) {
+          audio.currentTime = 0;
           audio.play().catch(() => { });
-        }).catch(() => {
-          audio.play().catch(() => { });
-        });
+        } else {
+          getProgress(item.id).then(t => {
+            if (t > 0) audio.currentTime = t;
+            audio.play().catch(() => { });
+          }).catch(() => {
+            audio.play().catch(() => { });
+          });
+        }
       }
     }
 
@@ -402,19 +408,26 @@ export async function playItem(item, opts) {
       if (state.plyr) {
         state.plyr.once("ready", async () => {
           let perFileTime = 0;
-          try { perFileTime = await getProgress(item.id); } catch { }
+          if (!options.autoSwitch) {
+            try { perFileTime = await getProgress(item.id); } catch { }
+          }
           if (state.plyr) {
             if (perFileTime > 0) state.plyr.currentTime = perFileTime;
             state.plyr.play().catch(() => { });
           }
         });
       } else {
-        getProgress(item.id).then(t => {
-          if (t > 0) video.currentTime = t;
+        if (options.autoSwitch) {
+          video.currentTime = 0;
           video.play().catch(() => { });
-        }).catch(() => {
-          video.play().catch(() => { });
-        });
+        } else {
+          getProgress(item.id).then(t => {
+            if (t > 0) video.currentTime = t;
+            video.play().catch(() => { });
+          }).catch(() => {
+            video.play().catch(() => { });
+          });
+        }
       }
     }
     return;

@@ -1,7 +1,7 @@
 import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { currentList, filterFiles, sortFiles } from '../playlist.js';
-import { formatName, formatBytes, formatTime } from '../utils.js';
+import { formatName, formatBytes } from '../utils.js';
 import { bus } from '../eventbus.js';
 import { getFolderContents } from '../folder.js';
 import { addFavorite, removeFavorite } from '../api.js';
@@ -71,42 +71,10 @@ export function updateUIForLang() {
   }
 }
 
-function renderContinueWatching(box) {
-  if (!state.continueWatching || state.continueWatching.length === 0) return;
-  if (state.q) return; // 搜索模式下不显示
-
-  const section = document.createElement('div');
-  section.className = 'continue-watching';
-  section.innerHTML = `<div class="continue-watching__title">${t('continue_watching')}</div>`;
-
-  const list = document.createElement('div');
-  list.className = 'continue-watching__list';
-
-  for (const item of state.continueWatching) {
-    const elBtn = document.createElement('button');
-    elBtn.className = 'continue-watching__item';
-    elBtn.dataset.id = item.id;
-    elBtn.innerHTML = `
-      <span class="continue-watching__name">${formatName(item)}</span>
-      <span class="continue-watching__progress">${formatTime(item.time)}</span>
-    `;
-    elBtn.addEventListener('click', () => {
-      bus.emit('play:request', item, { resume: true });
-    });
-    list.appendChild(elBtn);
-  }
-  section.appendChild(list);
-  box.prepend(section);
-}
-
 export function renderList() {
   const box = el("list");
   const hint = el("hint");
   box.innerHTML = "";
-
-  if (state.tab !== 'favorites') {
-    renderContinueWatching(box);
-  }
 
   const hasItems = state.media && (
     (state.media.videos || []).length > 0 ||

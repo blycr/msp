@@ -1,8 +1,8 @@
 import { registerSW } from 'virtual:pwa-register';
 import { state, el, lsSet, LS, lsGet } from './state.js';
 import { t, initLang } from './i18n.js';
-import { apiGet, apiRetry, loadPrefs, gpGet, loadRecentProgress, loadFavorites } from './api.js';
-import { updateResumeButton, hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
+import { apiGet, apiRetry, loadPrefs, gpGet, loadFavorites } from './api.js';
+import { hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
 import { bus } from './eventbus.js';
@@ -75,7 +75,6 @@ export async function loadMedia(refresh, limit) {
   state.media = data;
   state.scanning = !!data.scanning;
   bus.emit('media:loaded');
-  updateResumeButton();
 
   if (!refresh && !isLimitedRequest) {
     bus.emit('media:resume');
@@ -166,26 +165,6 @@ export async function boot() {
         startMediaPolling();
       }
       
-      try {
-        const progressData = await loadRecentProgress(5);
-        if (progressData?.items?.length && state.media) {
-          const allMedia = [
-            ...(state.media.videos || []),
-            ...(state.media.audios || []),
-          ];
-          state.continueWatching = progressData.items
-            .map(p => {
-              const media = allMedia.find(m => m.id === p.mediaId);
-              if (!media) return null;
-              return { ...media, time: p.time };
-            })
-            .filter(Boolean);
-          bus.emit('media:loaded'); // Trigger re-render
-        }
-      } catch (e) {
-        console.warn("Failed to load continue watching:", e);
-      }
-
       try {
         const favData = await loadFavorites();
         state.favoriteIds = new Set((favData?.items || []).map(f => f.mediaId));
