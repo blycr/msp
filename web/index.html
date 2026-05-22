@@ -166,6 +166,9 @@
         <div class="sharelist" id="shareList"></div>
       </div>
 
+      <!-- Divider -->
+      <hr class="dialog__divider" />
+
       <!-- Blacklist Settings Section -->
       <div class="dialog__subtitle" data-i18n="bl_title">Filter / Blacklist</div>
       <div class="dialog__section">
@@ -181,14 +184,11 @@
         <div class="dialog__row">
           <input class="textfield" id="blFolders" placeholder="Block Folder Names" data-i18n-ph="bl_folders_ph"
             style="flex: 1;" />
+          <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Filters</button>
         </div>
 
         <div class="dialog__note" id="blHint">
           Usage: Separate with commas. Supports simple matching.
-        </div>
-
-        <div class="dialog__row dialog__row--end">
-          <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Filters</button>
         </div>
       </div>
 

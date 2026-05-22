@@ -12,7 +12,6 @@ body {
 .btn--ghost,
 .audioCover,
 .lyrics,
-.dialog,
 .share,
 .topbar,
 .plitem {
@@ -21,6 +20,22 @@ body {
     color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dialog transition: separate from theme transitions to include transform for open/close animation */
+.dialog {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dialog exit state: fade out + slight scale down + slight upward shift for smooth dismiss */
+.dialog[hidden] {
+  opacity: 0;
+  transform: translate(-50%, -48%) scale(0.96);
 }
 
 /* Optimize media transitions (opacity only, 0.25s); removed will-change to avoid over-compositing */
@@ -57,5 +72,12 @@ body {
   z-index: 50;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease, backdrop-filter 0.3s ease;
+}
+
+/* Backdrop exit state: fade out and remove blur to avoid compositor jank */
+.dialog__backdrop[hidden] {
+  opacity: 0;
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
 }
