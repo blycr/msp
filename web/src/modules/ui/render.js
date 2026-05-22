@@ -1,7 +1,7 @@
 import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { currentList, filterFiles, sortFiles } from '../playlist.js';
-import { formatName, formatBytes } from '../utils.js';
+import { formatName, formatBytes, formatTime } from '../utils.js';
 import { bus } from '../eventbus.js';
 import { getFolderContents } from '../folder.js';
 import { addFavorite, removeFavorite } from '../api.js';

@@ -109,7 +109,7 @@ func main() {
 	printStartupBanner(cfgPath, port)
 
 	limiter := handler.NewRateLimiter()
-	finalHandler := handler.WithRecovery(handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithRateLimit(limiter, handler.WithAdminLockdown(handler.WithGzip(mux))))))
+	finalHandler := handler.WithRecovery(s, handler.WithLog(s, handler.WithSecurity(s, s, s, handler.WithRateLimit(limiter, handler.WithAdminLockdown(handler.WithGzip(mux))))))
 
 	srv := &http.Server{
 		Addr:              addr,

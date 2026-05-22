@@ -169,7 +169,7 @@ func Default() Config {
 			PINEnabled:  false,
 			PIN:         constants.DefaultPIN,
 		},
-		LogLevel: "info",
+		LogLevel: "warning",
 		LogFile:  "",
 	}
 }
@@ -201,7 +201,7 @@ func applyBaseDefaults(cfg *Config) bool {
 		changed = true
 	}
 	if cfg.LogLevel == "" {
-		cfg.LogLevel = "info"
+		cfg.LogLevel = "warning"
 		changed = true
 	}
 	return changed

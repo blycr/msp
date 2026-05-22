@@ -3,7 +3,6 @@ package handler
 import (
 	"compress/gzip"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -24,11 +23,11 @@ func (g gzipResponseWriter) Write(p []byte) (int, error) {
 	return g.gw.Write(p)
 }
 
-func WithRecovery(next http.Handler) http.Handler {
+func WithRecovery(logger Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				log.Printf("[PANIC] %v\n%s", rec, debug.Stack())
+				logger.Log("error", fmt.Sprintf("[PANIC] %v\n%s", rec, debug.Stack()))
 				writeError(w, http.StatusInternalServerError, "内部错误")
 			}
 		}()

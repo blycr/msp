@@ -56,13 +56,13 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 		sqlDB.SetMaxIdleConns(1)
 
 		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-			log.Printf("DB Warn: failed to set WAL mode: %v", err)
+			log.Printf("[WARN] DB Warn: failed to set WAL mode: %v", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
-			log.Printf("DB Warn: failed to set synchronous mode: %v", err)
+			log.Printf("[WARN] DB Warn: failed to set synchronous mode: %v", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA cache_size=-2000;"); err != nil {
-			log.Printf("DB Warn: failed to set cache size: %v", err)
+			log.Printf("[WARN] DB Warn: failed to set cache size: %v", err)
 		}
 	}
 

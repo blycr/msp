@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -17,10 +18,11 @@ import (
 )
 
 const (
-	LogLevelDebug = "debug"
-	LogLevelInfo  = "info"
-	LogLevelError = "error"
-	LogLevelNone  = "none"
+	LogLevelDebug   = "debug"
+	LogLevelInfo    = "info"
+	LogLevelWarning = "warning"
+	LogLevelError   = "error"
+	LogLevelNone    = "none"
 )
 
 type LoggerService struct {
@@ -32,12 +34,16 @@ type LoggerService struct {
 	logMu   sync.Mutex
 	logFile *os.File
 	logCnt  int32
+
+	consoleOutput *os.File
+	fileOutput    *os.File
 }
 
 func NewLoggerService(cfgLevel, logFilePath string) *LoggerService {
 	return &LoggerService{
-		cfgLevel:    strings.ToLower(cfgLevel),
-		logFilePath: logFilePath,
+		cfgLevel:      strings.ToLower(cfgLevel),
+		logFilePath:   logFilePath,
+		consoleOutput: os.Stderr,
 	}
 }
 
@@ -68,6 +74,8 @@ func (l *LoggerService) SetupLogger() {
 		return
 	}
 	l.logFile = f
+	l.fileOutput = f
+	l.consoleOutput = os.Stderr
 	log.SetOutput(f)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 }
@@ -81,19 +89,39 @@ func (l *LoggerService) Log(level string, msg string) {
 	switch strings.ToLower(level) {
 	case LogLevelError:
 		shouldLog = cfgLevel != LogLevelNone
+	case LogLevelWarning:
+		shouldLog = cfgLevel == LogLevelDebug || cfgLevel == LogLevelInfo || cfgLevel == LogLevelWarning
 	case LogLevelInfo:
 		shouldLog = cfgLevel == LogLevelInfo || cfgLevel == LogLevelDebug
 	case LogLevelDebug:
 		shouldLog = cfgLevel == LogLevelDebug
 	}
 
-	if shouldLog {
-		line := fmt.Sprintf("[%s] %s", strings.ToUpper(level), msg)
-		log.Println(line)
+	if !shouldLog {
+		return
+	}
 
-		if cnt := atomic.AddInt32(&l.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
-			l.RotateLogIfNeeded()
+	line := fmt.Sprintf("[%s] %s", strings.ToUpper(level), msg)
+
+	l.logMu.Lock()
+	fileOut := l.fileOutput
+	consoleOut := l.consoleOutput
+	l.logMu.Unlock()
+
+	// 所有日志都写入文件
+	if fileOut != nil {
+		log.New(fileOut, "", log.LstdFlags|log.Lmicroseconds).Println(line)
+	}
+
+	// 只有 error 级别（以及更严重级别）写入控制台，并过滤 context 取消类错误
+	if strings.ToLower(level) == LogLevelError && consoleOut != nil {
+		if !strings.Contains(msg, context.Canceled.Error()) && !strings.Contains(msg, context.DeadlineExceeded.Error()) {
+			log.New(consoleOut, "", log.LstdFlags|log.Lmicroseconds).Println(line)
 		}
+	}
+
+	if cnt := atomic.AddInt32(&l.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
+		l.RotateLogIfNeeded()
 	}
 }
 
@@ -116,6 +144,7 @@ func (l *LoggerService) RotateLogIfNeeded() {
 
 	_ = l.logFile.Close()
 	l.logFile = nil
+	l.fileOutput = nil
 
 	l.mu.RLock()
 	path := l.logFilePath
@@ -128,11 +157,12 @@ func (l *LoggerService) RotateLogIfNeeded() {
 	//nolint:gosec // Log file path is controlled by config/CLI
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
 	if err != nil {
-		log.Printf("[ERROR] Failed to reopen log file %s: %v; falling back to stderr", path, err)
-		log.SetOutput(os.Stderr)
+		log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds).Printf("[ERROR] Failed to reopen log file %s: %v; falling back to stderr", path, err)
+		l.consoleOutput = os.Stderr
 		return
 	}
 	l.logFile = f
+	l.fileOutput = f
 	log.SetOutput(f)
 }
 
@@ -176,5 +206,6 @@ func (l *LoggerService) Close() {
 	if l.logFile != nil {
 		_ = l.logFile.Close()
 		l.logFile = nil
+		l.fileOutput = nil
 	}
 }

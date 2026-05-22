@@ -1,23 +1,24 @@
 package handler
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"msp/internal/constants"
 	"msp/internal/domain"
+	"msp/internal/service"
 )
 
-var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+var validLogLevels = map[string]bool{"debug": true, "info": true, "warning": true, "error": true}
 
 func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		prefs, err := h.prefs.GetAllPrefs(r.Context())
 		if err != nil {
-			log.Printf("Error in GetAllPrefs: %v", err)
+			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in GetAllPrefs: %v", err))
 			writeJSON(w, http.StatusInternalServerError, domain.PrefsResponse{Error: &domain.ApiError{Message: constants.ErrMsgReadPrefs}})
 			return
 		}
@@ -33,7 +34,7 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.prefs.SetPrefs(r.Context(), req.Prefs); err != nil {
-			log.Printf("Error in SetPrefs: %v", err)
+			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in SetPrefs: %v", err))
 			writeJSON(w, http.StatusInternalServerError, domain.PrefsResponse{Error: &domain.ApiError{Message: constants.ErrMsgWritePrefs}})
 			return
 		}
@@ -53,7 +54,7 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 		}
 		t, err := h.progress.GetProgress(r.Context(), id)
 		if err != nil {
-			log.Printf("Error in GetProgress: %v", err)
+			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in GetProgress: %v", err))
 			writeError(w, http.StatusInternalServerError, constants.ErrMsgReadProgress)
 			return
 		}
@@ -72,7 +73,7 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.progress.SetProgress(r.Context(), req.ID, req.Time); err != nil {
-			log.Printf("Error in SetProgress: %v", err)
+			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in SetProgress: %v", err))
 			writeError(w, http.StatusInternalServerError, constants.ErrMsgWriteProgress)
 			return
 		}
@@ -120,7 +121,7 @@ func (h *Handler) HandleRecentProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.progress.ListRecentProgress(r.Context(), limit)
 	if err != nil {
-		log.Printf("Error in ListRecentProgress: %v", err)
+		h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in ListRecentProgress: %v", err))
 		writeError(w, http.StatusInternalServerError, "failed to list recent progress")
 		return
 	}

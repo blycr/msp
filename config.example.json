@@ -55,7 +55,7 @@
     "pinEnabled": false,
     "pinHash": ""
   },
-  "logLevel": "info",
+  "logLevel": "warning",
   "logFile": "",
   "maxItems": 0
 }

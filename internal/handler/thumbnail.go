@@ -3,13 +3,13 @@ package handler
 import (
 	"crypto/sha256"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"msp/internal/constants"
+	"msp/internal/service"
 	"msp/internal/util"
 )
 
@@ -72,7 +72,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// 生成缩略图
 	if err := os.MkdirAll(thumbDir, 0750); err != nil {
-		log.Printf("[WARN] thumbnail: mkdir failed: %v", err)
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("thumbnail: mkdir failed: %v", err))
 		writeError(w, http.StatusInternalServerError, "failed to create cache dir")
 		return
 	}
@@ -89,7 +89,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 		thumbPath,
 	)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("[WARN] thumbnail: ffmpeg failed for %s: %v\n%s", filePath, err, string(output))
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("thumbnail: ffmpeg failed for %s: %v\n%s", filePath, err, string(output)))
 		// 如果生成失败，直接返回 404，不报错，让前端隐藏
 		writeError(w, http.StatusNotFound, "thumbnail generation failed")
 		return

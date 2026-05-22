@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"msp/internal/domain"
 	"msp/internal/media"
 	"msp/internal/scanner"
+	"msp/internal/service"
 	"msp/internal/util"
 )
 
@@ -46,7 +46,7 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		if h.tryServeTranscode(w, r, target, ext) {
 			return
 		}
-		log.Printf("[WARN] Transcode failed for %s, falling back to direct play", target)
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("Transcode failed for %s, falling back to direct play", target))
 	}
 
 	h.serveDirect(w, r, f, st, ct)
@@ -183,7 +183,7 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 
 	stream, err := h.processor.TranscodeStream(r.Context(), target, opts)
 	if err != nil {
-		log.Printf("[WARN] Transcode stream error: %v", err)
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("Transcode stream error: %v", err))
 		return false
 	}
 	defer func() { _ = stream.Close() }()
@@ -197,7 +197,7 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Del("Content-Length")
 	if _, err := io.Copy(w, stream); err != nil {
-		log.Printf("[WARN] io.Copy transcode stream error: %v", err)
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("io.Copy transcode stream error: %v", err))
 	}
 	return true
 }

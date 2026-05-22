@@ -76,7 +76,7 @@ func validatePort(port int) error {
 
 // validateLogLevel 验证日志级别
 func validateLogLevel(level string) error {
-	validLevels := []string{"debug", "info", "error", "none", ""}
+	validLevels := []string{"debug", "info", "warning", "error", "none", ""}
 	level = strings.ToLower(strings.TrimSpace(level))
 	for _, valid := range validLevels {
 		if level == valid {
