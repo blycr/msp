@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.7.0
+
+- **恢复播放行为重新设计**
+  - 移除"继续观看"（Continue Watching）列表及侧边栏区域
+  - 移除 `GET /api/progress/recent` 端点和 `RecentProgress` 领域类型
+  - 点击媒体项仍自动恢复上次播放进度，核心行为不变
+
+- **日志系统重新设计**
+  - 新增 `Warning` 日志级别，支持 Info / Warning / Error 三级分类
+  - 日志同时输出到文件和控制台（dual output），便于开发调试
+  - `internal/service/logger.go` 重构，支持级别过滤与多输出目标
+
+- **设置对话框视觉层级优化**
+  - 引入分组标题与分隔线，设置项按功能聚类（播放/网络/安全/外观）
+  - 优化表单控件对齐与间距，统一 Neo-Industrial 设计规范
+
+- **其他改进**
+  - 修复音视频进度条与音量条的鼠标指针样式及拖拽文字选中问题
+  - 测试：`TestMediaServiceGetOrBuildMediaCache` 消除后台任务竞态
+  - 工程：禁用 Git `autocrlf`，消除 Windows 环境 LF/CRLF 警告
+
 ## 1.6.3
 
 - **继续观看（Continue Watching）**
