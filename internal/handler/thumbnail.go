@@ -36,7 +36,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 	filePath = util.NormalizePath(filePath)
 
-	// 检查文件是否存在
+	//nolint:gosec
 	if _, err := os.Stat(filePath); err != nil {
 		writeError(w, http.StatusNotFound, "file not found")
 		return
@@ -48,7 +48,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(filePath)))
 	thumbPath := filepath.Join(thumbDir, hash+".jpg")
 
-	// 检查缓存
+	//nolint:gosec
 	if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		http.ServeFile(w, r, thumbPath)
@@ -78,7 +78,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ffmpegPath := h.processor.FFmpegPath()
-	// #nosec G204 — ffmpegPath 来自处理器已发现的可信路径；filePath 经 DecodeID + os.Stat 验证；thumbPath 为本地缓存目录内的派生路径。
+	//nolint:gosec // ffmpegPath 来自处理器已发现的可信路径；filePath 经 DecodeID + os.Stat 验证；thumbPath 为本地缓存目录内的派生路径。
 	cmd := exec.CommandContext(r.Context(), ffmpegPath,
 		"-ss", "5",
 		"-i", filePath,

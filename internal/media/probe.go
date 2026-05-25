@@ -82,6 +82,7 @@ func findExecutable(name string) string {
 			if p, err := exec.LookPath(env); err == nil {
 				return p
 			}
+			//nolint:gosec // env 来自用户配置的环境变量 MSP_FFMPEG_PATH
 			if _, err := os.Stat(env); err == nil {
 				return env
 			}

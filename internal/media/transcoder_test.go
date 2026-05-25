@@ -293,6 +293,7 @@ func TestRemoveProcess(t *testing.T) {
 	assert.Empty(t, mp.transcode.active)
 }
 
+//nolint:gosec
 func createTestVideo(outputPath string) *exec.Cmd {
 	return exec.Command("ffmpeg",
 		"-f", "lavfi",

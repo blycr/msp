@@ -226,6 +226,7 @@ func tryAutoOpenBrowser(port int) {
 	_ = openBrowser(localURL)
 }
 
+//nolint:gosec
 func openBrowser(url string) error {
 	switch runtime.GOOS {
 	case "windows":

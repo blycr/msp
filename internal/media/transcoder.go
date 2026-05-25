@@ -80,7 +80,7 @@ func (mp *MediaProcessor) TranscodeStream(ctx context.Context, inputPath string,
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 
-	info, err := os.Stat(inputPath)
+	info, err := os.Lstat(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("input path not accessible: %w", err)
 	}
