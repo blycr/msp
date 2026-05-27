@@ -9,10 +9,8 @@ COPY web/ ./
 RUN bun run build
 
 # Stage 2: Build Backend
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 WORKDIR /app
-# Install build tools (gcc needed for cgo/sqlite)
-RUN apk add --no-cache gcc musl-dev
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -25,7 +23,7 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -o msp-server ./cmd/msp
 
 # Stage 3: Runtime
-FROM alpine:latest
+FROM alpine:3.21
 WORKDIR /app
 
 # No extra sqlite libs needed for modernc.org/sqlite
@@ -42,5 +40,8 @@ EXPOSE 8099
 # Volume for data (config, db) and media
 VOLUME ["/data", "/media"]
 
-# Run
+# Run as non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
 CMD ["./msp-server"]

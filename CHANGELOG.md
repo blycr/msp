@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.2
+
+- **Dockerfile**：修复 Go 版本号错误（`1.25` → `1.24`），`docker build` 不再失败；固定 Alpine 镜像版本；移除无用的 `gcc`/`musl-dev`；容器以非 root 用户运行
+- **构建脚本**：修复 `scripts/build.sh` 中 4 处 bash `&&`/`||` 运算符优先级 bug
+- **日志系统**：修复 `RotateLogIfNeeded()` 与 `Log()` 之间的数据竞争；缓存 `log.Logger` 实例消除每次调用的堆分配
+
 ## 1.7.1
 
 - **构建修复**：修复 `golangci-lint` 中 `gosec` 扫描器的误报问题，为可信路径调用和文件存在性检查添加 `//nolint:gosec` 注释

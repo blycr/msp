@@ -405,7 +405,9 @@ for cfg in "${build_configs[@]}"; do
 
   should_build_flag=false
   if [[ "$platform" == 'linux' && "$arch" == 'amd64' ]]; then
-    should_build 'linux' 'amd64' || should_build 'linux' 'x64' && should_build_flag=true
+    if should_build 'linux' 'amd64' || should_build 'linux' 'x64'; then
+      should_build_flag=true
+    fi
   elif [[ "$platform" == 'linux' && "$arch" == 'arm64' ]]; then
     should_build 'linux' 'arm64' && should_build_flag=true
   elif [[ "$platform" == 'linux' && "$arch" == 'arm' ]]; then
@@ -413,13 +415,19 @@ for cfg in "${build_configs[@]}"; do
   elif [[ "$platform" == 'linux' && "$arch" == 'loong64' ]]; then
     should_build 'linux' 'loong64' && should_build_flag=true
   elif [[ "$platform" == 'darwin' && "$arch" == 'amd64' ]]; then
-    should_build 'macos' 'amd64' || should_build 'macos' 'x64' && should_build_flag=true
+    if should_build 'macos' 'amd64' || should_build 'macos' 'x64'; then
+      should_build_flag=true
+    fi
   elif [[ "$platform" == 'darwin' && "$arch" == 'arm64' ]]; then
     should_build 'macos' 'arm64' && should_build_flag=true
   elif [[ "$platform" == 'windows' && "$arch" == 'amd64' ]]; then
-    should_build 'windows' 'amd64' || should_build 'windows' 'x64' && should_build_flag=true
+    if should_build 'windows' 'amd64' || should_build 'windows' 'x64'; then
+      should_build_flag=true
+    fi
   elif [[ "$platform" == 'windows' && "$arch" == '386' ]]; then
-    should_build 'windows' '386' || should_build 'windows' 'x86' && should_build_flag=true
+    if should_build 'windows' '386' || should_build 'windows' 'x86'; then
+      should_build_flag=true
+    fi
   fi
 
   if [[ "$should_build_flag" == 'true' ]]; then

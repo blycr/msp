@@ -37,6 +37,9 @@ type LoggerService struct {
 
 	consoleOutput *os.File
 	fileOutput    *os.File
+
+	fileLogger    *log.Logger
+	consoleLogger *log.Logger
 }
 
 func NewLoggerService(cfgLevel, logFilePath string) *LoggerService {
@@ -76,6 +79,8 @@ func (l *LoggerService) SetupLogger() {
 	l.logFile = f
 	l.fileOutput = f
 	l.consoleOutput = os.Stderr
+	l.fileLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	l.consoleLogger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 	log.SetOutput(f)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 }
@@ -104,21 +109,18 @@ func (l *LoggerService) Log(level string, msg string) {
 	line := fmt.Sprintf("[%s] %s", strings.ToUpper(level), msg)
 
 	l.logMu.Lock()
-	fileOut := l.fileOutput
-	consoleOut := l.consoleOutput
-	l.logMu.Unlock()
-
 	// 所有日志都写入文件
-	if fileOut != nil {
-		log.New(fileOut, "", log.LstdFlags|log.Lmicroseconds).Println(line)
+	if l.fileLogger != nil {
+		l.fileLogger.Println(line)
 	}
 
 	// 只有 error 级别（以及更严重级别）写入控制台，并过滤 context 取消类错误
-	if strings.ToLower(level) == LogLevelError && consoleOut != nil {
+	if strings.ToLower(level) == LogLevelError && l.consoleLogger != nil {
 		if !strings.Contains(msg, context.Canceled.Error()) && !strings.Contains(msg, context.DeadlineExceeded.Error()) {
-			log.New(consoleOut, "", log.LstdFlags|log.Lmicroseconds).Println(line)
+			l.consoleLogger.Println(line)
 		}
 	}
+	l.logMu.Unlock()
 
 	if cnt := atomic.AddInt32(&l.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
 		l.RotateLogIfNeeded()
@@ -145,6 +147,7 @@ func (l *LoggerService) RotateLogIfNeeded() {
 	_ = l.logFile.Close()
 	l.logFile = nil
 	l.fileOutput = nil
+	l.fileLogger = nil
 
 	l.mu.RLock()
 	path := l.logFilePath
@@ -163,6 +166,7 @@ func (l *LoggerService) RotateLogIfNeeded() {
 	}
 	l.logFile = f
 	l.fileOutput = f
+	l.fileLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 	log.SetOutput(f)
 }
 
@@ -207,5 +211,6 @@ func (l *LoggerService) Close() {
 		_ = l.logFile.Close()
 		l.logFile = nil
 		l.fileOutput = nil
+		l.fileLogger = nil
 	}
 }
