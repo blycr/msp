@@ -62,10 +62,6 @@ body {
   gap: 24px;
 }
 
-.playerbox:has(#audioEl:not([hidden])) #audioEl {
-  margin: 0;
-}
-
 /* Dialog overrides */
 .dialog__backdrop {
   position: fixed;
