@@ -137,6 +137,8 @@ temp/
 .trae/
 .claude/
 .qoder/
+.reasonix/
+.serena/
 .antigravityignore
 vercel.json
 .vercel/
@@ -145,6 +147,10 @@ netlify.toml
 # Shared local folders
 .shared/
 .agent/
+
+# Generated codemap
+codemap.html
+scripts/codemap-gen/
 
 # Local wiki clone / exports
 wiki_temp/

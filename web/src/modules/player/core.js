@@ -143,30 +143,6 @@ export function applyPlyr(element, onMediaEnded) {
   destroyPlyr();
   const isVideoElement = String(element?.tagName || "").toUpperCase() === "VIDEO";
 
-  const isTouch = (() => {
-    try {
-      if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
-      if (window.matchMedia && window.matchMedia("(max-width: 980px)").matches) return true;
-    } catch { }
-    return false;
-  })();
-
-  if (isTouch) {
-    try { element.controls = true; } catch { }
-    try {
-      if (String(element?.tagName || "").toUpperCase() === "VIDEO") element.playsInline = true;
-    } catch { }
-    try {
-      element.removeEventListener("ended", onMediaEnded);
-      element.addEventListener("ended", onMediaEnded);
-    } catch { }
-    try {
-      const wrap = element.closest?.(".plyr");
-      if (wrap) wrap.style.display = "block";
-    } catch { }
-    return;
-  }
-
   const features = state.config?.features || {};
   try {
     const vol = Number(gpGet("msp.volume") || "");

@@ -60,8 +60,10 @@ body {
   justify-content: flex-start;
   padding: 24px;
   gap: 24px;
-  gap: 24px;
+}
 
+.playerbox:has(#audioEl:not([hidden])) #audioEl {
+  margin: 0;
 }
 
 /* Dialog overrides */
