@@ -20,6 +20,10 @@
 }
 
 /* Plyr Audio Adaptation */
+.plyr--audio {
+  width: 100%;
+}
+
 .plyr--audio .plyr__controls {
   background: transparent !important;
   color: var(--md-text) !important;
