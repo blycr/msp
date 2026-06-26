@@ -72,6 +72,13 @@ export function updateUIForLang() {
 }
 
 export function renderList() {
+  // 始终让 .tab--active 高亮与 state.tab 一致——renderList 是左侧列表内容的
+  // 单一渲染入口；若后台（resumeLast / loadMedia 304 分支）改写了 state.tab，
+  // 这里负责把视觉同步回来，避免"video 标签页高亮却显示音频列表"的脱节。
+  for (const x of document.querySelectorAll(".tab")) {
+    x.classList.toggle("tab--active", x.getAttribute("data-tab") === state.tab);
+  }
+
   const box = el("list");
   const hint = el("hint");
   box.innerHTML = "";

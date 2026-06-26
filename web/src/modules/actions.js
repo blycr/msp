@@ -1,7 +1,7 @@
 import { registerSW } from 'virtual:pwa-register';
 import { state, el, lsSet, LS, lsGet } from './state.js';
 import { t, initLang } from './i18n.js';
-import { apiGet, apiRetry, loadPrefs, gpGet, loadFavorites } from './api.js';
+import { apiGet, apiRetry, loadPrefs, loadFavorites } from './api.js';
 import { hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
@@ -49,12 +49,11 @@ export async function loadMedia(refresh, limit) {
     const hadLimited = !!state.media?.limited;
     if (state.config && state.media && !hadLimited) {
       bus.emit('config:loaded');
-      const lastKind = gpGet(LS.lastActiveKind);
-      if (lastKind && ["video", "audio", "image"].includes(lastKind)) {
-        state.tab = lastKind;
-      } else {
-        state.tab = "video";
-      }
+      // 不在 304 缓存命中分支覆盖 state.tab：上次活跃类型的恢复由 resumeLast()
+      // 统一负责，且 resumeLast 现在用守卫只在首次启动执行一次，避免后台刷新
+      // 推翻用户已选的 tab（曾导致点翻页后左侧列表类型被悄悄改写的脱节）。
+      // 配合 renderList 的 tab 高亮自同步，视觉始终与 state.tab 一致。
+      if (!state.tab) state.tab = "video";
       bus.emit('media:loaded');
       bus.emit('media:resume');
       return;

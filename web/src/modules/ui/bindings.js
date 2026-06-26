@@ -180,6 +180,8 @@ export function bindUI() {
       for (const x of tabs) x.classList.remove("tab--active");
       tab.classList.add("tab--active");
       state.tab = tab.getAttribute("data-tab");
+      // 切换类型时重置页码：不同类型列表长度不同，残留页码会导致翻页越界/错位。
+      state.listPage = 1;
       renderList();
       setFitBtnVisible(state.tab === "video" && state.current?.kind === "video");
       if (state.tab === "video" && state.current?.kind === "video") {
@@ -203,6 +205,8 @@ export function bindUI() {
     const on = !!ev.target.checked;
     state.playlist.shuffle = on;
     gpSet(LS.audioShuffle, on ? "1" : "0");
+    // shuffle 仅用于 audio（见 buildPlaylist 的 kind 判定）；只有当前在播
+    // 音频时才需要重建播放顺序，避免对 video/image 误触发随机化。
     if (state.current?.kind === "audio" && getCfg("playback.audio.enabled", true)) {
       rebuildPlayOrderFromCurrent(on);
       renderPlaylist();

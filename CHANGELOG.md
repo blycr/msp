@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.7.4
+
+- **随机播放算法改进（洗牌包 / shuffle bag）**：
+  - 不再使用固定顺序复用，改为一轮内每个文件恰好播一次、绝不重复（Fisher-Yates 全排列）
+  - 一轮播完后自动重新洗牌生成新随机序列，循环模式下每轮顺序不同
+  - 跨轮边界避免上一轮末尾立即成为新一轮首位（堵掉"刚听过又来"的体验缺陷）
+  - 关闭 shuffle 时立即恢复顺序播放，游标定位到当前项不打断
+- **修复 shuffle 状态泄漏**：
+  - `state.playlist.shuffle` 从前是全局态，所有类型（video/image）的 `buildPlaylist` 都读它，但 UI 开关只对 audio 暴露→video/image 被悄悄随机化又无法切换
+  - 修复：`buildPlaylist` 仅 `kind === "audio"` 时才读 shuffle，从源头消除泄漏
+- **修复左侧标签页切换后的翻页脱节 bug**：
+  - 后台 `resumeLast()` 和 304 缓存命中分支会强制覆盖 `state.tab` 为用户上次播放类型（audio），且不更新 `.tab--active` 视觉→点翻页时左侧列表变成音频，但标签页条仍高亮视频
+  - 修复：`renderList()` 自动同步 `.tab--active`；`resumeLast` 加模块守卫仅首次启动恢复 tab；删除 304 分支直接覆盖 `state.tab` 的逻辑
+  - 切换标签页时重置 `state.listPage = 1`，避免跨类型页码残留
+- 变更文件：`web/src/modules/playlist/navigation.js`、`web/src/modules/ui/render.js`、`web/src/modules/ui/bindings.js`、`web/src/modules/player/resume.js`、`web/src/modules/actions.js`
+
 ## 1.7.3
 
 - **视频缩略图稳定性全面修复**：

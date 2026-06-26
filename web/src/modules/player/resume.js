@@ -8,7 +8,14 @@ import { playItem } from '../player.js';
 
 let hotkeyHandler = null;
 
+// resumeLast 只应在首次启动恢复时沿用上次的 tab；一旦恢复过一次（或用户已
+// 主动切换 tab），后续后台 media:refresh / loadMedia(304) 触发的 media:resume
+// 不再强行覆盖 state.tab，否则会把用户已选的 tab 切回上次播放类型，与 renderList
+// 的 tab 高亮自同步配合后会出现"点翻页后列表变成另一种类型"的脱节。
+let resumeDone = false;
+
 export async function resumeLast() {
+  if (resumeDone) return;
   if (!state.media) return;
   const kind = gpGet(LS.lastActiveKind);
   if (!kind) return;
@@ -26,6 +33,8 @@ export async function resumeLast() {
   if (!item) return;
 
   state.tab = kind;
+  // 恢复成功后置位守卫：后续后台触发的 resumeLast 直接返回，不再压制用户已选 tab。
+  resumeDone = true;
 
   if (getCfg("features.playlist", true)) {
     let restored = false;
