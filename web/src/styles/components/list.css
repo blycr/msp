@@ -131,6 +131,11 @@
 .file-thumb:not([src]) {
   display: none;
 }
+/* 加载中：保留背景占位（已有 background） */
+/* 彻底失败：隐藏，避免碎图图标 */
+.file-thumb--failed {
+  display: none;
+}
 
 /* Folder Browse */
 .item--folder { cursor: pointer; }

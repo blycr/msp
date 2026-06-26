@@ -235,9 +235,11 @@ function renderFileRow(item) {
   if (item.kind === "video") {
     const thumb = document.createElement("img");
     thumb.className = "file-thumb";
-    thumb.src = `/api/thumbnail?id=${encodeURIComponent(item.id)}`;
     thumb.loading = "lazy";
     thumb.alt = "";
+    // 初始不设 src，避免立刻触发大量并发首请求；由 IO 观察器在可见时按需加载。
+    // 失败时带退避重试，覆盖 429/5xx 临时拥塞与短视频生成延迟。
+    setupThumbRetry(thumb, `/api/thumbnail?id=${encodeURIComponent(item.id)}`);
     row.appendChild(thumb);
   }
 
@@ -305,3 +307,43 @@ bus.on('transcode:status', (status) => {
     indicator.innerHTML = `<span class="transcode-status__spinner"></span>${t('transcode_preparing')}`;
   }
 });
+
+// —— 缩略图加载与重试 ——
+// 后端对并发生成做了排队，但首次批量加载仍可能遇到临时 5xx（排队超时）
+// 或短视频生成失败（已回退首帧，仍失败时返回 404）。这里做有限次退避重试，
+// 并在彻底失败时隐藏 <img>，避免显示碎图图标。
+const THUMB_MAX_RETRIES = 3;
+const THUMB_BASE_DELAY = 400; // ms
+
+function setupThumbRetry(img, url) {
+  let attempt = 0;
+  let timer = null;
+
+  const load = () => {
+    img.src = url;
+  };
+
+  img.addEventListener('error', () => {
+    if (timer) return; // 已在等待重试
+    if (attempt >= THUMB_MAX_RETRIES) {
+      // 彻底失败：隐藏占位，避免碎图图标
+      img.classList.add('file-thumb--failed');
+      img.removeAttribute('src');
+      return;
+    }
+    attempt++;
+    const delay = THUMB_BASE_DELAY * Math.pow(2, attempt - 1);
+    timer = setTimeout(() => {
+      timer = null;
+      load();
+    }, delay);
+  });
+
+  // 成功时清理状态
+  img.addEventListener('load', () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    img.classList.remove('file-thumb--failed');
+  });
+
+  load();
+}

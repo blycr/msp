@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.3
+
+- **视频缩略图稳定性全面修复**：
+  - 修复并发首次加载时因非阻塞信号量（2 槽）导致的大量 429 拒绝，改为**阻塞排队 + 8s 超时**（4 槽），突发批量请求不再被丢弃
+  - 排队后二次检查缓存，避免重复运行 ffmpeg
+  - 新增短视频回退机制：`-ss 5` 失败时自动回退到首帧（`-ss 0`），消除 <5s 视频的缩略图 404
+  - 错误响应添加 `Cache-Control: no-store`，确保前端重试能真正重新请求，不会被浏览器缓存阻挡
+  - 删除 ffmpeg 失败后的空/损坏缓存文件，避免后续"缓存存在但无效"分支
+- **前端缩略图重试与降级**：
+  - 新增 `setupThumbRetry()`：`onerror` 触发指数退避重试（3 次：400/800/1600ms），应对临时拥塞或生成延迟
+  - 彻底失败时干净隐藏 `<img>`（`.file-thumb--failed { display: none }`），不再显示碎图图标
+  - 仅修改 3 个文件：`internal/handler/thumbnail.go`、`web/src/modules/ui/render.js`、`web/src/styles/components/list.css`
+
 ## 1.7.2
 
 - **Dockerfile**：修复 Go 版本号错误（`1.25` → `1.24`），`docker build` 不再失败；固定 Alpine 镜像版本；移除无用的 `gcc`/`musl-dev`；容器以非 root 用户运行
