@@ -60,7 +60,7 @@ jobs:
             suffix: "-386"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -122,7 +122,7 @@ jobs:
       RELEASE_NOTES_PATH: ""
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set release tag
         shell: bash
