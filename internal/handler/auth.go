@@ -109,6 +109,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		}
 
 		secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+		//nolint:gosec // G124: Secure flag is intentionally based on request security
 		http.SetCookie(w, &http.Cookie{
 			Name:     "msp_session",
 			Value:    sessionToken,

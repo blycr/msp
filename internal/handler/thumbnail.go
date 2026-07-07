@@ -114,11 +114,13 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	output, ok := generateThumbnail(r, ffmpegPath, filePath, thumbPath, thumbnailSeekTime)
 	if !ok {
 		// 删除可能产生的空/损坏文件，避免下次命中"缓存存在但无效"分支
+		//nolint:gosec // G703: thumbPath is a local cache path derived from a SHA-256 hash
 		_ = os.Remove(thumbPath)
 		h.logger.Log(service.LogLevelInfo, fmt.Sprintf("thumbnail: retry from first frame for %s", filePath))
 		var output2 []byte
 		output2, ok = generateThumbnail(r, ffmpegPath, filePath, thumbPath, "0")
 		if !ok {
+			//nolint:gosec // G703: thumbPath is a local cache path derived from a SHA-256 hash
 			_ = os.Remove(thumbPath)
 			h.logger.Log(service.LogLevelWarning, fmt.Sprintf("thumbnail: ffmpeg failed for %s:\n%s\n%s", filePath, string(output), string(output2)))
 			noStoreHeader(w)
@@ -128,6 +130,7 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "public, max-age=86400")
+	//nolint:gosec // G703: thumbPath is a local cache path derived from a SHA-256 hash
 	http.ServeFile(w, r, thumbPath)
 }
 
