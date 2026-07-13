@@ -2,98 +2,97 @@
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
   z-index: 100;
-  width: 90%;
-  max-width: 600px;
-  /* Increased for better reading width */
-  max-height: 85vh;
   display: flex;
+  width: min(92vw, 640px);
+  max-height: min(88vh, 760px);
+  min-height: 0;
+  overflow: hidden;
   flex-direction: column;
-  background: var(--md-surface);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
+  color: var(--md-text);
   border: 1px solid var(--md-border);
   border-radius: var(--radius);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
-}
-
-.share {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
+  outline: none;
   background: var(--md-surface);
-  border: 1px solid transparent;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, -50%);
 }
 
-.share__main {
-  flex: 1;
-  min-width: 0;
+.dialog--pin {
+  width: min(92vw, 400px);
+}
+
+.pin-form {
   display: flex;
+  min-height: 0;
   flex-direction: column;
-  gap: 2px;
 }
 
-.share__path {
-  font-size: 12px;
-  color: var(--md-sub);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: monospace;
+.pin-input {
+  flex: 1 1 auto;
+  padding-inline: 12px;
+  font-size: 17px;
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+.pin-error {
+  min-height: 22px;
+  margin-top: 8px;
+  color: var(--md-danger);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .dialog__title {
-  padding: 20px 24px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  background: transparent;
+  flex: 0 0 auto;
+  padding: 18px 22px;
+  color: var(--md-text);
   border-bottom: 1px solid var(--md-border);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .dialog__body {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  min-height: 0;
+  padding: 20px 22px;
   overflow-y: auto;
-  font-size: 15px;
-  /* Slightly larger base for dialog content */
+  font-size: 14px;
 }
 
 .dialog__subtitle {
-  font-weight: 800;
-  font-family: var(--font-display);
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  margin-bottom: 10px;
   color: var(--md-primary);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
 .dialog__subtitle:not(:first-of-type) {
-  margin-top: 8px;
+  margin-top: 18px;
 }
 
 .dialog__section {
-  border: 1px solid var(--md-border);
-  border-radius: var(--radius);
-  background: var(--md-bg);
-  padding: 16px;
   display: flex;
+  min-width: 0;
+  padding: 14px;
   flex-direction: column;
   gap: 12px;
-  min-width: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--md-border);
+  border-radius: var(--radius-md);
+  background: var(--md-surface-muted);
 }
 
 .dialog__row {
   display: flex;
   align-items: center;
-  gap: 12px;
   min-width: 0;
+  gap: 10px;
 }
 
 .dialog__row--end {
@@ -101,54 +100,84 @@
 }
 
 .dialog__path {
+  min-width: 160px;
   flex: 1 1 auto;
-  min-width: 200px;
 }
 
 .dialog__label {
-  flex: 0 1 160px;
   min-width: 120px;
+  flex: 0 1 160px;
 }
 
 .dialog__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
+  gap: 10px;
 }
 
 .dialog__divider {
-  border: none;
+  margin: 20px 0;
+  border: 0;
   border-top: 1px solid var(--md-border);
-  margin: 8px 0;
-  opacity: 0.5;
 }
 
 .dialog__row .btn {
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .dialog__note,
 .small {
-  font-size: 12px;
   color: var(--md-sub);
+  font-size: 12px;
   line-height: 1.5;
 }
 
 .sharelist {
   display: flex;
+  max-height: 190px;
+  padding: 8px;
+  overflow: auto;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border: 1px solid var(--md-border);
   border-radius: var(--radius-sm);
-  padding: 10px;
   background: var(--md-surface);
-  max-height: 180px;
-  overflow: auto;
+}
+
+.share {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--md-surface-muted);
+}
+
+.share__main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.share__path {
+  overflow: hidden;
+  color: var(--md-sub);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dialog__actions {
-  padding: 16px 24px;
-  background: transparent;
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 14px 22px;
   border-top: 1px solid var(--md-border);
 }

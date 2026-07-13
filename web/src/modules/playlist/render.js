@@ -145,6 +145,10 @@ export function renderPlaylist() {
   const items = state.playlist.items || [];
   if (!items.length) {
     meta.textContent = t("not_loaded");
+    const empty = document.createElement('div');
+    empty.className = 'panel-empty';
+    empty.textContent = t('playlist_empty');
+    box.appendChild(empty);
     return;
   }
 
@@ -162,9 +166,18 @@ export function renderPlaylist() {
     const row = document.createElement("div");
     const isActive = state.playlist.playOrder[state.playlist.playIndex] === i;
     row.className = "plitem" + (isActive ? " plitem--active" : "");
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-current', String(isActive));
     const playPos = state.playlist.playOrder.findIndex(idx => idx === i);
-    row.addEventListener("click", () => {
+    const playItem = () => {
       playAtIndex(playPos >= 0 ? playPos : i, true, true);
+    };
+    row.addEventListener("click", playItem);
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      playItem();
     });
 
     const idx = document.createElement("div");

@@ -46,6 +46,10 @@ export function updateUIForLang() {
     const k = el.getAttribute("data-i18n-title");
     if (k) el.title = t(k);
   });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el => {
+    const k = el.getAttribute("data-i18n-aria-label");
+    if (k) el.setAttribute("aria-label", t(k));
+  });
 
   const sharePathEl = el("sharePath");
   if (sharePathEl) {
@@ -92,6 +96,30 @@ export function renderList() {
   if (!hasItems) {
     const hintKey = state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote';
     hint.textContent = t(hintKey);
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+
+    const icon = document.createElement('div');
+    icon.className = 'list-empty__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '◌';
+
+    const title = document.createElement('div');
+    title.className = 'list-empty__title';
+    title.textContent = t('empty_library_title');
+    empty.appendChild(icon);
+    empty.appendChild(title);
+
+    if (state.accessLevel === 'local') {
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'btn btn--ghost list-empty__action';
+      action.textContent = t('open_settings');
+      action.addEventListener('click', () => showDlg(true));
+      empty.appendChild(action);
+    }
+
+    box.appendChild(empty);
     return;
   }
 
@@ -103,6 +131,21 @@ export function renderList() {
   const raw = currentList();
   let list = filterFiles(raw);
   list = sortFiles(list);
+
+  if (!list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+    const title = document.createElement('div');
+    title.className = 'list-empty__title';
+    title.textContent = t('empty_search_title');
+    const detail = document.createElement('div');
+    detail.className = 'list-empty__detail';
+    detail.textContent = t('empty_search_hint');
+    empty.append(title, detail);
+    box.appendChild(empty);
+    hint.textContent = t('item_count', 0, 0);
+    return;
+  }
 
   const kindName = t("kind_" + state.tab) || state.tab;
   let totalForHint = list.length;
@@ -202,10 +245,14 @@ function renderFolderView(box, hint) {
   for (const folder of folders) {
     const row = document.createElement('div');
     row.className = 'item item--folder';
-    row.addEventListener('click', () => {
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `${folder.name}, ${folder.count} ${t('folder_items')}`);
+    const openFolder = () => {
       state.currentFolder = folder.path;
       renderList();
-    });
+    };
+    bindRowInteraction(row, openFolder);
     const icon = document.createElement('span');
     icon.className = 'folder-icon';
     icon.textContent = '\uD83D\uDCC1';
@@ -236,8 +283,12 @@ function renderFolderView(box, hint) {
 
 function renderFileRow(item) {
   const row = document.createElement("div");
-  row.className = "item";
-  row.addEventListener("click", () => bus.emit('play:request', item, { user: true, autoplay: true }));
+  row.className = "item" + (state.current?.id === item.id ? " item--active" : "");
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+  row.setAttribute('aria-label', formatName(item));
+  const requestPlay = () => bus.emit('play:request', item, { user: true, autoplay: true });
+  bindRowInteraction(row, requestPlay);
 
   if (item.kind === "video") {
     const thumb = document.createElement("img");
@@ -273,8 +324,13 @@ function renderFileRow(item) {
 
   // Favorite button
   const favBtn = document.createElement('button');
+  const isFavorite = state.favoriteIds?.has(item.id);
+  favBtn.type = 'button';
   favBtn.className = 'fav-btn' + (state.favoriteIds?.has(item.id) ? ' fav-btn--active' : '');
-  favBtn.textContent = state.favoriteIds?.has(item.id) ? '\u2605' : '\u2606';
+  favBtn.textContent = isFavorite ? '\u2605' : '\u2606';
+  favBtn.setAttribute('aria-pressed', String(!!isFavorite));
+  favBtn.setAttribute('aria-label', t(isFavorite ? 'favorite_remove' : 'favorite_add'));
+  favBtn.title = t(isFavorite ? 'favorite_remove' : 'favorite_add');
   favBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (state.favoriteIds?.has(item.id)) {
@@ -290,6 +346,15 @@ function renderFileRow(item) {
   row.appendChild(favBtn);
 
   return row;
+}
+
+function bindRowInteraction(row, handler) {
+  row.addEventListener('click', handler);
+  row.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handler();
+  });
 }
 
 bus.on('transcode:status', (status) => {

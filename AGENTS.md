@@ -132,3 +132,4 @@ Do not hand over within a phase.
 
 ### Entries
 <!-- Append below. -->
+[2026-07-13] User correction → use bun/bunx/uv instead of npx/npm/pip; prefer a domestic registry and use SOCKS5 7890 only for network fallback [Tooling]

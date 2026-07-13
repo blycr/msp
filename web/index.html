@@ -12,17 +12,47 @@
 
 <body>
   <header class="topbar">
-    <div class="topbar__title" id="topbarTitle" data-i18n="title">MSP Media Share</div>
+    <button class="topbar__brand" id="topbarTitle" type="button" aria-label="MSP Media Share" data-i18n-aria-label="title">
+      <img class="topbar__logo" src="/logo.svg" alt="" aria-hidden="true" />
+      <span class="topbar__title" data-i18n="title">MSP Media Share</span>
+    </button>
     <div class="topbar__meta" id="meta"></div>
-    <button class="theme-btn" id="langBtn" title="Language"
-      style="margin-right: 4px; font-size: 14px; font-weight: bold;">EN</button>
-    <button class="theme-btn" id="themeBtn" title="Switch Theme" aria-label="Switch Theme"></button>
-    <button class="btn btn--ghost" id="btnSettings" data-i18n="settings">Settings</button>
-    <button class="btn btn--ghost" id="btnRefresh" data-i18n="refresh">Refresh</button>
+    <div class="topbar__actions">
+      <button class="theme-btn topbar__lang" id="langBtn" type="button" title="Language" aria-label="Language" data-i18n-aria-label="language">EN</button>
+      <button class="theme-btn" id="themeBtn" type="button" title="Switch Theme" data-i18n-title="theme" aria-label="Switch Theme" data-i18n-aria-label="theme"></button>
+      <button class="btn btn--ghost topbar__action" id="btnSettings" type="button" aria-label="Settings" data-i18n-aria-label="settings">
+        <svg class="topbar__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.42 1.42-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20h-2v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.42-1.42.06-.06A1.7 1.7 0 0 0 9.4 15a1.7 1.7 0 0 0-1.56-1.03H7v-2h.84A1.7 1.7 0 0 0 9.4 11a1.7 1.7 0 0 0-.34-1.88L9 9.06l1.42-1.42.06.06A1.7 1.7 0 0 0 12.36 8.04 1.7 1.7 0 0 0 13.4 6.5V6h2v.5a1.7 1.7 0 0 0 1.03 1.54 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.42 1.42-.06.06A1.7 1.7 0 0 0 19.4 11a1.7 1.7 0 0 0 1.56 1.03H21v2h-.04A1.7 1.7 0 0 0 19.4 15Z"></path>
+        </svg>
+        <span class="topbar__action-label" data-i18n="settings">Settings</span>
+      </button>
+      <button class="btn btn--ghost topbar__action" id="btnRefresh" type="button" aria-label="Refresh" data-i18n-aria-label="refresh">
+        <svg class="topbar__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 11a8.1 8.1 0 0 0-14.9-3L3 10"></path>
+          <path d="M3 4v6h6"></path>
+          <path d="M4 13a8.1 8.1 0 0 0 14.9 3L21 14"></path>
+          <path d="M21 20v-6h-6"></path>
+        </svg>
+        <span class="topbar__action-label" data-i18n="refresh">Refresh</span>
+      </button>
+    </div>
   </header>
 
   <main class="layout">
-    <aside class="panel sidebar">
+    <nav class="mobile-nav" aria-label="Mobile view" data-i18n-aria-label="mobile_view_label" role="tablist">
+      <button class="mobile-nav__item mobile-nav__item--active" type="button" data-mobile-view="stage" role="tab" aria-selected="true" aria-controls="stagePanel">
+        <span class="mobile-nav__label" data-i18n="mobile_preview">Preview</span>
+      </button>
+      <button class="mobile-nav__item" type="button" data-mobile-view="playlist" role="tab" aria-selected="false" aria-controls="playlistPanel">
+        <span class="mobile-nav__label" data-i18n="mobile_queue">Queue</span>
+      </button>
+      <button class="mobile-nav__item" type="button" data-mobile-view="sidebar" role="tab" aria-selected="false" aria-controls="filesPanel">
+        <span class="mobile-nav__label" data-i18n="mobile_files">Files</span>
+      </button>
+    </nav>
+
+    <aside class="panel sidebar" id="filesPanel">
       <div class="tabs" role="tablist">
         <button class="tab tab--active" data-tab="video" data-i18n="tab_video">Video</button>
         <button class="tab" data-tab="audio" data-i18n="tab_audio">Audio</button>
@@ -64,7 +94,7 @@
       <div class="hint" id="hint"></div>
     </aside>
 
-    <section class="panel stage">
+    <section class="panel stage" id="stagePanel">
       <div class="now">
         <div class="now__title" id="previewTitle" data-i18n="preview_none">No Selection</div>
         <div class="now__sub" id="previewSub"></div>
@@ -120,34 +150,33 @@
       <span class="footer__sep">·</span>
       <span class="footer__text" data-i18n="footer_text">A simple media server for personal use.</span>
       <span class="footer__sep">·</span>
-      <span class="footer__text">Self-hosted</span>
+      <span class="footer__text" data-i18n="footer_self_hosted">Self-hosted</span>
     </p>
   </footer>
 
   <!-- PIN Authentication Dialog -->
   <div class="dialog__backdrop" id="pinBackdrop" hidden></div>
-  <section class="dialog" id="pinDlg" hidden aria-modal="true" role="dialog" style="max-width: 400px;">
+  <section class="dialog dialog--pin" id="pinDlg" hidden aria-modal="true" role="dialog" aria-labelledby="pinDlgTitle">
     <div class="dialog__title" id="pinDlgTitle">Authentication Required</div>
-    <div class="dialog__body">
-      <div class="dialog__note" style="margin-bottom: 1rem; line-height: 1.5;" id="pinDlgNote">
-        Please enter the PIN code to access this service.
+    <form class="pin-form" id="pinForm">
+      <div class="dialog__body">
+        <div class="dialog__note" id="pinDlgNote">
+          Please enter the PIN code to access this service.
+        </div>
+        <div class="row">
+          <input class="textfield pin-input" id="pinInput" type="password" placeholder="Enter PIN" autocomplete="off" />
+        </div>
+        <div id="pinError" class="pin-error" role="alert" aria-live="polite"></div>
       </div>
-      <div class="row">
-        <input class="textfield" id="pinInput" type="password" placeholder="Enter PIN" autocomplete="off"
-          style="flex: 1; font-size: 1.1rem; padding: 12px; text-align: center; letter-spacing: 0.2em;" />
+      <div class="dialog__actions">
+        <button class="btn" id="btnSubmitPin" type="submit">Submit</button>
       </div>
-      <div id="pinError"
-        style="color: var(--md-danger); margin-top: 0.5rem; font-size: 0.9rem; text-align: center; min-height: 1.5rem;">
-      </div>
-    </div>
-    <div class="dialog__actions">
-      <button class="btn" id="btnSubmitPin">Submit</button>
-    </div>
+    </form>
   </section>
 
   <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
-  <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog">
-    <div class="dialog__title" data-i18n="dlg_title">Settings</div>
+  <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog" aria-labelledby="dlgTitle">
+    <div class="dialog__title" id="dlgTitle" data-i18n="dlg_title">Settings</div>
     <div class="dialog__body">
       <!-- Share Settings Section -->
       <div class="dialog__subtitle" data-i18n="share_settings">Folders</div>

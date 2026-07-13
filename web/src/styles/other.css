@@ -56,10 +56,10 @@ body {
 
 /* Audio Player Container Override */
 .playerbox:has(#audioEl:not([hidden])) {
-  background: var(--md-surface);
+  background: var(--md-surface-muted);
   justify-content: flex-start;
-  padding: 24px;
-  gap: 24px;
+  padding: 20px;
+  gap: 20px;
 }
 
 /* Dialog overrides */

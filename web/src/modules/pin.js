@@ -75,6 +75,7 @@ export function bindPinDialog() {
   const submitBtn = el("btnSubmitPin");
   const input = el("pinInput");
   const errorEl = el("pinError");
+  const form = el("pinForm");
 
   const handleSubmit = async () => {
     const pin = input.value.trim();
@@ -102,10 +103,8 @@ export function bindPinDialog() {
     }
   };
 
-  submitBtn.addEventListener("click", handleSubmit);
-  input.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      handleSubmit();
-    }
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleSubmit();
   });
 }
