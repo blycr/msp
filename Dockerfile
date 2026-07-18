@@ -9,7 +9,7 @@ COPY web/ ./
 RUN bun run build
 
 # Stage 2: Build Backend
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -19,14 +19,14 @@ COPY . .
 # Copy built frontend assets
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
-# Build with CGO disabled (using modernc.org/sqlite)
+# Build with CGO disabled (using glebarez/sqlite, pure Go)
 RUN CGO_ENABLED=0 GOOS=linux go build -o msp-server ./cmd/msp
 
 # Stage 3: Runtime
 FROM alpine:3.21
 WORKDIR /app
 
-# No extra sqlite libs needed for modernc.org/sqlite
+# No extra sqlite libs needed for glebarez/sqlite
 
 COPY --from=backend-builder /app/msp-server .
 # Create data directory
