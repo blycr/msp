@@ -71,7 +71,10 @@ export function updateLyricsByTime(t, force) {
 
   const active = nodes[idx];
   if (active) {
-    const top = active.offsetTop - box.clientHeight * 0.35;
+    // offsetTop is measured from the nearest positioned ancestor (.playerbox),
+    // not from the lyrics box, so use rects for a layout-independent position.
+    const lineTop = active.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    const top = lineTop - (box.clientHeight - active.offsetHeight) / 2;
     box.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   }
 }
