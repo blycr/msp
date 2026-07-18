@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.8.0
+
+- **前端 UI 设计系统统一**：
+  - 统一 SVG 图标系统：`icons.js` 重构为图标注册表，单一出口 `icon(name)`；Settings 改为滑杆图标、Refresh 改为 refresh-cw；清除全部文本字形图标（📁/★/☆/←/▶ 全部 SVG 化），项目内不再出现 emoji 图标
+  - 新增通用分页组件 `ui/pager.js`：文件列表与播放列表共用（chevron 图标按钮），删除 3 处重复实现；播放列表自动测页逻辑不变
+  - 全局隐藏滚动条（滚动功能不变）；新增设计 token（`--ring`/`--stage-bg`/`--stage-media-bg`/`--shadow-dialog`），焦点环、播放器沉浸底、弹窗阴影全部 token 化，暗色主题自动适配
+  - 按钮体系统一：`.icon-btn`/`.theme-btn`/`.fav-btn` 同一规格；按钮阴影改 `color-mix` 随主题变化
+  - 响应式媒体工作区改进：移动端导航、面板布局与组件样式整体打磨
+  - 修复 `.theme-btn svg { fill: currentColor }` 覆盖图标本体导致日/月图标被意外填充；修复空态 play 图标 data-URI 被 CSP 拦截（改为真实 SVG 元素）
+- **后端性能优化**：
+  - 日志改为异步缓冲写入：`logChan`（容量 4096）+ 单一写 goroutine 落盘，写满丢弃不阻塞请求处理
+  - 多共享目录并行扫描：每目录一个 goroutine + WaitGroup 聚合，大媒体库首扫/重扫更快
+  - `/api/media` 新增 ETag 快速路径：`If-None-Match` 命中缓存 ETag 时直接 304，不再构建响应
+  - SQLite 连接池从固定 1 调整为按 GOMAXPROCS；新增表达式索引（`LOWER(name)`、扫描排序复合索引、progress/favorites 时间索引）
+  - GC 调参：`SetGCPercent` 50 → 100
+- **构建与工程**：
+  - `build.ps1`/`dev.ps1`：Windows PowerShell 5.1 下检测到 pwsh 自动以其重新执行（修复部分 5.1 环境缺失 `Get-FileHash` 导致全量编译失败）
+  - Dockerfile：后端构建镜像升级 `golang:1.25-alpine`，与 go.mod 对齐
+  - 修复 auth/thumbnail handler 的 golangci-lint 警告
+  - 文档同步：CodeMap（接口/流程/版本号）、scripts/README（pwsh 依赖说明）
+
+
 ## 1.7.4
 
 - **随机播放算法改进（洗牌包 / shuffle bag）**：
