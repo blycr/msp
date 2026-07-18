@@ -90,11 +90,13 @@
 
 .audioMeta {
   display: none;
-  align-items: flex-start;
+  align-items: center;
   width: min(100%, 800px);
   min-width: 0;
+  min-height: 0;
   gap: 24px;
   margin: 0 auto;
+  flex: 1 1 auto;
 }
 
 .audioCover,
@@ -132,10 +134,12 @@
 
 .lyrics {
   min-width: 0;
-  height: 320px;
+  min-height: 320px;
+  height: auto;
   padding: 0 12px;
   overflow: auto;
   flex: 1 1 auto;
+  align-self: stretch;
   color: var(--stage-sub);
   border: none;
   background: transparent;

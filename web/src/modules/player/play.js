@@ -180,6 +180,7 @@ export async function playItem(item, opts) {
     if (token !== state.selectionToken) return;
     audio.src = audioPlayback.url;
     audio.style.opacity = "0";
+    audio.hidden = false;
     audio.style.display = "block";
     requestAnimationFrame(() => {
       audio.style.transition = "opacity 0.25s ease";

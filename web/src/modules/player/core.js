@@ -71,6 +71,7 @@ export function hideAllMedia() {
   try { el("audioCover").removeAttribute("src"); } catch { }
   el("videoEl").style.display = "none";
   el("audioEl").style.display = "none";
+  el("audioEl").hidden = true;
   el("audioMeta").style.display = "none";
   el("imgEl").style.display = "none";
   el("emptyEl").style.display = "none";
@@ -80,6 +81,7 @@ export function showPreviewError(text) {
   destroyPlyr();
   el("videoEl").style.display = "none";
   el("audioEl").style.display = "none";
+  el("audioEl").hidden = true;
   el("audioMeta").style.display = "none";
   el("imgEl").style.display = "none";
   el("emptyText").textContent = text;

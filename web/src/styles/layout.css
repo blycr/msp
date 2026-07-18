@@ -96,7 +96,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(260px, 0.82fr) minmax(420px, 1.8fr) minmax(260px, 0.82fr);
+  grid-template-columns: minmax(260px, 360px) minmax(420px, 1fr) minmax(260px, 360px);
   grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   width: 100%;
