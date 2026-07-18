@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.2
+
+- **全屏/大尺寸自适应修复**：
+  - 音频页歌词区不再固定 320px：audioMeta 改弹性布局填满舞台剩余高度，歌词区随之撑满，全屏（F11）或大屏下不再出现舞台下方大片空白；封面相对歌词列垂直居中
+  - 视频/图片真正铺满舞台：`#audioEl` 同步 `hidden` 属性（此前用 inline display 隐藏，导致 `.playerbox:has(#audioEl:not([hidden]))` 恒匹配、playerbox 常驻 20px padding），现在非音频模式 padding 归零、媒体零缝隙贴边
+  - 三栏布局侧栏限宽：`minmax(260px, 0.82fr)` 改为 `minmax(260px, 360px)`，超宽屏下侧栏不再随视口线性拉宽，多余宽度让给舞台
+
 ## 1.9.1
 
 - **修复翻页按钮在全屏/窗口变高后悬空**：
