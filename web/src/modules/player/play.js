@@ -433,6 +433,6 @@ export async function playItem(item, opts) {
     return;
   }
 
-  el("emptyEl").textContent = t("err_unsupported");
+  el("emptyText").textContent = t("err_unsupported");
   el("emptyEl").style.display = "block";
 }

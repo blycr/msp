@@ -82,7 +82,7 @@ export function showPreviewError(text) {
   el("audioEl").style.display = "none";
   el("audioMeta").style.display = "none";
   el("imgEl").style.display = "none";
-  el("emptyEl").textContent = text;
+  el("emptyText").textContent = text;
   el("emptyEl").style.display = "block";
 }
 

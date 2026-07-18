@@ -59,7 +59,7 @@
 .textfield:focus {
   border-color: var(--md-primary);
   background: var(--md-surface);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .textfield:focus-visible {

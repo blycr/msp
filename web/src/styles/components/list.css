@@ -122,6 +122,11 @@
   justify-content: flex-end;
 }
 
+.pager__btn {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .pager__center {
   flex: 0 0 auto;
   color: var(--md-sub);
@@ -159,8 +164,11 @@
 
 .list-empty__icon {
   color: var(--md-accent);
-  font-size: 32px;
   line-height: 1;
+}
+
+.list-empty__icon svg {
+  display: block;
 }
 
 .list-empty__title {
@@ -207,46 +215,16 @@
 }
 
 .folder-icon {
-  width: 28px;
-  flex: 0 0 auto;
-  color: var(--md-accent);
-  font-size: 20px;
-  line-height: 1;
-  text-align: center;
-}
-
-.fav-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 28px;
   flex: 0 0 auto;
-  padding: 0;
-  color: var(--md-sub);
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
-}
-
-.fav-btn:hover {
   color: var(--md-accent);
-  border-color: var(--md-border);
-  background: var(--md-hover);
-  transform: scale(1.05);
 }
 
-.fav-btn:focus-visible {
-  outline: 2px solid var(--md-primary);
-  outline-offset: 2px;
-}
-
-.fav-btn--active {
-  color: var(--md-accent);
+.fav-btn {
+  flex: 0 0 auto;
 }
 
 .panel-empty {

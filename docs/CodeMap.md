@@ -87,7 +87,7 @@ msp/
 │   │       ├── theme.js        # 主题管理
 │   │       ├── pin.js          # PIN 码验证
 │   │       ├── lyrics.js       # 歌词显示
-│   │       ├── icons.js        # 图标定义
+│   │       ├── icons.js        # 统一 SVG 图标库（icon(name) 单出口）
 │   │       ├── utils.js        # 前端工具函数
 │   │       ├── player/         # 播放器模块
 │   │       │   ├── index.js    # 播放器入口（re-export + bus 监听）
@@ -106,6 +106,7 @@ msp/
 │   │           ├── index.js    # UI 入口
 │   │           ├── bindings.js # 事件绑定
 │   │           ├── render.js   # 界面渲染
+│   │           ├── pager.js    # 通用分页器组件（文件列表/播放列表共用）
 │   │           ├── settings.js # 设置面板
 │   │           └── shares.js   # 共享目录管理
 │   ├── public/                 # 静态资源

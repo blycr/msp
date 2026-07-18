@@ -5,7 +5,7 @@ import { apiPost, gpSet } from '../api.js';
 import { bus } from '../eventbus.js';
 import { renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent, playPrev, playNext } from '../playlist.js';
 import { resumeLast, setFitBtnVisible } from '../player.js';
-import { createArrowDownIcon, createArrowUpIcon } from '../icons.js';
+import { icon } from '../icons.js';
 import { showDlg, updateUIForLang, renderList } from './render.js';
 import { renderShares, updateBlacklistUI } from './shares.js';
 import { applyConfigToUI } from './settings.js';
@@ -161,7 +161,7 @@ export function bindUI() {
 
   const sortBtn = el("sortOrder");
   if (sortBtn) {
-    sortBtn.innerHTML = state.sort.order === 1 ? createArrowDownIcon() : createArrowUpIcon();
+    sortBtn.innerHTML = icon(state.sort.order === 1 ? 'arrowDown' : 'arrowUp');
   }
 
   el("sortOrder").addEventListener("click", () => {
@@ -169,7 +169,7 @@ export function bindUI() {
     lsSet(LS.sortOrder, String(state.sort.order));
     const sortBtn = el("sortOrder");
     if (sortBtn) {
-      sortBtn.innerHTML = state.sort.order === 1 ? createArrowDownIcon() : createArrowUpIcon();
+      sortBtn.innerHTML = icon(state.sort.order === 1 ? 'arrowDown' : 'arrowUp');
     }
     renderList();
   });

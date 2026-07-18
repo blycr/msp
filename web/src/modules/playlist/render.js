@@ -2,6 +2,7 @@ import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { formatName } from '../utils.js';
 import { updateNavButtons, updateNavLabels, playAtIndex } from './navigation.js';
+import { createPager } from '../ui/pager.js';
 
 const plAutoFit = {
   raf: 0,
@@ -57,26 +58,7 @@ function measurePlaylistHeights(box) {
   row.appendChild(main);
   wrap.appendChild(row);
 
-  const pager = document.createElement("div");
-  pager.className = "pager";
-  const prevBtn = document.createElement("button");
-  prevBtn.className = "btn btn--ghost";
-  prevBtn.textContent = t("prev");
-  const info = document.createElement("div");
-  info.className = "small pager__center";
-  info.textContent = "1/99";
-  const nextBtn = document.createElement("button");
-  nextBtn.className = "btn btn--ghost";
-  nextBtn.textContent = t("next");
-  const left = document.createElement("div");
-  left.className = "pager__side";
-  left.appendChild(prevBtn);
-  const right = document.createElement("div");
-  right.className = "pager__side";
-  right.appendChild(nextBtn);
-  pager.appendChild(left);
-  pager.appendChild(info);
-  pager.appendChild(right);
+  const pager = createPager({ page: 1, totalPages: 99, onPrev: () => { }, onNext: () => { } });
   wrap.appendChild(pager);
 
   const itemH = Math.ceil(row.getBoundingClientRect().height || 0);
@@ -204,37 +186,12 @@ export function renderPlaylist() {
   }
 
   if (totalPages > 1) {
-    const pager = document.createElement("div");
-    pager.className = "pager";
-
-    const prevBtn = document.createElement("button");
-    prevBtn.className = "btn btn--ghost";
-    prevBtn.textContent = t("prev");
-    prevBtn.disabled = state.plPage <= 1;
-    prevBtn.addEventListener("click", () => { state.plPage = Math.max(1, state.plPage - 1); renderPlaylist(); });
-
-    const left = document.createElement("div");
-    left.className = "pager__side";
-    left.appendChild(prevBtn);
-
-    const info = document.createElement("div");
-    info.className = "small pager__center";
-    info.textContent = `${state.plPage}/${totalPages}`;
-
-    const nextBtn = document.createElement("button");
-    nextBtn.className = "btn btn--ghost";
-    nextBtn.textContent = t("next");
-    nextBtn.disabled = state.plPage >= totalPages;
-    nextBtn.addEventListener("click", () => { state.plPage = Math.min(totalPages, state.plPage + 1); renderPlaylist(); });
-
-    const right = document.createElement("div");
-    right.className = "pager__side";
-    right.appendChild(nextBtn);
-
-    pager.appendChild(left);
-    pager.appendChild(info);
-    pager.appendChild(right);
-    box.appendChild(pager);
+    box.appendChild(createPager({
+      page: state.plPage,
+      totalPages,
+      onPrev: () => { state.plPage = Math.max(1, state.plPage - 1); renderPlaylist(); },
+      onNext: () => { state.plPage = Math.min(totalPages, state.plPage + 1); renderPlaylist(); },
+    }));
   }
   scheduleAutoFitPlaylistPageSize();
 }

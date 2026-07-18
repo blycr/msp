@@ -1,4 +1,7 @@
-.theme-btn {
+/* Canonical square icon button (theme toggle, favorite, icon-only actions). */
+.theme-btn,
+.icon-btn,
+.fav-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -12,23 +15,35 @@
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
-.theme-btn:hover {
+.theme-btn:hover,
+.icon-btn:hover,
+.fav-btn:hover {
   color: var(--md-text);
   border-color: var(--md-border);
   background: var(--md-hover);
 }
 
-.theme-btn:active {
+.theme-btn:active,
+.icon-btn:active,
+.fav-btn:active {
   transform: scale(0.96);
 }
 
-.theme-btn svg {
+.theme-btn svg,
+.icon-btn svg,
+.fav-btn svg {
   width: 19px;
   height: 19px;
-  fill: currentColor;
+}
+
+.fav-btn:hover,
+.fav-btn--active {
+  color: var(--md-accent);
 }
 
 .theme-btn:focus-visible,
+.icon-btn:focus-visible,
+.fav-btn:focus-visible,
 .btn:focus-visible {
   outline: 2px solid var(--md-primary);
   outline-offset: 2px;
@@ -44,7 +59,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--md-primary);
-  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--md-primary) 18%, transparent);
   cursor: pointer;
   font-family: var(--font-body);
   font-size: 14px;
@@ -55,12 +70,12 @@
 
 .btn:hover:not(:disabled) {
   background: var(--md-primary-2);
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--md-primary) 22%, transparent);
   transform: translateY(-1px);
 }
 
 .btn:active:not(:disabled) {
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.16);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--md-primary) 16%, transparent);
   transform: translateY(0);
 }
 

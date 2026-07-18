@@ -59,6 +59,11 @@
   --blur-md: 12px;
 
   /* Soft elevation keeps panels distinct without making the UI feel heavy. */
+  --ring: color-mix(in srgb, var(--md-primary) 14%, transparent);
+  --stage-bg: #0b0e14;
+  --stage-media-bg: #080a0e;
+  --shadow-dialog: 0 24px 70px rgba(0, 0, 0, 0.28);
+
   --elev-1: 0 10px 28px rgba(15, 23, 42, 0.07);
   --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.08);
 
@@ -101,6 +106,8 @@
 
   --glass-bg: rgba(24, 24, 27, 0.8);
   --glass-border: rgba(255, 255, 255, 0.05);
+
+  --shadow-dialog: 0 24px 70px rgba(0, 0, 0, 0.5);
 
   --elev-1: 0 12px 30px rgba(0, 0, 0, 0.28);
   --shadow-soft: 0 20px 44px rgba(0, 0, 0, 0.32);
@@ -154,7 +161,7 @@ p {
 [data-theme="dark"] .textfield:focus {
   background: rgba(39, 39, 42, 1);
   border-color: var(--md-primary);
-  box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.2);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 [data-theme="dark"] .textfield::placeholder {
@@ -182,19 +189,14 @@ p {
   color: var(--md-text);
 }
 
+/* Scrollbars hidden globally; scrolling itself is unchanged. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--md-border) transparent;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: var(--md-border);
-  border-radius: 999px;
+  width: 0;
+  height: 0;
 }
 
 

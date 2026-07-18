@@ -5,6 +5,8 @@ import { formatName, formatBytes, formatTime } from '../utils.js';
 import { bus } from '../eventbus.js';
 import { getFolderContents } from '../folder.js';
 import { addFavorite, removeFavorite } from '../api.js';
+import { icon } from '../icons.js';
+import { createPager } from './pager.js';
 
 export function setMeta(text) {
   const meta = el("meta");
@@ -99,15 +101,15 @@ export function renderList() {
     const empty = document.createElement('div');
     empty.className = 'list-empty';
 
-    const icon = document.createElement('div');
-    icon.className = 'list-empty__icon';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '◌';
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'list-empty__icon';
+    iconWrap.setAttribute('aria-hidden', 'true');
+    iconWrap.innerHTML = icon('folder', 32);
 
     const title = document.createElement('div');
     title.className = 'list-empty__title';
     title.textContent = t('empty_library_title');
-    empty.appendChild(icon);
+    empty.appendChild(iconWrap);
     empty.appendChild(title);
 
     if (state.accessLevel === 'local') {
@@ -174,37 +176,12 @@ export function renderList() {
   }
 
   if (totalPages > 1) {
-    const pager = document.createElement("div");
-    pager.className = "pager";
-
-    const prevBtn = document.createElement("button");
-    prevBtn.className = "btn btn--ghost";
-    prevBtn.textContent = t("prev");
-    prevBtn.disabled = state.listPage <= 1;
-    prevBtn.addEventListener("click", () => { state.listPage = Math.max(1, state.listPage - 1); renderList(); });
-
-    const left = document.createElement("div");
-    left.className = "pager__side";
-    left.appendChild(prevBtn);
-
-    const info = document.createElement("div");
-    info.className = "small pager__center";
-    info.textContent = `${state.listPage}/${totalPages}`;
-
-    const nextBtn = document.createElement("button");
-    nextBtn.className = "btn btn--ghost";
-    nextBtn.textContent = t("next");
-    nextBtn.disabled = state.listPage >= totalPages;
-    nextBtn.addEventListener("click", () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); });
-
-    const right = document.createElement("div");
-    right.className = "pager__side";
-    right.appendChild(nextBtn);
-
-    pager.appendChild(left);
-    pager.appendChild(info);
-    pager.appendChild(right);
-    box.appendChild(pager);
+    box.appendChild(createPager({
+      page: state.listPage,
+      totalPages,
+      onPrev: () => { state.listPage = Math.max(1, state.listPage - 1); renderList(); },
+      onNext: () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); },
+    }));
   }
 }
 
@@ -224,7 +201,10 @@ function renderFolderView(box, hint) {
 
     const backBtn = document.createElement('button');
     backBtn.className = 'btn btn--ghost folder-back';
-    backBtn.textContent = '\u2190 ' + t('folder_back');
+    backBtn.innerHTML = icon('chevronLeft', 16);
+    const backLabel = document.createElement('span');
+    backLabel.textContent = t('folder_back');
+    backBtn.appendChild(backLabel);
     backBtn.addEventListener('click', () => {
       if (parts.length <= 1) {
         state.currentFolder = null;
@@ -253,9 +233,9 @@ function renderFolderView(box, hint) {
       renderList();
     };
     bindRowInteraction(row, openFolder);
-    const icon = document.createElement('span');
-    icon.className = 'folder-icon';
-    icon.textContent = '\uD83D\uDCC1';
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'folder-icon';
+    iconWrap.innerHTML = icon('folder', 20);
     const name = document.createElement('div');
     name.className = 'item__name';
     name.textContent = folder.name;
@@ -266,7 +246,7 @@ function renderFolderView(box, hint) {
     main.className = 'item__main';
     main.appendChild(name);
     main.appendChild(count);
-    row.appendChild(icon);
+    row.appendChild(iconWrap);
     row.appendChild(main);
     box.appendChild(row);
   }
@@ -327,7 +307,7 @@ function renderFileRow(item) {
   const isFavorite = state.favoriteIds?.has(item.id);
   favBtn.type = 'button';
   favBtn.className = 'fav-btn' + (state.favoriteIds?.has(item.id) ? ' fav-btn--active' : '');
-  favBtn.textContent = isFavorite ? '\u2605' : '\u2606';
+  favBtn.innerHTML = icon(isFavorite ? 'starFilled' : 'star');
   favBtn.setAttribute('aria-pressed', String(!!isFavorite));
   favBtn.setAttribute('aria-label', t(isFavorite ? 'favorite_remove' : 'favorite_add'));
   favBtn.title = t(isFavorite ? 'favorite_remove' : 'favorite_add');

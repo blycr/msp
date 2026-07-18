@@ -14,7 +14,7 @@
   border-radius: var(--radius);
   outline: none;
   background: var(--md-surface);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-dialog);
   transform: translate(-50%, -50%);
 }
 

@@ -1,5 +1,5 @@
 import { el, lsGet, lsSet, LS } from './state.js';
-import { createSunIcon, createMoonIcon } from './icons.js';
+import { icon } from './icons.js';
 
 export function initTheme() {
   const btn = el("themeBtn");
@@ -10,7 +10,7 @@ export function initTheme() {
 
   const updateTheme = (isDark) => {
     document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-    btn.innerHTML = isDark ? createMoonIcon() : createSunIcon();
+    btn.innerHTML = icon(isDark ? 'moon' : 'sun', 19);
   };
 
   const getAutoTheme = () => {
