@@ -49,7 +49,6 @@
   flex: 0 0 auto;
   padding: 18px 22px;
   color: var(--md-text);
-  border-bottom: 1px solid var(--md-border);
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
@@ -74,18 +73,14 @@
 }
 
 .dialog__subtitle:not(:first-of-type) {
-  margin-top: 18px;
+  margin-top: 24px;
 }
 
 .dialog__section {
   display: flex;
   min-width: 0;
-  padding: 14px;
   flex-direction: column;
   gap: 12px;
-  border: 1px solid var(--md-border);
-  border-radius: var(--radius-md);
-  background: var(--md-surface-muted);
 }
 
 .dialog__row {
@@ -116,12 +111,6 @@
   gap: 10px;
 }
 
-.dialog__divider {
-  margin: 20px 0;
-  border: 0;
-  border-top: 1px solid var(--md-border);
-}
-
 .dialog__row .btn {
   flex: 0 0 auto;
 }
@@ -140,9 +129,8 @@
   overflow: auto;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid var(--md-border);
   border-radius: var(--radius-sm);
-  background: var(--md-surface);
+  background: var(--md-surface-muted);
 }
 
 .share {
@@ -151,9 +139,8 @@
   min-width: 0;
   gap: 10px;
   padding: 10px;
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--md-surface-muted);
+  background: var(--md-surface);
 }
 
 .share__main {
@@ -179,5 +166,4 @@
   flex: 0 0 auto;
   gap: 8px;
   padding: 14px 22px;
-  border-top: 1px solid var(--md-border);
 }

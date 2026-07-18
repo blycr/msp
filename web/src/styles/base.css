@@ -60,12 +60,16 @@
 
   /* Soft elevation keeps panels distinct without making the UI feel heavy. */
   --ring: color-mix(in srgb, var(--md-primary) 14%, transparent);
-  --stage-bg: #0b0e14;
-  --stage-media-bg: #080a0e;
   --shadow-dialog: 0 24px 70px rgba(0, 0, 0, 0.28);
 
+  /* Stage (media well) follows the active theme. */
+  --stage-bg: var(--md-surface);
+  --stage-text: var(--md-text);
+  --stage-sub: var(--md-sub);
+  --stage-hover: var(--md-hover);
+  --stage-active: var(--md-active);
+
   --elev-1: 0 10px 28px rgba(15, 23, 42, 0.07);
-  --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.08);
 
   /* Radius - Slightly tighter */
   --radius: 14px;
@@ -101,6 +105,13 @@
   --md-border: #27303d;
   --md-danger: #ff8a80;
 
+  /* Dark theme: the stage goes deeper than the panels so it stays distinct. */
+  --stage-bg: #0d1117;
+  --stage-text: rgba(243, 246, 251, 0.92);
+  --stage-sub: rgba(243, 246, 251, 0.55);
+  --stage-hover: rgba(255, 255, 255, 0.07);
+  --stage-active: rgba(122, 162, 255, 0.25);
+
   --md-hover: rgba(255, 255, 255, 0.06);
   --md-active: rgba(122, 162, 255, 0.15);
 
@@ -110,7 +121,6 @@
   --shadow-dialog: 0 24px 70px rgba(0, 0, 0, 0.5);
 
   --elev-1: 0 12px 30px rgba(0, 0, 0, 0.28);
-  --shadow-soft: 0 20px 44px rgba(0, 0, 0, 0.32);
 
   --plyr-color-main: var(--md-primary);
 }
@@ -158,12 +168,6 @@ p {
   background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
-[data-theme="dark"] .textfield:focus {
-  background: rgba(39, 39, 42, 1);
-  border-color: var(--md-primary);
-  box-shadow: 0 0 0 3px var(--ring);
-}
-
 [data-theme="dark"] .textfield::placeholder {
   color: var(--md-sub);
   opacity: 0.7;
@@ -175,20 +179,6 @@ p {
   width: 100%;
 }
 
-
-
-[data-theme="dark"] .toggle:has(input:checked) {
-  background: rgba(129, 140, 248, 0.15);
-}
-
-[data-theme="dark"] .btn--ghost {
-  color: var(--md-sub);
-}
-
-[data-theme="dark"] .btn--ghost:hover {
-  color: var(--md-text);
-}
-
 /* Scrollbars hidden globally; scrolling itself is unchanged. */
 * {
   scrollbar-width: none;
@@ -197,13 +187,6 @@ p {
 *::-webkit-scrollbar {
   width: 0;
   height: 0;
-}
-
-
-.plyr--audio .plyr__control:hover,
-.plyr--audio .plyr__control[aria-expanded="true"] {
-  background: var(--md-hover) !important;
-  color: var(--md-primary) !important;
 }
 
 button,
@@ -224,12 +207,6 @@ textarea {
   cursor: text;
   border: none;
   outline: none;
-}
-
-/* Dark mode input field optimization */
-[data-theme="dark"] .textfield {
-  background: var(--md-surface-muted);
-  border-color: var(--md-border);
 }
 
 /* Fix select cursor being overridden by textfield class */

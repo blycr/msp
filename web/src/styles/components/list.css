@@ -14,15 +14,13 @@
   padding: 10px 10px 10px 12px;
   margin-bottom: 5px;
   overflow: hidden;
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .item:hover {
-  border-color: var(--md-border);
   background: var(--md-hover);
   transform: translateX(2px);
 }
@@ -38,7 +36,6 @@
 }
 
 .item--active {
-  border-color: color-mix(in srgb, var(--md-primary) 38%, var(--md-border));
   background: var(--md-active);
   box-shadow: inset 3px 0 0 var(--md-primary);
 }
@@ -83,7 +80,6 @@
   height: fit-content;
   padding: 4px 7px;
   color: var(--md-sub);
-  border: 1px solid var(--md-border);
   border-radius: 6px;
   background: var(--md-surface-muted);
   font-family: var(--font-display);
@@ -97,7 +93,6 @@
   min-height: 42px;
   padding: 11px 14px;
   color: var(--md-sub);
-  border-top: 1px solid var(--md-border);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -109,7 +104,6 @@
   gap: 10px;
   padding: 12px 4px 2px;
   margin-top: 8px;
-  border-top: 1px solid var(--md-border);
 }
 
 .pager__side {
@@ -197,7 +191,6 @@
   padding: 4px 2px 10px;
   margin-bottom: 4px;
   color: var(--md-sub);
-  border-bottom: 1px solid var(--md-border);
   font-size: 12px;
 }
 

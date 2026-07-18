@@ -3,7 +3,6 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding: 12px;
-  border-bottom: 1px solid var(--md-border);
 }
 
 .tab {
@@ -12,7 +11,6 @@
   padding: 0 5px;
   overflow: hidden;
   color: var(--md-sub);
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
@@ -21,7 +19,7 @@
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
 .tab[data-tab="favorites"] {
@@ -31,7 +29,6 @@
 
 .tab:hover {
   color: var(--md-text);
-  border-color: var(--md-border);
   background: var(--md-hover);
 }
 
@@ -42,14 +39,12 @@
 
 .tab--active {
   color: var(--md-primary) !important;
-  border-color: color-mix(in srgb, var(--md-primary) 28%, var(--md-border)) !important;
   background: var(--md-active) !important;
 }
 
 .playlist__title {
   padding: 16px 16px 12px;
   color: var(--md-text);
-  border-bottom: 1px solid var(--md-border);
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 700;
@@ -60,7 +55,6 @@
   padding: 10px 16px;
   overflow: hidden;
   color: var(--md-sub);
-  border-bottom: 1px solid var(--md-border);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -79,21 +73,18 @@
   gap: 10px;
   min-height: 54px;
   padding: 8px 10px;
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
 .plitem:hover {
-  border-color: var(--md-border);
   background: var(--md-hover);
   transform: translateX(2px);
 }
 
 .plitem--active {
   color: var(--md-primary);
-  border-color: color-mix(in srgb, var(--md-primary) 32%, var(--md-border));
   background: var(--md-active);
 }
 

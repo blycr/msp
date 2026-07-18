@@ -10,7 +10,6 @@
   background: color-mix(in srgb, var(--md-surface) 92%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--md-border);
 }
 
 .topbar__brand {
@@ -117,7 +116,6 @@
   max-width: 100%;
   overflow: hidden;
   background: var(--md-surface);
-  border: 1px solid var(--md-border);
   border-radius: var(--radius);
   box-shadow: var(--elev-1);
 }
@@ -131,12 +129,12 @@
 
 .stage {
   min-width: 0;
+  background: var(--stage-bg);
 }
 
 .footer {
   flex: 0 0 auto;
   padding: 9px 24px 12px;
-  border-top: 1px solid var(--md-border);
   background: transparent;
 }
 

@@ -19,7 +19,6 @@
 .icon-btn:hover,
 .fav-btn:hover {
   color: var(--md-text);
-  border-color: var(--md-border);
   background: var(--md-hover);
 }
 
@@ -86,14 +85,12 @@
 
 .btn--ghost {
   color: var(--md-text);
-  border-color: var(--md-border);
   background: transparent;
   box-shadow: none;
 }
 
 .btn--ghost:hover:not(:disabled) {
   color: var(--md-primary);
-  border-color: color-mix(in srgb, var(--md-primary) 48%, var(--md-border));
   background: var(--md-hover);
   box-shadow: none;
 }
