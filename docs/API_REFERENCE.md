@@ -124,6 +124,7 @@
   - `format`: 强制转码格式 (如 `mp4`, `mp3`)。
   - `bitrate`: 限制转码码率 (如 `2M`)。
 - **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)。
+- **缓存**: 原始流响应携带 `Last-Modified`，支持 `If-Modified-Since` 条件请求（未修改返回 304）。转码流为动态内容，恒 `Cache-Control: no-store`。
 - **播放策略说明**（v1.2.0 更新）:
   - 默认优先返回原始流（直连），需要转码时前端传递 `transcode=1`。
   - 转码需在配置中开启 `playback.video.transcode`（视频）或 `playback.audio.transcode`（音频）。

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.9.3
+
+- **后端性能**：
+  - SQLite 调优：新增 `busy_timeout`/`temp_store=MEMORY`/`mmap_size=256MB`，页缓存 2MB→16MB
+  - `/api/stream` 原始流携带 `Last-Modified`，支持 `If-Modified-Since` 条件请求（304），拖动进度条的重发请求更省
+  - 转码转发改用 `sync.Pool` 复用的 256KB 缓冲（`io.CopyBuffer`），减少 syscall
+  - 扫描完成后闲时预热：后台预生成缺失的缩略图（复用现有并发限制与 ffmpeg 路径，可中断），并读取各媒体文件头/尾 512KB 预热 OS 页缓存，首次浏览和点播更快；新扫描开始或服务关闭自动停止
+  - 缩略图 `Cache-Control` 1 天 → 7 天
+- **前端性能**：
+  - 拼音搜索记忆化：按文件名缓存全拼/首字母，媒体数据更新时失效，消除每次击键对全列表的拼音重算
+  - Service Worker 对 `/api/thumbnail` 启用 StaleWhileRevalidate（500 条/7 天），重复浏览秒开
+  - 列表项启用 `content-visibility: auto` + `contain-intrinsic-size`，跳过屏外项布局绘制
+  - 自托管字体子集化（拉丁区+常用标点，不影响任何中文显示），总计 318KB→147KB（-54%）
+- **文档**：CodeMap 补充扫描后预热机制；API_REFERENCE 补充 `/api/stream` 缓存行为
+
 ## 1.9.2
 
 - **全屏/大尺寸自适应修复**：

@@ -300,7 +300,8 @@ Handler.HandleMedia()
     │                       │       ├── 是 -> processor.ReindexAndLoadMedia()
     │                       │       │       ├── 扫描文件系统
     │                       │       │       ├── 写入数据库
-    │                       │       │       └── 返回结果
+    │                       │       │       ├── 返回结果
+    │                       │       │       └── 触发 postScan 回调(见下方说明)
     │                       │       └── 否 -> media.BuildMediaResponse(idCodec)
     │                       │               └── scanner.WalkShares(idCodec)
     │                       │                       ├── 遍历共享目录
@@ -316,6 +317,8 @@ Handler.HandleMedia()
     │
     └──► 返回 JSON 响应（支持 304 Not Modified）
 ```
+
+**扫描后闲时预热（postScan 回调）**：每次扫描成功完成后，`MediaProcessor` 通过 `postScan` hook（`internal/handler/thumbnail.go` 的 `StartPostScanWarmup`）在后台启动两项低优先级工作：为本库缺失的缩略图做预生成（复用 `thumbSema` 并发限制），以及读取各媒体文件头/尾各 512KB 预热 OS 页缓存。新扫描开始或服务关闭时自动取消上一轮预热。
 
 ### 4.3 流媒体传输流程
 
