@@ -2,6 +2,8 @@
 
 本文档详细说明了项目的构建和开发脚本。为了支持跨平台开发，我们提供了 PowerShell (`.ps1`) 和 Bash (`.sh`) 两种版本的构建脚本。
 
+> 注意：`.ps1` 脚本要求 PowerShell 7+（`pwsh`）。从 Windows PowerShell 5.1 启动时，若检测到 `pwsh` 会自动以其重新执行并转发全部参数（部分 5.1 环境缺少 `build.ps1` 生成校验和所需的 `Get-FileHash`）。
+
 [English](README.md)
 
 ---
@@ -234,8 +236,9 @@ chmod +x ./scripts/dev.sh
 
 | 工具 | 版本 | 用途 |
 |------|------|------|
-| Go | 1.24+ | 后端编译 |
+| Go | 1.25+ | 后端编译 |
 | bun | 1.3.x | 前端包管理 |
+| PowerShell | 7+（`pwsh`） | Windows `.ps1` 脚本（5.1 下自动重入；`build.ps1` 缺失时报错，`dev.ps1` 降级继续） |
 
 ### 可选依赖
 

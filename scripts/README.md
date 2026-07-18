@@ -2,6 +2,8 @@
 
 This document describes the build and development scripts for the project. Both PowerShell (`.ps1`) and Bash (`.sh`) versions are provided for cross-platform support.
 
+> Note: the `.ps1` scripts require PowerShell 7+ (`pwsh`). When launched from Windows PowerShell 5.1 they automatically re-execute with `pwsh` if it is installed (some 5.1 environments lack `Get-FileHash`, which `build.ps1` needs for checksums).
+
 [中文版](README_CN.md)
 
 ---
@@ -234,8 +236,9 @@ chmod +x ./scripts/dev.sh
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.24+ | Backend compilation |
+| Go | 1.25+ | Backend compilation |
 | bun | 1.3.x | Frontend package manager |
+| PowerShell | 7+ (`pwsh`) | Windows `.ps1` scripts (auto re-exec from 5.1; `build.ps1` fails without it, `dev.ps1` falls back to 5.1) |
 
 ### Optional
 

@@ -12,8 +12,8 @@ MSP 是一个基于 Go + 原生 JavaScript 的媒体共享与预览服务，支�
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 后端 | Go 1.24 | 纯 Go 实现，无 CGO 依赖 |
-| 数据库 | SQLite (modernc.org/sqlite) | 纯 Go SQLite 驱动 |
+| 后端 | Go 1.25 | 纯 Go 实现，无 CGO 依赖 |
+| 数据库 | SQLite (glebarez/sqlite) | 纯 Go SQLite 驱动 |
 | 前端 | Vite 8 + Vanilla JS | 无框架依赖 |
 | 转码 | FFmpeg | 支持硬件加速 (NVENC/QSV/AMF/VAAPI) |
 | 包管理 | bun 1.3 | 前端依赖管理 |
@@ -62,10 +62,10 @@ msp/
 │   ├── service/                # 业务逻辑层
 │   │   ├── media.go            # MediaService 缓存协调
 │   │   ├── session.go          # Session 管理服务
-│   │   ├── logger.go           # 日志服务
+│   │   ├── logger.go           # 异步缓冲日志服务（logChan + writeLoop）
 │   │   └── config.go           # 配置业务逻辑
 │   ├── storage/                # 数据持久化
-│   │   ├── sqlite.go           # SQLite 数据库初始化与操作
+│   │   ├── sqlite.go           # SQLite 初始化与操作（连接池按 GOMAXPROCS，含表达式索引）
 │   │   ├── store.go            # Store 抽象层
 │   │   └── interface.go        # 存储接口定义
 │   ├── types/                  # 类型别名（向后兼容）
@@ -273,6 +273,9 @@ main.go
     │
     ▼
 Handler.HandleMedia()
+    │
+    ├──► ETag 快速路径（?refresh=1 时跳过）
+    │       └── If-None-Match 命中 PeekMediaETag() -> 直接返回 304，不构建缓存
     │
     ├──► 获取配置中的 shares 和 blacklist
     │
@@ -538,6 +541,7 @@ type ConfigProvider interface {
 type MediaCacheProvider interface {
     GetOrBuildMediaCache(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool) (domain.MediaResponse, string)
     InvalidateMediaCache()
+    PeekMediaETag() (string, bool)
 }
 
 // SessionProvider - 会话管理提供器
@@ -601,7 +605,7 @@ DetectHWAccel(mode)
 ```
 WalkShares(ctx, shares, blacklist, limit, callback, idCodec)
     │
-    ├── 遍历每个共享目录
+    ├── 并行遍历每个共享目录（每目录一个 goroutine，WaitGroup 聚合，结果经回调合并）
     │
     ├── 使用 filepath.WalkDir 遍历文件
     │
@@ -767,7 +771,7 @@ WithSecurity 中间件
 ```dockerfile
 # 多阶段构建
 1. 前端构建（node:22-alpine）
-2. 后端编译（golang:1.24-alpine）
+2. 后端编译（golang:1.25-alpine）
 3. 运行时（alpine）
 ```
 
@@ -821,5 +825,5 @@ WithSecurity 中间件
 
 ---
 
-*文档版本: 1.1*
-*最后更新: 2026-05-09*
+*文档版本: 1.2*
+*最后更新: 2026-07-18*
