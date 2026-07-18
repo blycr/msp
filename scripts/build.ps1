@@ -9,6 +9,17 @@ param(
   [Alias('I')][switch]$ListPresets
 )
 
+# 本机 Windows PowerShell 5.1 的 Get-FileHash 不可用（模块加载异常）。
+# 运行在 5.1 下且存在 pwsh(PS 7+) 时，自动以 pwsh 重新执行并转发全部参数。
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
+  if ($pwshCmd) {
+    & $pwshCmd.Source -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @PSBoundParameters
+    exit $LASTEXITCODE
+  }
+  throw 'This script requires PowerShell 7+ (pwsh): Get-FileHash is unavailable in this Windows PowerShell 5.1 session.'
+}
+
 $ErrorActionPreference = 'Stop'
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8

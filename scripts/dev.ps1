@@ -3,6 +3,18 @@ param(
   [int]$BackendPort = 8099
 )
 
+# 与 build.ps1 保持一致：优先使用 pwsh(PS 7+)。
+# 运行在 5.1 下且存在 pwsh 时，自动以 pwsh 重新执行并转发全部参数；
+# 没有 pwsh 时降级继续使用当前 5.1（dev 流程不依赖 Get-FileHash）。
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
+  if ($pwshCmd) {
+    & $pwshCmd.Source -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @PSBoundParameters
+    exit $LASTEXITCODE
+  }
+  Write-Host '[dev] pwsh not found, continuing with Windows PowerShell 5.1' -ForegroundColor Yellow
+}
+
 $ErrorActionPreference = 'Stop'
 
 # 设置 UTF-8 编码以减少乱码
