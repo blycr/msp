@@ -66,7 +66,7 @@ const (
 )
 
 func New(deps Deps) *Handler {
-	return &Handler{
+	h := &Handler{
 		config:        deps.Config,
 		media:         deps.Media,
 		session:       deps.Session,
@@ -78,4 +78,9 @@ func New(deps Deps) *Handler {
 		processor:     deps.Processor,
 		idCodec:       deps.IDCodec,
 	}
+	if deps.Processor != nil {
+		// 扫描完成后闲时预热缩略图与 OS 页缓存；新扫描或服务关闭时自动停止。
+		deps.Processor.SetPostScanHook(h.StartPostScanWarmup)
+	}
+	return h
 }

@@ -62,8 +62,17 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 		if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
 			log.Printf("[WARN] DB Warn: failed to set synchronous mode: %v", err)
 		}
-		if _, err := sqlDB.Exec("PRAGMA cache_size=-2000;"); err != nil {
+		if _, err := sqlDB.Exec("PRAGMA cache_size=-16000;"); err != nil {
 			log.Printf("[WARN] DB Warn: failed to set cache size: %v", err)
+		}
+		if _, err := sqlDB.Exec("PRAGMA busy_timeout=5000;"); err != nil {
+			log.Printf("[WARN] DB Warn: failed to set busy timeout: %v", err)
+		}
+		if _, err := sqlDB.Exec("PRAGMA temp_store=MEMORY;"); err != nil {
+			log.Printf("[WARN] DB Warn: failed to set temp store: %v", err)
+		}
+		if _, err := sqlDB.Exec("PRAGMA mmap_size=268435456;"); err != nil {
+			log.Printf("[WARN] DB Warn: failed to set mmap size: %v", err)
 		}
 	}
 

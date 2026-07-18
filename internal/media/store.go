@@ -42,13 +42,58 @@ func (mp *MediaProcessor) ReindexAndLoadMedia(ctx context.Context, cacheKey stri
 	if err != nil {
 		return domain.MediaResponse{}, time.Time{}, err
 	}
+	mp.notifyScanComplete(resp)
 	return resp, builtAt, nil
+}
+
+// SetPostScanHook 注册扫描回调：每次扫描成功完成后以本次扫描的媒体条目
+// （视频/音频/图片）调用；新扫描开始或服务关闭时以 nil 调用，用于停止上一轮
+// 扫描派生的后台工作（如缩略图预热）。传 nil 可注销。
+func (mp *MediaProcessor) SetPostScanHook(hook func(items []domain.MediaItem)) {
+	if mp == nil {
+		return
+	}
+	mp.postScan.mu.Lock()
+	mp.postScan.hook = hook
+	mp.postScan.mu.Unlock()
+}
+
+// CancelPostScanHook 以 nil 调用已注册的扫描回调，通知其停止上一轮扫描派生
+// 的后台工作。在新扫描开始时和服务关闭时调用。
+func (mp *MediaProcessor) CancelPostScanHook() {
+	if mp == nil {
+		return
+	}
+	mp.postScan.mu.RLock()
+	hook := mp.postScan.hook
+	mp.postScan.mu.RUnlock()
+	if hook != nil {
+		hook(nil)
+	}
+}
+
+// notifyScanComplete 以本次扫描的视频/音频/图片条目调用已注册的扫描回调。
+func (mp *MediaProcessor) notifyScanComplete(resp domain.MediaResponse) {
+	mp.postScan.mu.RLock()
+	hook := mp.postScan.hook
+	mp.postScan.mu.RUnlock()
+	if hook == nil {
+		return
+	}
+	items := make([]domain.MediaItem, 0, len(resp.Videos)+len(resp.Audios)+len(resp.Images))
+	items = append(items, resp.Videos...)
+	items = append(items, resp.Audios...)
+	items = append(items, resp.Images...)
+	hook(items)
 }
 
 func (mp *MediaProcessor) IndexMediaToDB(ctx context.Context, cacheKey string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (scanID int64, builtAt time.Time, complete bool, err error) {
 	if !mp.IsDBAvailable() {
 		return 0, time.Time{}, false, nil
 	}
+
+	// 新扫描开始：停止上一轮扫描派生的后台工作（如缩略图预热）。
+	mp.CancelPostScanHook()
 
 	builtAt = time.Now()
 	scanID = builtAt.UnixNano()

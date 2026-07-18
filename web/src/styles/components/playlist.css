@@ -74,6 +74,8 @@
   align-items: center;
   gap: 10px;
   min-height: 54px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;

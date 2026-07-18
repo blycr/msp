@@ -120,6 +120,8 @@ func (s *Server) WatchConfig(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// 服务关闭：停止扫描派生的后台预热。
+			s.processor.CancelPostScanHook()
 			return
 		case <-ticker.C:
 			s.checkAndReloadConfig()

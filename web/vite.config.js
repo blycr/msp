@@ -15,6 +15,18 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
+            // 缩略图：内容按 id 稳定，允许陈旧缓存后台刷新
+            urlPattern: /^\/api\/thumbnail/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'msp-thumbnails',
+              expiration: {
+                maxEntries: 500,
+                maxAgeSeconds: 7 * 24 * 60 * 60,
+              },
+            },
+          },
+          {
             urlPattern: /^\/api\//,
             handler: 'NetworkOnly',
           },

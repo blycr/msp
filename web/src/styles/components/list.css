@@ -13,6 +13,8 @@
   align-items: center;
   gap: 10px;
   min-height: 62px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 62px;
   padding: 10px 10px 10px 12px;
   margin-bottom: 5px;
   overflow: hidden;

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 
 	"msp/internal/config"
 	"msp/internal/constants"
@@ -168,6 +168,16 @@ func (h *Handler) checkTranscodePolicy(r *http.Request, cfg config.Config, ext s
 	return true, nil
 }
 
+// transcodeCopyBufPool provides reusable 256KB buffers for streaming
+// transcoded output, reducing per-copy allocations and syscall count
+// compared to io.Copy's default 32KB buffer.
+var transcodeCopyBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 256*1024)
+		return &b
+	},
+}
+
 func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, target string, ext string) bool {
 	isAudio := scanner.ClassifyExt(ext) == "audio"
 	start, _ := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
@@ -196,8 +206,10 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 	w.Header().Set("X-MSP-Transcode", "1")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Del("Content-Length")
-	if _, err := io.Copy(w, stream); err != nil {
-		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("io.Copy transcode stream error: %v", err))
+	bufPtr := transcodeCopyBufPool.Get().(*[]byte)
+	defer transcodeCopyBufPool.Put(bufPtr)
+	if _, err := io.CopyBuffer(w, stream, *bufPtr); err != nil {
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("io.CopyBuffer transcode stream error: %v", err))
 	}
 	return true
 }
@@ -217,7 +229,7 @@ func (h *Handler) serveDirect(w http.ResponseWriter, r *http.Request, f *os.File
 		disposition = "attachment"
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, st.Name()))
-	http.ServeContent(w, r, st.Name(), time.Time{}, f)
+	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
 }
 
 func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"msp/internal/domain"
 	"msp/internal/storage"
 	"msp/internal/util"
 )
@@ -37,6 +38,13 @@ type MediaProcessor struct {
 		once     sync.Once
 		result   *HWAccelResult
 		disabled atomic.Bool
+	}
+
+	// postScan 保存扫描完成后的回调：扫描成功时以本次扫描的媒体条目调用，
+	// 新扫描开始或服务关闭时以 nil 调用（用于停止上一轮扫描派生的后台工作）。
+	postScan struct {
+		mu   sync.RWMutex
+		hook func(items []domain.MediaItem)
 	}
 
 	idCodec *util.IDCodec
