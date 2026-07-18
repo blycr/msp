@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.9.0
+
+- **前台沉浸式去框化（UI 重设计）**：
+  - 设计规则统一：一个区域一个面，面内不用边框，分隔靠留白与色调层次；边框只保留给真正的浮层（dialog、dropdown 菜单、plyr 菜单/工具提示）
+  - 三栏面板去除边框，靠背景与面板的柔和色差分区；tabs/search/playlist/hint/pager/breadcrumb/footer 等处内部分隔线全部移除
+  - 控件去描边：ghost 按钮、图标按钮、输入框、开关、标签页、badge 均改为无框填充式，hover/active 只变化底色
+  - 舞台（播放区）随主题适配：浅色主题与面板同色，暗色主题深于面板；新增 `--stage-*` 设计 token（bg/text/sub/hover/active），舞台内标题、按钮、开关、歌词、封面、空态、转码提示、plyr 音频控件全部 token 化并随主题切换
+  - 视频铺满舞台：拆除 playerbox 的边框/阴影/外边距，修正 plyr 包装层撑满舞台，letterbox 区域与舞台同色
+  - 设置对话框精简：section 去底色改为纯留白分组（修复输入框与 section 底色相同导致输入框不可见），移除标题/操作区分隔线与 `<hr>` 分隔符
+  - 移动端同步：mobile-nav 去边框/阴影，playerbox 贴边
+  - 清理无用的 `--stage-media-bg`/`--shadow-soft` token 及与之冲突的暗主题专项覆盖
+- **修复歌词高亮位置**：
+  - 当前歌词行由偏上（35%）改为精确垂直居中（50%）
+  - 修复移动端看不到高亮歌词：根因是 `offsetTop` 相对最近定位祖先（`.playerbox`）而非歌词容器计算，滚动量被高估，桌面端把高亮行顶到遮罩淡化区、移动端直接滚出可视区；改用 `getBoundingClientRect` 做布局无关计算
+
 ## 1.8.0
 
 - **前端 UI 设计系统统一**：
