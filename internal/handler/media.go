@@ -22,11 +22,27 @@ func (h *Handler) HandleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refresh := r.URL.Query().Get("refresh") == "1"
+
+	// Fast path: If-None-Match matches cached ETag — return 304 without building.
+	// Skip when refresh is requested to force a fresh build.
+	// Note: there is a benign TOCTOU gap between PeekMediaETag and the
+	// subsequent GetOrBuildMediaCache call — a stale 304 is harmless since
+	// the client can always force-refresh with ?refresh=1.
+	if !refresh {
+		if match := strings.TrimSpace(r.Header.Get("If-None-Match")); match != "" {
+			if etag, ok := h.media.PeekMediaETag(); ok && etag == match {
+				w.Header().Set("ETag", etag)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+	}
+
 	cfg := h.config.Config()
 	shares := append([]domain.Share(nil), cfg.Shares...)
 	blacklist := cfg.Blacklist
 
-	refresh := r.URL.Query().Get("refresh") == "1"
 	if refresh && getAccessLevelFromRequest(r) != AccessLocal {
 		refreshMu.Lock()
 		if time.Since(lastRefreshTime) < refreshCooldown {

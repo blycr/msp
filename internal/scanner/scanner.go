@@ -59,15 +59,17 @@ func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.Bla
 	if limit <= 0 {
 		limit = constants.DefaultScanLimit
 	}
-	w := shareWalker{
-		ctx:       ctx,
-		blacklist: blacklist,
-		limit:     limit,
-		seen:      0,
-		dirCache:  make(map[string][]fs.DirEntry),
-		cb:        cb,
-		idCodec:   idCodec,
-	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		mu         sync.Mutex
+		globalSeen int
+		limitHit   bool
+		firstErr   error
+		wg         sync.WaitGroup
+	)
 
 	for _, sh := range shares {
 		root := util.NormalizePath(sh.Path)
@@ -75,23 +77,50 @@ func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.Bla
 			continue
 		}
 
-		err := w.walkShare(root, sh.Label)
+		wg.Add(1)
+		go func(label, root string) {
+			defer wg.Done()
 
-		if err == fs.SkipAll {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("walk share %s: %w", sh.Label, err)
-		}
+			w := shareWalker{
+				ctx:       ctx,
+				blacklist: blacklist,
+				dirCache:  make(map[string][]fs.DirEntry),
+				cb: func(item domain.MediaItem, path string, rootPtr string) error {
+					mu.Lock()
+					defer mu.Unlock()
+					if limitHit || globalSeen >= limit {
+						if !limitHit {
+							limitHit = true
+							cancel()
+						}
+						return fs.SkipAll
+					}
+					globalSeen++
+					return cb(item, path, rootPtr)
+				},
+				idCodec: idCodec,
+			}
+
+			if err := w.walkShare(root, label); err != nil {
+				mu.Lock()
+				if !limitHit && firstErr == nil {
+					firstErr = fmt.Errorf("walk share %s: %w", label, err)
+				} else if limitHit {
+					// Limit was already hit; log suppressed errors for visibility.
+					log.Printf("[WARN] walk suppressed after limit: share %s: %v", label, err)
+				}
+				mu.Unlock()
+			}
+		}(sh.Label, root)
 	}
-	return nil
+
+	wg.Wait()
+	return firstErr
 }
 
 type shareWalker struct {
 	ctx       context.Context
 	blacklist config.BlacklistConfig
-	limit     int
-	seen      int
 	dirCache  map[string][]fs.DirEntry
 	cb        WalkCallback
 	idCodec   *util.IDCodec
@@ -114,9 +143,6 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 		log.Printf("[WARN] walk entry error: %v", err)
 		return nil
 	}
-	if w.seen >= w.limit {
-		return fs.SkipAll
-	}
 
 	if d.IsDir() {
 		if ShouldSkipDir(d.Name(), w.blacklist) {
@@ -135,7 +161,6 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 		return nil
 	}
 
-	w.seen++
 	return w.cb(item, p, root)
 }
 

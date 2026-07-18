@@ -7,6 +7,7 @@ import (
 	"msp/internal/domain"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -52,8 +53,8 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 
 	sqlDB, err := db.DB()
 	if err == nil {
-		sqlDB.SetMaxOpenConns(1)
-		sqlDB.SetMaxIdleConns(1)
+		sqlDB.SetMaxOpenConns(runtime.GOMAXPROCS(0))
+		sqlDB.SetMaxIdleConns(max(2, runtime.GOMAXPROCS(0)/2))
 
 		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 			log.Printf("[WARN] DB Warn: failed to set WAL mode: %v", err)
@@ -69,6 +70,10 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 	if err := db.AutoMigrate(&domain.MediaItem{}, &domain.MediaScan{}, &domain.UserPref{}, &domain.PlaybackProgress{}, &domain.Favorite{}); err != nil {
 		return nil, err
 	}
+
+	// Expression indexes for common sort/filter patterns.
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_media_item_lower_name ON media_items(LOWER(name))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_media_item_sort ON media_items(scan_id, kind, share_label, name)")
 
 	return &SQLite{db: db}, nil
 }

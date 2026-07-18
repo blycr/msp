@@ -41,7 +41,7 @@ var (
 )
 
 func main() {
-	debug.SetGCPercent(50)
+	debug.SetGCPercent(100)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

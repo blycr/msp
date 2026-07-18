@@ -21,6 +21,7 @@ type ConfigProvider interface {
 
 type MediaCacheProvider interface {
 	GetOrBuildMediaCache(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool) (domain.MediaResponse, string)
+	PeekMediaETag() (string, bool)
 	InvalidateMediaCache()
 }
 

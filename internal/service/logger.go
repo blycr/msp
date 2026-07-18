@@ -23,7 +23,14 @@ const (
 	LogLevelWarning = "warning"
 	LogLevelError   = "error"
 	LogLevelNone    = "none"
+
+	logChanCapacity = 4096
 )
+
+type logEntry struct {
+	level string
+	line  string
+}
 
 type LoggerService struct {
 	mu      sync.RWMutex
@@ -33,20 +40,21 @@ type LoggerService struct {
 	seenIPs sync.Map
 	logMu   sync.Mutex
 	logFile *os.File
-	logCnt  int32
-
-	consoleOutput *os.File
-	fileOutput    *os.File
 
 	fileLogger    *log.Logger
 	consoleLogger *log.Logger
+
+	logChan chan logEntry
+	done    chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewLoggerService(cfgLevel, logFilePath string) *LoggerService {
 	return &LoggerService{
-		cfgLevel:      strings.ToLower(cfgLevel),
-		logFilePath:   logFilePath,
-		consoleOutput: os.Stderr,
+		cfgLevel:    strings.ToLower(cfgLevel),
+		logFilePath: logFilePath,
+		logChan:     make(chan logEntry, logChanCapacity),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -64,7 +72,6 @@ func (l *LoggerService) SetupLogger() {
 	}
 
 	l.logMu.Lock()
-	defer l.logMu.Unlock()
 
 	if l.logFile != nil {
 		_ = l.logFile.Close()
@@ -73,16 +80,63 @@ func (l *LoggerService) SetupLogger() {
 	//nolint:gosec // Log file path is controlled by config/CLI
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
 	if err != nil {
+		l.logMu.Unlock()
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
 		return
 	}
 	l.logFile = f
-	l.fileOutput = f
-	l.consoleOutput = os.Stderr
 	l.fileLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 	l.consoleLogger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 	log.SetOutput(f)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	l.logMu.Unlock()
+
+	// Start the background log writer goroutine.
+	l.wg.Add(1)
+	go l.writeLoop()
+}
+
+func (l *LoggerService) writeLoop() {
+	defer l.wg.Done()
+	var writeCnt int32
+	for {
+		select {
+		case <-l.done:
+			// Drain remaining entries.
+			for {
+				select {
+				case entry := <-l.logChan:
+					l.writeLog(entry)
+				default:
+					return
+				}
+			}
+		case entry := <-l.logChan:
+			l.writeLog(entry)
+			if cnt := atomic.AddInt32(&writeCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
+				l.RotateLogIfNeeded()
+			}
+		}
+	}
+}
+
+// writeLog writes a single log entry to file and optionally to console.
+// Called from writeLoop to keep all file I/O on one goroutine and avoid contention.
+func (l *LoggerService) writeLog(entry logEntry) {
+	l.logMu.Lock()
+
+	if l.fileLogger != nil {
+		l.fileLogger.Println(entry.line)
+	}
+
+	// Only error level (and above) goes to console, filtering context cancellation noise.
+	if entry.level == LogLevelError && l.consoleLogger != nil {
+		if !strings.Contains(entry.line, context.Canceled.Error()) && !strings.Contains(entry.line, context.DeadlineExceeded.Error()) {
+			l.consoleLogger.Println(entry.line)
+		}
+	}
+
+	l.logMu.Unlock()
 }
 
 func (l *LoggerService) Log(level string, msg string) {
@@ -108,22 +162,10 @@ func (l *LoggerService) Log(level string, msg string) {
 
 	line := fmt.Sprintf("[%s] %s", strings.ToUpper(level), msg)
 
-	l.logMu.Lock()
-	// 所有日志都写入文件
-	if l.fileLogger != nil {
-		l.fileLogger.Println(line)
-	}
-
-	// 只有 error 级别（以及更严重级别）写入控制台，并过滤 context 取消类错误
-	if strings.ToLower(level) == LogLevelError && l.consoleLogger != nil {
-		if !strings.Contains(msg, context.Canceled.Error()) && !strings.Contains(msg, context.DeadlineExceeded.Error()) {
-			l.consoleLogger.Println(line)
-		}
-	}
-	l.logMu.Unlock()
-
-	if cnt := atomic.AddInt32(&l.logCnt, 1); cnt%constants.LogRotateCheckInterval == 0 {
-		l.RotateLogIfNeeded()
+	select {
+	case l.logChan <- logEntry{level: level, line: line}:
+	default:
+		// Channel full; drop the entry to avoid blocking callers.
 	}
 }
 
@@ -146,7 +188,6 @@ func (l *LoggerService) RotateLogIfNeeded() {
 
 	_ = l.logFile.Close()
 	l.logFile = nil
-	l.fileOutput = nil
 	l.fileLogger = nil
 
 	l.mu.RLock()
@@ -161,11 +202,9 @@ func (l *LoggerService) RotateLogIfNeeded() {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, constants.FilePerm)
 	if err != nil {
 		log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds).Printf("[ERROR] Failed to reopen log file %s: %v; falling back to stderr", path, err)
-		l.consoleOutput = os.Stderr
 		return
 	}
 	l.logFile = f
-	l.fileOutput = f
 	l.fileLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 	log.SetOutput(f)
 }
@@ -205,12 +244,15 @@ func (l *LoggerService) UpdateConfig(cfgLevel, logFilePath string) {
 }
 
 func (l *LoggerService) Close() {
+	// Signal the write loop to stop and wait for it to drain remaining entries.
+	close(l.done)
+	l.wg.Wait()
+
 	l.logMu.Lock()
 	defer l.logMu.Unlock()
 	if l.logFile != nil {
 		_ = l.logFile.Close()
 		l.logFile = nil
-		l.fileOutput = nil
 		l.fileLogger = nil
 	}
 }

@@ -49,12 +49,12 @@ type UserPref struct {
 type PlaybackProgress struct {
 	MediaID   string    `json:"mediaId" gorm:"primaryKey"`
 	Time      float64   `json:"time" gorm:"not null"`
-	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
+	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime;index:idx_progress_updated"`
 }
 
 type Favorite struct {
 	MediaID   string    `json:"mediaId" gorm:"primaryKey"`
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time `json:"createdAt" gorm:"index:idx_fav_created"`
 }
 
 type MediaResponse struct {

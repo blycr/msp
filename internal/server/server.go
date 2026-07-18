@@ -203,6 +203,10 @@ func (s *Server) GetPort() int {
 	return s.cfg.Port
 }
 
+func (s *Server) PeekMediaETag() (string, bool) {
+	return s.MediaSvc.PeekMediaETag()
+}
+
 func (s *Server) GetOrBuildMediaCache(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool) (domain.MediaResponse, string) {
 	return s.MediaSvc.GetOrBuildMediaCache(ctx, shares, blacklist, refresh)
 }

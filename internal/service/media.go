@@ -21,6 +21,10 @@ func NewMediaService(cache *cache.MediaCache, config ConfigReader) *MediaService
 	return &MediaService{cache: cache, config: config}
 }
 
+func (s *MediaService) PeekMediaETag() (string, bool) {
+	return s.cache.PeekETag()
+}
+
 func (s *MediaService) GetOrBuildMediaCache(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool) (domain.MediaResponse, string) {
 	maxItems := s.config.Config().MaxItems
 	return s.cache.GetOrBuild(ctx, shares, blacklist, refresh, maxItems)

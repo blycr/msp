@@ -7,7 +7,6 @@ import (
 	"hash/fnv"
 	"log"
 	"os"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -74,6 +73,15 @@ func (c *MediaCache) Invalidate() {
 	c.respJSON = nil
 	c.mu.Unlock()
 	_ = os.Remove(c.cacheFilePath)
+}
+
+func (c *MediaCache) PeekETag() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.etag != "" && !c.builtAt.IsZero() {
+		return c.etag, true
+	}
+	return "", false
 }
 
 func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool, maxItems int) (domain.MediaResponse, string) {
@@ -204,8 +212,6 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 	if !c.processor.IsDBAvailable() {
 		c.runBg(func() { c.saveToDisk(key, builtAt, etag, resp) })
 	}
-
-	go debug.FreeOSMemory()
 
 	return resp, etag, nil
 }
