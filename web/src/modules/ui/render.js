@@ -8,6 +8,108 @@ import { addFavorite, removeFavorite } from '../api.js';
 import { icon } from '../icons.js';
 import { createPager } from './pager.js';
 
+// Auto-fit file list page size so a page always fills the box and the pager
+// stays flush at the bottom (same idea as the playlist auto-fit).
+const listAutoFit = {
+  raf: 0,
+  inUpdate: false,
+  last: { boxW: 0, itemH: 0, pagerH: 0 },
+  ro: null,
+};
+
+function scheduleAutoFitListPageSize() {
+  if (listAutoFit.raf) return;
+  listAutoFit.raf = requestAnimationFrame(() => {
+    listAutoFit.raf = 0;
+    autoFitListPageSize();
+  });
+}
+
+function measureListHeights(box) {
+  const w = Math.max(280, box?.clientWidth || 0);
+  const wrap = document.createElement("div");
+  wrap.style.position = "absolute";
+  wrap.style.visibility = "hidden";
+  wrap.style.pointerEvents = "none";
+  wrap.style.left = "-10000px";
+  wrap.style.top = "0";
+  wrap.style.width = `${w}px`;
+  document.body.appendChild(wrap);
+
+  const row = document.createElement("div");
+  row.className = "item";
+  const main = document.createElement("div");
+  main.className = "item__main";
+  const name = document.createElement("div");
+  name.className = "item__name";
+  name.textContent = "Sample File Item";
+  const sub = document.createElement("div");
+  sub.className = "item__sub";
+  sub.textContent = "Share · MP4";
+  main.appendChild(name);
+  main.appendChild(sub);
+  row.appendChild(main);
+  wrap.appendChild(row);
+
+  const pager = createPager({ page: 1, totalPages: 99, onPrev: () => { }, onNext: () => { } });
+  wrap.appendChild(pager);
+
+  const itemH = Math.ceil(row.getBoundingClientRect().height + (parseFloat(getComputedStyle(row).marginBottom) || 0));
+  const pagerH = Math.ceil(pager.getBoundingClientRect().height + (parseFloat(getComputedStyle(pager).marginTop) || 0));
+  wrap.remove();
+
+  return {
+    itemH: itemH > 0 ? itemH : 67,
+    pagerH: pagerH > 0 ? pagerH : 50,
+  };
+}
+
+function autoFitListPageSize() {
+  if (listAutoFit.inUpdate) return;
+
+  const box = el("list");
+  if (!box) return;
+  if (state.browseMode === 'folder' && state.tab !== 'favorites') return;
+
+  const total = filterFiles(currentList()).length;
+  if (!total) return;
+
+  const boxH = box.clientHeight || 0;
+  const boxW = box.clientWidth || 0;
+  if (boxH <= 0 || boxW <= 0) return;
+
+  if (!listAutoFit.last.itemH || !listAutoFit.last.pagerH || listAutoFit.last.boxW !== boxW) {
+    const m = measureListHeights(box);
+    listAutoFit.last.itemH = m.itemH;
+    listAutoFit.last.pagerH = m.pagerH;
+  }
+  listAutoFit.last.boxW = boxW;
+
+  const itemH = listAutoFit.last.itemH || 1;
+  const pagerH = listAutoFit.last.pagerH || 0;
+
+  const currentPageSize = state.listPageSize || 10;
+  const totalPagesNow = Math.max(1, Math.ceil(total / currentPageSize));
+  const willHavePager = totalPagesNow > 1;
+  const usable = Math.max(0, boxH - (willHavePager ? pagerH : 0) - 8);
+
+  let target = Math.floor(usable / itemH);
+  if (!Number.isFinite(target)) target = currentPageSize;
+  target = Math.max(5, Math.min(200, target));
+
+  if (target === currentPageSize) return;
+
+  listAutoFit.inUpdate = true;
+  try {
+    const firstIdx = ((state.listPage || 1) - 1) * currentPageSize;
+    state.listPageSize = target;
+    state.listPage = Math.floor(firstIdx / target) + 1;
+    renderList();
+  } finally {
+    listAutoFit.inUpdate = false;
+  }
+}
+
 export function setMeta(text) {
   const meta = el("meta");
   if (!meta) return;
@@ -88,6 +190,12 @@ export function renderList() {
   const box = el("list");
   const hint = el("hint");
   box.innerHTML = "";
+
+  // Re-fit page size when the box resizes (e.g. F11 fullscreen, window drag).
+  if (!listAutoFit.ro && typeof ResizeObserver !== "undefined") {
+    listAutoFit.ro = new ResizeObserver(() => scheduleAutoFitListPageSize());
+    listAutoFit.ro.observe(box);
+  }
 
   const hasItems = state.media && (
     (state.media.videos || []).length > 0 ||
@@ -183,6 +291,7 @@ export function renderList() {
       onNext: () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); },
     }));
   }
+  scheduleAutoFitListPageSize();
 }
 
 function renderFolderView(box, hint) {

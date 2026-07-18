@@ -124,6 +124,12 @@ export function renderPlaylist() {
   const meta = el("plMeta");
   box.innerHTML = "";
 
+  // Re-fit page size when the box resizes (e.g. F11 fullscreen, window drag).
+  if (!plAutoFit.ro && typeof ResizeObserver !== "undefined") {
+    plAutoFit.ro = new ResizeObserver(() => scheduleAutoFitPlaylistPageSize());
+    plAutoFit.ro.observe(box);
+  }
+
   const items = state.playlist.items || [];
   if (!items.length) {
     meta.textContent = t("not_loaded");

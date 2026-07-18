@@ -61,10 +61,12 @@
 }
 
 .playlist__body {
+  display: flex;
   min-height: 0;
   padding: 8px;
   overflow: auto;
   flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .plitem {
