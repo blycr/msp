@@ -1,12 +1,29 @@
 import { state, lsSet, lsGet } from './state.js';
 import { t } from './i18n.js';
 import { getCfg } from './utils.js';
+import { bus } from './eventbus.js';
+
+// DB degradation contract: progress/prefs/favorites endpoints may answer
+// 503 + {"error":"db_unavailable"} when the local DB is down. We flip
+// state.dbAvailable once, notify the UI (disabled fav buttons + hint note),
+// and mark the error so callers can degrade silently (no alerts, no retry).
+function markDbUnavailable(res, data) {
+  if (res.status === 503 && data && data.error === 'db_unavailable') {
+    if (state.dbAvailable !== false) {
+      state.dbAvailable = false;
+      bus.emit('db:unavailable');
+    }
+    return true;
+  }
+  return false;
+}
 
 export async function apiRetry(fn, retries = 3, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (e) {
+      if (e?.dbUnavailable) throw e; // 降级场景不重试
       if (i === retries - 1) throw e;
       await new Promise(r => setTimeout(r, delay));
     }
@@ -21,7 +38,11 @@ export async function apiGet(url) {
     throw new Error(`${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || `${res.status} ${res.statusText}`);
+    if (markDbUnavailable(res, data)) err.dbUnavailable = true;
+    throw err;
+  }
   if (data?.error?.message) throw new Error(data.error.message);
   return data;
 }
@@ -40,7 +61,11 @@ export async function apiPost(url, body) {
     throw new Error(`${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error?.message || `${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || `${res.status} ${res.statusText}`);
+    if (markDbUnavailable(res, data)) err.dbUnavailable = true;
+    throw err;
+  }
   if (data?.error?.message) throw new Error(data.error.message);
   return data;
 }
@@ -98,6 +123,7 @@ let progressBatchTimer = 0;
 
 export function reportProgress(id, time) {
   if (!id) return;
+  if (state.dbAvailable === false) return; // DB 不可用：静默跳过进度保存
   progressBatchQueue[id] = time;
   if (progressBatchTimer) return;
   progressBatchTimer = setTimeout(() => {
@@ -112,6 +138,7 @@ export function reportProgress(id, time) {
 
 export async function getProgress(id) {
   if (!id) return 0;
+  if (state.dbAvailable === false) return 0; // DB 不可用：静默跳过进度恢复
   try {
     const res = await apiGet(`/api/progress?id=${encodeURIComponent(id)}`);
     return Number(res.time || 0);
@@ -132,7 +159,12 @@ export async function removeFavorite(mediaId) {
   const res = await fetch(`/api/favorites?id=${encodeURIComponent(mediaId)}`, {
     method: 'DELETE', credentials: 'include',
   });
-  if (!res.ok) throw new Error(`${res.status}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(`${res.status}`);
+    if (markDbUnavailable(res, data)) err.dbUnavailable = true;
+    throw err;
+  }
   return res.json();
 }
 
@@ -158,6 +190,7 @@ let gpBatchTimer = 0;
 export function gpSet(k, v) {
   state.prefs[k] = v;
   lsSet(k, v);
+  if (state.dbAvailable === false) return; // DB 不可用：只落本地，静默跳过服务端同步
   gpBatchQueue[k] = v;
   if (gpBatchTimer) return;
   gpBatchTimer = setTimeout(async () => {

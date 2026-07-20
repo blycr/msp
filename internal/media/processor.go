@@ -1,7 +1,7 @@
 package media
 
 import (
-	"log"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -91,7 +91,7 @@ func (mp *MediaProcessor) SetTranscodeLimit(n int) {
 	defer mp.transcode.mu.Unlock()
 	// Only safe because no active transcodes exist at startup.
 	mp.transcode.limit = make(chan struct{}, n)
-	log.Printf("[INFO] Transcode concurrency limit set to %d", n)
+	slog.Info("transcode concurrency limit set", "limit", n)
 }
 
 // IDCodec returns the IDCodec used by this processor.

@@ -18,6 +18,9 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		prefs, err := h.prefs.GetAllPrefs(r.Context())
 		if err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in GetAllPrefs: %v", err))
 			writeJSON(w, http.StatusInternalServerError, domain.PrefsResponse{Error: &domain.ApiError{Message: constants.ErrMsgReadPrefs}})
 			return
@@ -34,6 +37,9 @@ func (h *Handler) HandlePrefs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.prefs.SetPrefs(r.Context(), req.Prefs); err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in SetPrefs: %v", err))
 			writeJSON(w, http.StatusInternalServerError, domain.PrefsResponse{Error: &domain.ApiError{Message: constants.ErrMsgWritePrefs}})
 			return
@@ -54,6 +60,9 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 		}
 		t, err := h.progress.GetProgress(r.Context(), id)
 		if err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in GetProgress: %v", err))
 			writeError(w, http.StatusInternalServerError, constants.ErrMsgReadProgress)
 			return
@@ -73,6 +82,9 @@ func (h *Handler) HandleProgress(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.progress.SetProgress(r.Context(), req.ID, req.Time); err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in SetProgress: %v", err))
 			writeError(w, http.StatusInternalServerError, constants.ErrMsgWriteProgress)
 			return
@@ -121,6 +133,9 @@ func (h *Handler) HandleRecentProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.progress.ListRecentProgress(r.Context(), limit)
 	if err != nil {
+		if writeDBUnavailable(w, err) {
+			return
+		}
 		h.logger.Log(service.LogLevelError, fmt.Sprintf("Error in ListRecentProgress: %v", err))
 		writeError(w, http.StatusInternalServerError, "failed to list recent progress")
 		return

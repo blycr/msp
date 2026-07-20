@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -327,7 +327,7 @@ func SanitizeSecurity(cfg *Config) {
 	// Use bcrypt with default cost (10). PINs are 4-8 digits, well within 72-byte limit.
 	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Security.PIN), bcrypt.DefaultCost)
 	if err != nil {
-		log.Printf("[WARN] Failed to hash PIN: %v", err)
+		slog.Warn("failed to hash PIN", "err", err)
 		return
 	}
 	cfg.Security.PINHash = string(hash)

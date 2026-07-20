@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"msp/internal/config"
+	"msp/internal/domain"
 )
 
 func TestServerNew(t *testing.T) {
@@ -166,4 +170,171 @@ func TestLog_DoesNotPanic(t *testing.T) {
 	// 确保调用 Log 不 panic（未初始化 logger 文件的情况）
 	s.Log("info", "test message")
 	s.Log("error", "test error")
+}
+
+// writeConfigAndReload persists cfg to cfgPath and forces checkAndReloadConfig
+// to pick it up regardless of filesystem mtime granularity.
+func writeConfigAndReload(t *testing.T, s *Server, cfgPath string, cfg config.Config) {
+	t.Helper()
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		t.Fatalf("MarshalIndent error: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, b, 0600); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+	s.mu.Lock()
+	s.cfgModTime = time.Now().Add(-time.Hour)
+	s.mu.Unlock()
+	s.checkAndReloadConfig()
+}
+
+func TestCheckAndReload_LogFileChangeReopensLog(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.json")
+	oldLog := filepath.Join(tmpDir, "old.log")
+	newLog := filepath.Join(tmpDir, "new.log")
+
+	cfg := config.Default()
+	cfg.LogFile = oldLog
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(cfgPath, b, 0600); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	s := New(cfgPath, nil)
+	if err := s.LoadOrInitConfig(); err != nil {
+		t.Fatalf("LoadOrInitConfig error: %v", err)
+	}
+	s.SetupLogger()
+	defer s.logger.Close()
+
+	cfg.LogFile = newLog
+	writeConfigAndReload(t, s, cfgPath, cfg)
+
+	if got := s.Config().LogFile; got != newLog {
+		t.Errorf("expected LogFile %q after reload, got %q", newLog, got)
+	}
+	// Reopen 应已创建新日志文件
+	if _, err := os.Stat(newLog); err != nil {
+		t.Fatalf("new log file should be created by Reopen: %v", err)
+	}
+
+	// 写入一条日志，验证其落到新文件
+	const marker = "reload-marker-xyz"
+	s.Log("error", marker)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		data, _ := os.ReadFile(newLog) //nolint:gosec // G304: testing with temp file is safe
+		if strings.Contains(string(data), marker) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("marker %q not found in new log file after Reopen", marker)
+}
+
+func TestCheckAndReload_SharesChangeTriggersRefresh(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.json")
+
+	cfg := config.Default()
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(cfgPath, b, 0600); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	s := New(cfgPath, nil)
+	if err := s.LoadOrInitConfig(); err != nil {
+		t.Fatalf("LoadOrInitConfig error: %v", err)
+	}
+
+	var refreshCount int32
+	s.refreshMedia = func(config.Config) { atomic.AddInt32(&refreshCount, 1) }
+
+	cfg.Shares = []domain.Share{{Path: tmpDir, Label: "media"}}
+	writeConfigAndReload(t, s, cfgPath, cfg)
+
+	if got := atomic.LoadInt32(&refreshCount); got != 1 {
+		t.Errorf("expected media refresh to be triggered once, got %d", got)
+	}
+	if got := s.Config().Shares; len(got) != 1 || got[0].Label != "media" {
+		t.Errorf("shares not replaced after reload: %+v", got)
+	}
+
+	// Shares 未变时不应再次触发
+	writeConfigAndReload(t, s, cfgPath, cfg)
+	if got := atomic.LoadInt32(&refreshCount); got != 1 {
+		t.Errorf("expected no extra refresh when shares unchanged, got %d", got)
+	}
+}
+
+func TestUpdateConfig_SharesChangeTriggersRefresh(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := New(filepath.Join(tmpDir, "config.json"), nil)
+
+	var refreshCount int32
+	s.refreshMedia = func(config.Config) { atomic.AddInt32(&refreshCount, 1) }
+
+	if err := s.UpdateConfig(func(cfg *config.Config) {
+		cfg.Shares = []domain.Share{{Path: tmpDir, Label: "x"}}
+	}); err != nil {
+		t.Fatalf("UpdateConfig error: %v", err)
+	}
+	if got := atomic.LoadInt32(&refreshCount); got != 1 {
+		t.Errorf("expected media refresh to be triggered once via UpdateConfig, got %d", got)
+	}
+}
+
+func TestCheckAndReload_PortChangeWarnOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.json")
+
+	cfg := config.Default()
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(cfgPath, b, 0600); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	s := New(cfgPath, nil)
+	if err := s.LoadOrInitConfig(); err != nil {
+		t.Fatalf("LoadOrInitConfig error: %v", err)
+	}
+
+	var refreshCount int32
+	s.refreshMedia = func(config.Config) { atomic.AddInt32(&refreshCount, 1) }
+
+	cfg.Port = 9090
+	writeConfigAndReload(t, s, cfgPath, cfg) // 应仅 WARN，不 panic
+
+	if got := s.Config().Port; got != 9090 {
+		t.Errorf("expected port 9090 after reload, got %d", got)
+	}
+	if got := atomic.LoadInt32(&refreshCount); got != 0 {
+		t.Errorf("port change should not trigger media refresh, got %d", got)
+	}
+}
+
+func TestCheckAndReload_EncodingChangeWarnOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.json")
+
+	cfg := config.Default()
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(cfgPath, b, 0600); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	s := New(cfgPath, nil)
+	if err := s.LoadOrInitConfig(); err != nil {
+		t.Fatalf("LoadOrInitConfig error: %v", err)
+	}
+
+	cfg.Playback.Video.Encoding = &config.TranscodeConfig{HWAccel: "none", MaxJobs: 2}
+	writeConfigAndReload(t, s, cfgPath, cfg) // 应仅 WARN，不 panic
+
+	enc := s.Config().Playback.Video.Encoding
+	if enc == nil || enc.HWAccel != "none" || enc.MaxJobs != 2 {
+		t.Errorf("encoding config not replaced after reload: %+v", enc)
+	}
 }

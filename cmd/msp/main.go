@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -40,6 +42,9 @@ var (
 	_ storage.FavoriteStore      = (*storage.SQLite)(nil)
 )
 
+// startTime records process start for /healthz uptime reporting.
+var startTime = time.Now()
+
 func main() {
 	debug.SetGCPercent(100)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
@@ -47,18 +52,27 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// bgCtx governs background media-cache work (rebuilds, disk writes). It is
+	// derived from Background — NOT from the signal ctx — because background
+	// ops must keep running while srv.Shutdown drains requests, and are only
+	// cancelled afterwards, in a controlled order, via bgCancel.
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+
 	cfgPath := filepath.Join(util.MustExeDir(), "config.json")
 
 	dbPath := filepath.Join(util.MustExeDir(), "msp.db")
 	sq, err := storage.InitSQLite(dbPath)
 	if err != nil {
-		log.Printf("Warning: Failed to initialize database: %v", err)
+		slog.Warn("failed to initialize database", "err", err)
+		printDBUnavailableBanner()
+		slog.Error("database unavailable: playback progress / favorites / preferences are disabled; all other features work normally")
 	}
 
 	idKeyPath := filepath.Join(util.MustExeDir(), "msp.key")
 	idKey, err := util.LoadOrCreateKey(idKeyPath)
 	if err != nil {
-		log.Printf("Warning: Failed to load/create ID key: %v", err)
+		slog.Warn("failed to load/create ID key", "err", err)
 	}
 	idCodec := util.NewIDCodec(idKey)
 
@@ -67,11 +81,12 @@ func main() {
 	// Migrate old-format PlaybackProgress media_ids to deterministic IDs.
 	if sq != nil && idCodec != nil {
 		if err := migrateProgressMediaIDs(sq, idCodec); err != nil {
-			log.Printf("Warning: Failed to migrate progress media IDs: %v", err)
+			slog.Warn("failed to migrate progress media IDs", "err", err)
 		}
 	}
 
 	s := server.New(cfgPath, processor)
+	s.SetBackgroundContext(bgCtx)
 
 	if err := s.LoadOrInitConfig(); err != nil {
 		log.Fatal(err)
@@ -82,7 +97,7 @@ func main() {
 		if err := s.UpdateConfig(func(cfg *config.Config) {
 			config.SanitizeSecurity(cfg)
 		}); err != nil {
-			log.Printf("Warning: Failed to hash PIN: %v", err)
+			slog.Warn("failed to hash PIN", "err", err)
 		}
 	}
 
@@ -126,7 +141,7 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		shutdownGracefully(srv, s, processor, sq)
+		shutdownGracefully(srv, s, processor, sq, bgCancel)
 	}()
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -134,16 +149,31 @@ func main() {
 	}
 }
 
-func shutdownGracefully(srv *http.Server, s *server.Server, processor *media.MediaProcessor, sq *storage.SQLite) {
+func shutdownGracefully(srv *http.Server, s *server.Server, processor *media.MediaProcessor, sq *storage.SQLite, bgCancel context.CancelFunc) {
 	log.Println("Shutting down gracefully...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Kill transcodes first so long-lived streams don't block srv.Shutdown.
 	processor.KillAllTranscodeProcesses()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
+	}
+
+	// Stop background media work, then give it a bounded window to finish
+	// (e.g. atomic cache-file rename) so no .tmp residue is left behind.
+	bgCancel()
+	bgDone := make(chan struct{})
+	go func() {
+		s.WaitForBackgroundMediaOps()
+		close(bgDone)
+	}()
+	select {
+	case <-bgDone:
+	case <-time.After(5 * time.Second):
+		slog.Warn("timeout waiting for background media ops; exiting anyway")
 	}
 
 	if sq != nil {
@@ -188,14 +218,35 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
 	mux.Handle("/api/pin", http.HandlerFunc(h.HandlePIN))
 
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "ok",
+			"db":     processor.IsDBAvailable(),
+			"uptime": int64(time.Since(startTime).Seconds()),
+		})
+	})
+
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.ServeEmbeddedWeb(w, r, webRoot)
 	}))
 	return mux
 }
 
-func printStartupBanner(cfgPath string, port int) {
-	ips := util.GetLanIPv4s()
+// printDBUnavailableBanner prints a prominent multi-line warning to stderr
+// when the database failed to initialize.
+func printDBUnavailableBanner() {
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "========================================================")
+	fmt.Fprintln(os.Stderr, "  WARNING: Database unavailable (msp.db init failed)")
+	fmt.Fprintln(os.Stderr, "  播放进度 / 收藏 / 偏好功能已禁用，其余功能正常")
+	fmt.Fprintln(os.Stderr, "  Playback progress / favorites / prefs are DISABLED.")
+	fmt.Fprintln(os.Stderr, "  All other features (browse/stream/transcode) are OK.")
+	fmt.Fprintln(os.Stderr, "========================================================")
+	fmt.Fprintln(os.Stderr, "")
+}
+
+func printStartupBanner(cfgPath string, port int) {	ips := util.GetLanIPv4s()
 	urls := make([]string, 0, 2+len(ips))
 	urls = append(urls, "http://127.0.0.1:"+util.Itoa(port)+"/")
 	for _, ip := range ips {

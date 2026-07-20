@@ -3,7 +3,7 @@ package scanner
 import (
 	"bytes"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,7 +38,7 @@ func FindSidecarSubtitlesCached(mediaAbs string, cache map[string][]fs.DirEntry,
 		var err error
 		ents, err = os.ReadDir(dir)
 		if err != nil {
-			log.Printf("[WARN] read dir error for subtitles: %v", err)
+			slog.Warn("read dir error for subtitles", "err", err)
 			return nil
 		}
 		cache[dir] = ents
@@ -280,7 +280,7 @@ func FindAudioSidecarsCached(mediaAbs string, cache map[string][]fs.DirEntry) (c
 		var err error
 		ents, err = os.ReadDir(dir)
 		if err != nil {
-			log.Printf("[WARN] read dir error for sidecars: %v", err)
+			slog.Warn("read dir error for sidecars", "err", err)
 			return "", ""
 		}
 		cache[dir] = ents

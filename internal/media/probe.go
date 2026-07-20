@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -161,10 +161,10 @@ func (mp *MediaProcessor) CheckFFmpeg() bool {
 	}
 	mp.resolveFFmpegPaths()
 	if mp.probePaths.ffmpeg == "" {
-		log.Printf("[WARN] FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)")
+		slog.Warn("FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)")
 		return false
 	}
-	log.Printf("[INFO] FFmpeg found: %s", mp.probePaths.ffmpeg)
+	slog.Info("FFmpeg found", "path", mp.probePaths.ffmpeg)
 	return true
 }
 

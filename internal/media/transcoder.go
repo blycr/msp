@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -113,7 +113,7 @@ func (mp *MediaProcessor) TranscodeStream(ctx context.Context, inputPath string,
 	// 1. Try to get codec info
 	codec, err := mp.GetCodecInfo(ctx, inputPath)
 	if err != nil {
-		log.Printf("[WARN] GetCodecInfo error for %s: %v", inputPath, err)
+		slog.Warn("GetCodecInfo error", "path", inputPath, "err", err)
 	}
 
 	args := []string{"-hide_banner", "-loglevel", "error"}
@@ -203,7 +203,7 @@ func (mp *MediaProcessor) KillAllTranscodeProcesses() {
 
 	for cmd := range mp.transcode.active {
 		if cmd.Process != nil {
-			log.Printf("[INFO] Killing ffmpeg process %d", cmd.Process.Pid)
+			slog.Info("killing ffmpeg process", "pid", cmd.Process.Pid)
 			_ = cmd.Process.Kill()
 		}
 	}

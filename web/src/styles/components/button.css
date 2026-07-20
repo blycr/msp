@@ -40,6 +40,15 @@
   color: var(--md-accent);
 }
 
+/* DB unavailable (503 db_unavailable): favorite is disabled, visual only. */
+.fav-btn--disabled,
+.fav-btn--disabled:hover {
+  color: var(--md-sub);
+  background: transparent;
+  opacity: 0.4;
+  cursor: default;
+}
+
 .theme-btn:focus-visible,
 .icon-btn:focus-visible,
 .fav-btn:focus-visible,

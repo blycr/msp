@@ -3,6 +3,10 @@ import { icon } from '../icons.js';
 
 // Shared pager: ‹ page/total › — one spec for both file list and playlist.
 // Icon buttons keep the bar compact; labels stay i18n via title/aria-label.
+//
+// The pager element is created once per list and reused across renders:
+// callers pass stable module-level onPrev/onNext (read state at click time)
+// and refresh page/disabled state via updatePager instead of recreating.
 export function createPager({ page, totalPages, onPrev, onNext }) {
   const pager = document.createElement('div');
   pager.className = 'pager';
@@ -40,5 +44,18 @@ export function createPager({ page, totalPages, onPrev, onNext }) {
   pager.appendChild(left);
   pager.appendChild(info);
   pager.appendChild(right);
+
+  // Stash refs for cheap in-place updates (no per-render re-creation).
+  pager._prevBtn = prevBtn;
+  pager._nextBtn = nextBtn;
+  pager._info = info;
   return pager;
+}
+
+// Refresh an existing pager in place: page text + prev/next disabled state.
+export function updatePager(pager, { page, totalPages }) {
+  if (!pager) return;
+  pager._info.textContent = `${page}/${totalPages}`;
+  pager._prevBtn.disabled = page <= 1;
+  pager._nextBtn.disabled = page >= totalPages;
 }

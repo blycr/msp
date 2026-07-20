@@ -20,6 +20,9 @@ func setupTestHandlerWithRealServer(t *testing.T) (*Handler, *server.Server, str
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
 	s := server.New(cfgPath, nil)
+	t.Cleanup(func() {
+		s.WaitForBackgroundMediaOps()
+	})
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 	return h, s, tmpDir

@@ -96,6 +96,9 @@ export const state = {
   favoriteIds: null,
   queue: [],
   queueActive: false,
+  // Backend DB availability: flips to false when progress/prefs/favorites
+  // endpoints answer 503 db_unavailable; UI then degrades silently.
+  dbAvailable: true,
 };
 
 // Initialize sort from LS

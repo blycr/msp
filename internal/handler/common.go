@@ -3,17 +3,18 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"msp/internal/constants"
 	"msp/internal/domain"
+	"msp/internal/storage"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		log.Printf("writeJSON marshal error: %v", err)
+		slog.Warn("writeJSON marshal error", "err", err)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error":{"message":"内部错误"}}`))
@@ -31,6 +32,18 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]any{
 		"error": &domain.ApiError{Message: msg},
 	})
+}
+
+// writeDBUnavailable responds 503 when err is storage.ErrUnavailable.
+// It returns true if the error was handled, false otherwise.
+func writeDBUnavailable(w http.ResponseWriter, err error) bool {
+	if !errors.Is(err, storage.ErrUnavailable) {
+		return false
+	}
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+		"error": "db_unavailable",
+	})
+	return true
 }
 
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64) error {

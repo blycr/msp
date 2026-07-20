@@ -280,20 +280,48 @@ func TestStoreWithNilDB(t *testing.T) {
 	store := NewStore(nil)
 	ctx := context.Background()
 
-	t.Run("GetProgress returns 0", func(t *testing.T) {
+	t.Run("GetProgress returns ErrUnavailable", func(t *testing.T) {
 		val, err := store.GetProgress(ctx, "test")
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrUnavailable)
 		assert.Equal(t, float64(0), val)
 	})
 
-	t.Run("SetProgress returns nil", func(t *testing.T) {
+	t.Run("SetProgress returns ErrUnavailable", func(t *testing.T) {
 		err := store.SetProgress(ctx, "test", 100.0)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrUnavailable)
 	})
 
-	t.Run("GetAllPrefs returns empty map", func(t *testing.T) {
+	t.Run("GetAllPrefs returns ErrUnavailable", func(t *testing.T) {
 		prefs, err := store.GetAllPrefs(ctx)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrUnavailable)
 		assert.Empty(t, prefs)
+	})
+
+	t.Run("ListRecentProgress returns ErrUnavailable", func(t *testing.T) {
+		items, err := store.ListRecentProgress(ctx, 10)
+		assert.ErrorIs(t, err, ErrUnavailable)
+		assert.Nil(t, items)
+	})
+
+	t.Run("ListFavorites returns ErrUnavailable", func(t *testing.T) {
+		items, err := store.ListFavorites(ctx)
+		assert.ErrorIs(t, err, ErrUnavailable)
+		assert.Nil(t, items)
+	})
+
+	t.Run("AddFavorite returns ErrUnavailable", func(t *testing.T) {
+		err := store.AddFavorite(ctx, "test")
+		assert.ErrorIs(t, err, ErrUnavailable)
+	})
+
+	t.Run("RemoveFavorite returns ErrUnavailable", func(t *testing.T) {
+		err := store.RemoveFavorite(ctx, "test")
+		assert.ErrorIs(t, err, ErrUnavailable)
+	})
+
+	t.Run("IsFavorite returns ErrUnavailable", func(t *testing.T) {
+		ok, err := store.IsFavorite(ctx, "test")
+		assert.ErrorIs(t, err, ErrUnavailable)
+		assert.False(t, ok)
 	})
 }

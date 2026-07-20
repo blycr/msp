@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"log"
+	"log/slog"
 	"msp/internal/constants"
 	"msp/internal/domain"
 	"os"
@@ -15,6 +17,10 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
+
+// ErrUnavailable is returned by storage methods when the database is not
+// initialized. Callers can use errors.Is to detect explicit degradation.
+var ErrUnavailable = errors.New("storage: database unavailable")
 
 type SQLite struct {
 	db *gorm.DB
@@ -57,22 +63,22 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 		sqlDB.SetMaxIdleConns(max(2, runtime.GOMAXPROCS(0)/2))
 
 		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set WAL mode: %v", err)
+			slog.Warn("failed to set WAL mode", "err", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set synchronous mode: %v", err)
+			slog.Warn("failed to set synchronous mode", "err", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA cache_size=-16000;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set cache size: %v", err)
+			slog.Warn("failed to set cache size", "err", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA busy_timeout=5000;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set busy timeout: %v", err)
+			slog.Warn("failed to set busy timeout", "err", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA temp_store=MEMORY;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set temp store: %v", err)
+			slog.Warn("failed to set temp store", "err", err)
 		}
 		if _, err := sqlDB.Exec("PRAGMA mmap_size=268435456;"); err != nil {
-			log.Printf("[WARN] DB Warn: failed to set mmap size: %v", err)
+			slog.Warn("failed to set mmap size", "err", err)
 		}
 	}
 
@@ -99,7 +105,7 @@ func (s *SQLite) Close() {
 // guard returns the database connection if initialized.
 func (s *SQLite) guard(name string) (*gorm.DB, bool) {
 	if s.db == nil {
-		log.Printf("[WARN] SQLite.%s: database not initialized", name)
+		slog.Warn("database not initialized", "op", "SQLite."+name)
 		return nil, false
 	}
 	return s.db, true
@@ -112,7 +118,7 @@ func (s *SQLite) guardTx(tx *gorm.DB, name string) (*gorm.DB, bool) {
 		dbConn = tx
 	}
 	if dbConn == nil {
-		log.Printf("[WARN] SQLite.%s: database not initialized", name)
+		slog.Warn("database not initialized", "op", "SQLite."+name)
 		return nil, false
 	}
 	return dbConn, true
@@ -127,7 +133,7 @@ func (s *SQLite) DB() *gorm.DB {
 func (s *SQLite) GetProgress(ctx context.Context, mediaID string) (float64, error) {
 	dbConn, ok := s.guard("GetProgress")
 	if !ok {
-		return 0, nil
+		return 0, ErrUnavailable
 	}
 	if mediaID == "" {
 		return 0, nil
@@ -143,7 +149,7 @@ func (s *SQLite) GetProgress(ctx context.Context, mediaID string) (float64, erro
 func (s *SQLite) SetProgress(ctx context.Context, mediaID string, t float64) error {
 	dbConn, ok := s.guard("SetProgress")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if mediaID == "" {
 		return nil
@@ -159,7 +165,7 @@ func (s *SQLite) SetProgress(ctx context.Context, mediaID string, t float64) err
 func (s *SQLite) DeleteProgress(ctx context.Context, mediaID string) error {
 	dbConn, ok := s.guard("DeleteProgress")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if mediaID == "" {
 		return nil
@@ -170,7 +176,7 @@ func (s *SQLite) DeleteProgress(ctx context.Context, mediaID string) error {
 func (s *SQLite) ListAllProgress(ctx context.Context) ([]domain.PlaybackProgress, error) {
 	dbConn, ok := s.guard("ListAllProgress")
 	if !ok {
-		return nil, nil
+		return nil, ErrUnavailable
 	}
 	var list []domain.PlaybackProgress
 	if err := dbConn.WithContext(ctx).Find(&list).Error; err != nil {
@@ -182,7 +188,7 @@ func (s *SQLite) ListAllProgress(ctx context.Context) ([]domain.PlaybackProgress
 func (s *SQLite) ListRecentProgress(ctx context.Context, limit int) ([]domain.PlaybackProgress, error) {
 	dbConn, ok := s.guard("ListRecentProgress")
 	if !ok {
-		return nil, nil
+		return nil, ErrUnavailable
 	}
 	if limit <= 0 {
 		limit = 10
@@ -200,7 +206,7 @@ func (s *SQLite) ListRecentProgress(ctx context.Context, limit int) ([]domain.Pl
 func (s *SQLite) GetAllPrefs(ctx context.Context) (map[string]string, error) {
 	dbConn, ok := s.guard("GetAllPrefs")
 	if !ok {
-		return map[string]string{}, nil
+		return nil, ErrUnavailable
 	}
 	var prefs []domain.UserPref
 	if err := dbConn.WithContext(ctx).Find(&prefs).Error; err != nil {
@@ -216,7 +222,7 @@ func (s *SQLite) GetAllPrefs(ctx context.Context) (map[string]string, error) {
 func (s *SQLite) SetPrefs(ctx context.Context, kv map[string]string) error {
 	dbConn, ok := s.guard("SetPrefs")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if len(kv) == 0 {
 		return nil
@@ -240,7 +246,7 @@ func (s *SQLite) SetPrefs(ctx context.Context, kv map[string]string) error {
 func (s *SQLite) GetScanMeta(ctx context.Context, cacheKey string) (domain.MediaScan, bool, error) {
 	dbConn, ok := s.guard("GetScanMeta")
 	if !ok {
-		return domain.MediaScan{}, false, nil
+		return domain.MediaScan{}, false, ErrUnavailable
 	}
 	if cacheKey == "" {
 		return domain.MediaScan{}, false, nil
@@ -256,7 +262,7 @@ func (s *SQLite) GetScanMeta(ctx context.Context, cacheKey string) (domain.Media
 func (s *SQLite) SetScanMeta(ctx context.Context, tx *gorm.DB, cacheKey string, meta domain.MediaScan) error {
 	dbConn, ok := s.guardTx(tx, "SetScanMeta")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if cacheKey == "" {
 		return nil
@@ -270,7 +276,7 @@ func (s *SQLite) SetScanMeta(ctx context.Context, tx *gorm.DB, cacheKey string, 
 func (s *SQLite) UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *domain.MediaItem) error {
 	dbConn, ok := s.guardTx(tx, "UpsertMediaItem")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	return dbConn.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
@@ -281,7 +287,7 @@ func (s *SQLite) UpsertMediaItem(ctx context.Context, tx *gorm.DB, item *domain.
 func (s *SQLite) UpsertMediaItems(ctx context.Context, tx *gorm.DB, items []domain.MediaItem) error {
 	dbConn, ok := s.guardTx(tx, "UpsertMediaItems")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if len(items) == 0 {
 		return nil
@@ -295,7 +301,7 @@ func (s *SQLite) UpsertMediaItems(ctx context.Context, tx *gorm.DB, items []doma
 func (s *SQLite) DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int64, shareRoots []string) error {
 	dbConn, ok := s.guardTx(tx, "DeleteStaleByScan")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if scanID <= 0 || len(shareRoots) == 0 {
 		return nil
@@ -306,10 +312,10 @@ func (s *SQLite) DeleteStaleByScan(ctx context.Context, tx *gorm.DB, scanID int6
 func (s *SQLite) DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, shareRoots []string) error {
 	dbConn, ok := s.guardTx(tx, "DeleteByShareRootsNotIn")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	if len(shareRoots) == 0 {
-		log.Printf("[WARN] SQLite.DeleteByShareRootsNotIn: deleting all media items (no active shares)")
+		slog.Warn("SQLite.DeleteByShareRootsNotIn: deleting all media items (no active shares)")
 		return dbConn.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&domain.MediaItem{}).Error
 	}
 	return dbConn.WithContext(ctx).Where("share_root NOT IN ?", shareRoots).Delete(&domain.MediaItem{}).Error
@@ -318,7 +324,7 @@ func (s *SQLite) DeleteByShareRootsNotIn(ctx context.Context, tx *gorm.DB, share
 func (s *SQLite) QueryMediaItems(ctx context.Context, scanID int64, kind string) ([]domain.MediaItem, error) {
 	dbConn, ok := s.guard("QueryMediaItems")
 	if !ok {
-		return nil, nil
+		return nil, ErrUnavailable
 	}
 	if scanID <= 0 || kind == "" {
 		return nil, nil
@@ -334,7 +340,7 @@ func (s *SQLite) QueryMediaItems(ctx context.Context, scanID int64, kind string)
 func (s *SQLite) CountMediaItems(ctx context.Context, scanID int64, kind string) (int, error) {
 	dbConn, ok := s.guard("CountMediaItems")
 	if !ok {
-		return 0, nil
+		return 0, ErrUnavailable
 	}
 	if scanID <= 0 || kind == "" {
 		return 0, nil
@@ -365,7 +371,7 @@ func ByKind(kind string) func(db *gorm.DB) *gorm.DB {
 func (s *SQLite) ListFavorites(ctx context.Context) ([]domain.Favorite, error) {
 	dbConn, ok := s.guard("ListFavorites")
 	if !ok {
-		return nil, nil
+		return nil, ErrUnavailable
 	}
 	var items []domain.Favorite
 	err := dbConn.WithContext(ctx).Order("created_at DESC").Find(&items).Error
@@ -375,7 +381,7 @@ func (s *SQLite) ListFavorites(ctx context.Context) ([]domain.Favorite, error) {
 func (s *SQLite) AddFavorite(ctx context.Context, mediaID string) error {
 	dbConn, ok := s.guard("AddFavorite")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	return dbConn.WithContext(ctx).
 		Where(domain.Favorite{MediaID: mediaID}).
@@ -385,7 +391,7 @@ func (s *SQLite) AddFavorite(ctx context.Context, mediaID string) error {
 func (s *SQLite) RemoveFavorite(ctx context.Context, mediaID string) error {
 	dbConn, ok := s.guard("RemoveFavorite")
 	if !ok {
-		return nil
+		return ErrUnavailable
 	}
 	return dbConn.WithContext(ctx).Delete(&domain.Favorite{}, "media_id = ?", mediaID).Error
 }
@@ -393,7 +399,7 @@ func (s *SQLite) RemoveFavorite(ctx context.Context, mediaID string) error {
 func (s *SQLite) IsFavorite(ctx context.Context, mediaID string) (bool, error) {
 	dbConn, ok := s.guard("IsFavorite")
 	if !ok {
-		return false, nil
+		return false, ErrUnavailable
 	}
 	var count int64
 	err := dbConn.WithContext(ctx).Model(&domain.Favorite{}).Where("media_id = ?", mediaID).Count(&count).Error

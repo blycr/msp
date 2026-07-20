@@ -358,6 +358,7 @@ func requiresPIN(path string) bool {
 		"/api/pin",    // PIN verification endpoint itself
 		"/api/ip",     // IP info needed for UI
 		"/api/config", // Config needed to check if PIN is enabled
+		"/healthz",    // Health check for monitoring
 	}
 
 	if slices.Contains(exemptPaths, path) {

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -250,6 +251,90 @@ func TestLoadFromDisk(t *testing.T) {
 			t.Errorf("expected etag etag123, got %s", c.etag)
 		}
 	})
+}
+
+func TestBackgroundRebuildCancel(t *testing.T) {
+	c := NewMediaCache(nil, filepath.Join(t.TempDir(), "cache.json"), 5*time.Minute)
+	bgCtx, cancel := context.WithCancel(context.Background())
+	c.SetBackgroundContext(bgCtx)
+
+	shares := []domain.Share{{Label: "V", Path: t.TempDir()}}
+	// Cancel the background context while the rebuild is starting/running;
+	// the rebuild goroutine must unwind promptly without panic or leak.
+	cancel()
+	c.Refresh(shares, config.BlacklistConfig{}, 1000)
+
+	done := make(chan struct{})
+	go func() {
+		c.WaitForBackground()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("WaitForBackground did not return after bgCtx cancel (goroutine leak?)")
+	}
+}
+
+func TestFirstBuildSurvivesRequestCancel(t *testing.T) {
+	c := NewMediaCache(nil, filepath.Join(t.TempDir(), "cache.json"), 5*time.Minute)
+	c.SetBackgroundContext(context.Background())
+
+	// Simulate a client that has already disconnected: the request ctx is
+	// cancelled before the build finishes. The build itself runs on bgCtx
+	// and must still complete.
+	reqCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	shares := []domain.Share{{Label: "V", Path: t.TempDir()}}
+	resp, etag := c.GetOrBuild(reqCtx, shares, config.BlacklistConfig{}, false, 1000)
+	if !resp.Scanning && etag == "" {
+		t.Error("expected a scanning response or a completed build, got neither")
+	}
+
+	// The background build completes despite the request cancellation.
+	c.WaitForBackground()
+	if etag, ok := c.PeekETag(); !ok || etag == "" {
+		t.Error("expected build to complete and populate cache despite request ctx cancel")
+	}
+
+	// The cached result is usable by subsequent requests.
+	_, etag2 := c.GetOrBuild(context.Background(), shares, config.BlacklistConfig{}, false, 1000)
+	if etag2 == "" {
+		t.Error("expected cached result with non-empty etag on subsequent request")
+	}
+}
+
+func TestSaveToDiskCancelledLeavesNoTmp(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "cache.json")
+	c := NewMediaCache(nil, p, 5*time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.saveToDisk(ctx, "k", time.Now(), "etag", domain.MediaResponse{})
+
+	if _, err := os.Stat(p + ".tmp"); !os.IsNotExist(err) {
+		t.Error("cancelled saveToDisk must not leave a .tmp residue")
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Error("cancelled saveToDisk must not create the cache file")
+	}
+}
+
+func TestSaveToDiskAtomicRename(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "cache.json")
+	c := NewMediaCache(nil, p, 5*time.Minute)
+
+	c.saveToDisk(context.Background(), "k", time.Now(), "etag", domain.MediaResponse{})
+
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("expected cache file to exist after saveToDisk: %v", err)
+	}
+	if _, err := os.Stat(p + ".tmp"); !os.IsNotExist(err) {
+		t.Error(".tmp file should be renamed away after successful saveToDisk")
+	}
 }
 
 func splitLines(s string) []string {

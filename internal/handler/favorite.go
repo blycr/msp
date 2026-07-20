@@ -10,6 +10,9 @@ func (h *Handler) HandleFavorites(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		items, err := h.favorites.ListFavorites(r.Context())
 		if err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "failed to list favorites")
 			return
 		}
@@ -28,6 +31,9 @@ func (h *Handler) HandleFavorites(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.favorites.AddFavorite(r.Context(), req.MediaID); err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "failed to add favorite")
 			return
 		}
@@ -40,6 +46,9 @@ func (h *Handler) HandleFavorites(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.favorites.RemoveFavorite(r.Context(), id); err != nil {
+			if writeDBUnavailable(w, err) {
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "failed to remove favorite")
 			return
 		}

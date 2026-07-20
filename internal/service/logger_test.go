@@ -174,7 +174,10 @@ func TestLoggerServiceLogContainsLevelPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read log: %v", err)
 	}
-	if !strings.Contains(string(data), "[INFO]") {
-		t.Error("log should contain [INFO] prefix")
+	if !strings.Contains(string(data), "level=INFO") {
+		t.Error("log should contain level=INFO (slog text format)")
+	}
+	if !strings.Contains(string(data), "prefix-test") {
+		t.Error("log should contain the message")
 	}
 }

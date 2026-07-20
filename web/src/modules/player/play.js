@@ -65,6 +65,8 @@ export async function playItem(item, opts) {
   const token = ++state.selectionToken;
   state.current = item;
   state.tab = item.kind;
+  // 通知列表翻转 active 行（只改新旧两行 class，不做全量渲染）
+  bus.emit('player:current', item);
   logRemote("info", `Playing item: ${item.name} (${item.id})`);
 
   const savedVol = gpGet(LS.volume);

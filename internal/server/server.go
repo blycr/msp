@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -26,6 +28,10 @@ type Server struct {
 	session   *service.SessionService
 	logger    *service.LoggerService
 	processor *media.MediaProcessor
+
+	// refreshMedia triggers an async media cache rebuild after a Shares
+	// change. Replaceable in tests.
+	refreshMedia func(config.Config)
 }
 
 func New(cfgPath string, processor *media.MediaProcessor) *Server {
@@ -39,6 +45,7 @@ func New(cfgPath string, processor *media.MediaProcessor) *Server {
 		cache.NewMediaCache(processor, cache.FormatMediaCachePath(cfgPath), config.DefaultMediaCacheTTL),
 		s,
 	)
+	s.refreshMedia = s.refreshMediaCacheAsync
 	return s
 }
 
@@ -106,11 +113,64 @@ func (s *Server) Config() config.Config {
 
 func (s *Server) UpdateConfig(fn func(*config.Config)) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	old := s.cfg
 	fn(&s.cfg)
 	config.ApplyDefaults(&s.cfg)
 	config.SanitizeSecurity(&s.cfg)
-	return s.saveConfigLocked()
+	err := s.saveConfigLocked()
+	newCfg := s.cfg
+	s.mu.Unlock()
+
+	s.applyConfigDiff(old, newCfg)
+	return err
+}
+
+// applyConfigDiff applies side effects for a replaced configuration. It must
+// be called outside s.mu, after s.cfg has been fully validated and swapped.
+// Side-effect failures never roll back the config replacement.
+func (s *Server) applyConfigDiff(old, newCfg config.Config) {
+	if old.LogLevel != newCfg.LogLevel || old.LogFile != newCfg.LogFile {
+		s.logger.UpdateConfig(newCfg.LogLevel, newCfg.LogFile)
+		if old.LogFile != newCfg.LogFile {
+			if err := s.logger.Reopen(); err != nil {
+				slog.Warn("failed to reopen log file", "err", err)
+			}
+		}
+	}
+
+	if !sharesEqual(old.Shares, newCfg.Shares) && s.refreshMedia != nil {
+		s.refreshMedia(newCfg)
+	}
+
+	if old.Port != newCfg.Port {
+		slog.Warn("port change requires restart", "old", old.Port, "new", newCfg.Port)
+	}
+
+	if !reflect.DeepEqual(old.Playback.Video.Encoding, newCfg.Playback.Video.Encoding) {
+		slog.Warn("encoding config change requires restart",
+			"old", old.Playback.Video.Encoding, "new", newCfg.Playback.Video.Encoding)
+	}
+}
+
+// sharesEqual compares two share lists, treating nil and empty as equal so
+// that ApplyDefaults normalization does not look like a change.
+func sharesEqual(a, b []domain.Share) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// refreshMediaCacheAsync rebuilds the media cache in the background so a
+// config reload is never blocked by scanning. The rebuild itself is spawned
+// and tracked inside the cache; this call returns immediately.
+func (s *Server) refreshMediaCacheAsync(cfg config.Config) {
+	s.MediaSvc.RefreshMediaCache(cfg.Shares, cfg.Blacklist)
 }
 
 func (s *Server) WatchConfig(ctx context.Context) {
@@ -162,6 +222,7 @@ func (s *Server) checkAndReloadConfig() {
 	needsSave := oldPIN != "" && cfg.Security.PIN == ""
 
 	s.mu.Lock()
+	old := s.cfg
 	s.cfg = cfg
 
 	// If a plaintext PIN was hashed during reload, persist it back to disk
@@ -176,7 +237,7 @@ func (s *Server) checkAndReloadConfig() {
 
 	s.mu.Unlock()
 
-	s.logger.UpdateConfig(cfg.LogLevel, cfg.LogFile)
+	s.applyConfigDiff(old, cfg)
 	s.Log("info", "Config reloaded successfully")
 }
 
@@ -219,6 +280,13 @@ func (s *Server) InvalidateMediaCache() {
 
 func (s *Server) WaitForBackgroundMediaOps() {
 	s.MediaSvc.WaitForBackground()
+}
+
+// SetBackgroundContext injects the process-wide background context into the
+// media cache so background rebuilds can be cancelled during shutdown.
+// Must be called before the server starts handling requests.
+func (s *Server) SetBackgroundContext(ctx context.Context) {
+	s.MediaSvc.SetBackgroundContext(ctx)
 }
 
 func (s *Server) CreateSession() (string, error) {

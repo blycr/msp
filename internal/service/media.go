@@ -34,6 +34,14 @@ func (s *MediaService) InvalidateMediaCache() {
 	s.cache.Invalidate()
 }
 
+// RefreshMediaCache asynchronously rebuilds the cache for the given
+// shares/blacklist without blocking the caller (e.g. after a config
+// hot-reload). The rebuild is tracked by WaitForBackground.
+func (s *MediaService) RefreshMediaCache(shares []domain.Share, blacklist config.BlacklistConfig) {
+	maxItems := s.config.Config().MaxItems
+	s.cache.Refresh(shares, blacklist, maxItems)
+}
+
 func (s *MediaService) LoadMediaCacheFromDisk() bool {
 	cfg := s.config.Config()
 	return s.cache.LoadFromDisk(cache.CacheKey(append([]domain.Share(nil), cfg.Shares...), cfg.Blacklist))
@@ -41,4 +49,10 @@ func (s *MediaService) LoadMediaCacheFromDisk() bool {
 
 func (s *MediaService) WaitForBackground() {
 	s.cache.WaitForBackground()
+}
+
+// SetBackgroundContext sets the context governing background cache rebuilds
+// and disk writes. Must be called before serving traffic.
+func (s *MediaService) SetBackgroundContext(ctx context.Context) {
+	s.cache.SetBackgroundContext(ctx)
 }

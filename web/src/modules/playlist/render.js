@@ -1,8 +1,8 @@
 import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { formatName } from '../utils.js';
-import { updateNavButtons, updateNavLabels, playAtIndex } from './navigation.js';
-import { createPager } from '../ui/pager.js';
+import { createPager, updatePager } from '../ui/pager.js';
+import { diffList, clearList } from '../ui/diff.js';
 
 const plAutoFit = {
   raf: 0,
@@ -119,19 +119,67 @@ export function autoFitPlaylistPageSize() {
   }
 }
 
+// plMode：#plList 当前内容结构（'' / 'list' / 'empty'）。结构切换整体重建，
+// 同结构翻页/重排/active 切换走 keyed diff。
+let plMode = '';
+
+// 稳定 pager：元素只创建一次，prev/next 为模块级稳定函数（点击时读当前
+// state.plPage），每次渲染仅 updatePager 刷新文案与 disabled。
+const plPager = { el: null, totalPages: 1 };
+
+function onPlPrev() {
+  state.plPage = Math.max(1, (state.plPage || 1) - 1);
+  renderPlaylist();
+}
+
+function onPlNext() {
+  state.plPage = Math.min(plPager.totalPages, (state.plPage || 1) + 1);
+  renderPlaylist();
+}
+
+function syncPlPager(box, totalPages) {
+  plPager.totalPages = totalPages;
+  if (totalPages <= 1) {
+    if (plPager.el) {
+      plPager.el.remove();
+      plPager.el = null;
+    }
+    return;
+  }
+  if (!plPager.el) {
+    plPager.el = createPager({ page: 1, totalPages, onPrev: onPlPrev, onNext: onPlNext });
+  }
+  box.appendChild(plPager.el); // 移动到最后，保持 flex 直接子节点（margin-top:auto）
+  updatePager(plPager.el, { page: state.plPage, totalPages });
+}
+
+function clearPlBox(box) {
+  clearList(box);
+  plPager.el = null;
+}
+
 export function renderPlaylist() {
   const box = el("plList");
   const meta = el("plMeta");
-  box.innerHTML = "";
 
   // Re-fit page size when the box resizes (e.g. F11 fullscreen, window drag).
+  // 防御：SPA 无卸载钩子，若 box 已不在文档中则释放 observer。
   if (!plAutoFit.ro && typeof ResizeObserver !== "undefined") {
-    plAutoFit.ro = new ResizeObserver(() => scheduleAutoFitPlaylistPageSize());
+    plAutoFit.ro = new ResizeObserver(() => {
+      if (!box.isConnected) {
+        plAutoFit.ro.disconnect();
+        plAutoFit.ro = null;
+        return;
+      }
+      scheduleAutoFitPlaylistPageSize();
+    });
     plAutoFit.ro.observe(box);
   }
 
   const items = state.playlist.items || [];
   if (!items.length) {
+    clearPlBox(box);
+    plMode = 'empty';
     meta.textContent = t("not_loaded");
     const empty = document.createElement('div');
     empty.className = 'panel-empty';
@@ -149,55 +197,62 @@ export function renderPlaylist() {
   state.plPage = Math.max(1, Math.min(state.plPage || 1, totalPages));
   const start = (state.plPage - 1) * psize;
 
+  if (plMode !== 'list') clearPlBox(box);
+  plMode = 'list';
+
+  // 每行携带其在 items 中的下标 i：active 判定与点击播放都依赖下标而非 id。
+  const pageEntries = [];
   for (let i = start; i < Math.min(total, start + psize); i++) {
-    const it = items[i];
-    const row = document.createElement("div");
-    const isActive = state.playlist.playOrder[state.playlist.playIndex] === i;
-    row.className = "plitem" + (isActive ? " plitem--active" : "");
-    row.setAttribute('role', 'button');
-    row.tabIndex = 0;
-    row.setAttribute('aria-current', String(isActive));
-    const playPos = state.playlist.playOrder.findIndex(idx => idx === i);
-    const playItem = () => {
-      playAtIndex(playPos >= 0 ? playPos : i, true, true);
-    };
-    row.addEventListener("click", playItem);
-    row.addEventListener("keydown", (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      playItem();
-    });
-
-    const idx = document.createElement("div");
-    idx.className = "plitem__idx";
-    idx.textContent = String(i + 1);
-
-    const main = document.createElement("div");
-    main.className = "plitem__main";
-
-    const name = document.createElement("div");
-    name.className = "plitem__name";
-    name.textContent = formatName(it);
-
-    const sub = document.createElement("div");
-    sub.className = "plitem__sub";
-    sub.textContent = `${it.shareLabel || ""} · ${(it.ext || "").toUpperCase()}`;
-
-    main.appendChild(name);
-    main.appendChild(sub);
-
-    row.appendChild(idx);
-    row.appendChild(main);
-    box.appendChild(row);
+    pageEntries.push({ it: items[i], i });
   }
 
-  if (totalPages > 1) {
-    box.appendChild(createPager({
-      page: state.plPage,
-      totalPages,
-      onPrev: () => { state.plPage = Math.max(1, state.plPage - 1); renderPlaylist(); },
-      onNext: () => { state.plPage = Math.min(totalPages, state.plPage + 1); renderPlaylist(); },
-    }));
-  }
+  diffList(box, pageEntries, e => 'p:' + e.it.id, renderPlRow, updatePlItem);
+  syncPlPager(box, totalPages);
   scheduleAutoFitPlaylistPageSize();
+}
+
+function renderPlRow({ it, i }) {
+  const row = document.createElement("div");
+  row.dataset.id = it.id;
+  row.appendChild(createPlIdx());
+  row.appendChild(createPlMain());
+  updatePlItem(row, { it, i });
+  return row;
+}
+
+function createPlIdx() {
+  const idx = document.createElement("div");
+  idx.className = "plitem__idx";
+  return idx;
+}
+
+function createPlMain() {
+  const main = document.createElement("div");
+  main.className = "plitem__main";
+  const name = document.createElement("div");
+  name.className = "plitem__name";
+  const sub = document.createElement("div");
+  sub.className = "plitem__sub";
+  main.appendChild(name);
+  main.appendChild(sub);
+  return main;
+}
+
+// 就地更新：下标、name/sub、active 状态；点击播放由容器级委托按
+// dataset.plIndex 处理（见 ui/delegate.js）。
+function updatePlItem(row, { it, i }) {
+  const isActive = state.playlist.playOrder[state.playlist.playIndex] === i;
+  row.className = "plitem" + (isActive ? " plitem--active" : "");
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+  row.setAttribute('aria-current', String(isActive));
+  row.dataset.id = it.id;
+  row.dataset.plIndex = String(i);
+
+  const idx = row.querySelector('.plitem__idx');
+  if (idx) idx.textContent = String(i + 1);
+  const name = row.querySelector('.plitem__name');
+  if (name) name.textContent = formatName(it);
+  const sub = row.querySelector('.plitem__sub');
+  if (sub) sub.textContent = `${it.shareLabel || ""} · ${(it.ext || "").toUpperCase()}`;
 }

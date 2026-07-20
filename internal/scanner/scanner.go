@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,7 +32,7 @@ func getOrCompileRegexp(pattern string) *regexp.Regexp {
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		log.Printf("[WARN] invalid regexp pattern %q: %v", pattern, err)
+		slog.Warn("invalid regexp pattern", "pattern", pattern, "err", err)
 		return nil
 	}
 	regexpCache.Store(pattern, re)
@@ -107,7 +107,7 @@ func WalkShares(ctx context.Context, shares []domain.Share, blacklist config.Bla
 					firstErr = fmt.Errorf("walk share %s: %w", label, err)
 				} else if limitHit {
 					// Limit was already hit; log suppressed errors for visibility.
-					log.Printf("[WARN] walk suppressed after limit: share %s: %v", label, err)
+					slog.Warn("walk suppressed after limit", "share", label, "err", err)
 				}
 				mu.Unlock()
 			}
@@ -140,7 +140,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 	}
 
 	if err != nil {
-		log.Printf("[WARN] walk entry error: %v", err)
+		slog.Warn("walk entry error", "err", err)
 		return nil
 	}
 
@@ -157,7 +157,7 @@ func (w *shareWalker) handleEntry(p string, d fs.DirEntry, err error, shareLabel
 
 	item, err := w.buildMediaItem(p, d, shareLabel, root)
 	if err != nil {
-		log.Printf("[WARN] build media item error: %v", err)
+		slog.Warn("build media item error", "err", err)
 		return nil
 	}
 
@@ -195,7 +195,7 @@ func shouldSkipFile(d fs.DirEntry, blacklist config.BlacklistConfig) bool {
 
 	fi, err := d.Info()
 	if err != nil {
-		log.Printf("[WARN] file info error: %v", err)
+		slog.Warn("file info error", "err", err)
 		return true
 	}
 
@@ -340,7 +340,7 @@ func readSniffBytes(fileAbs string) ([]byte, error) {
 		}
 		tail := make([]byte, tailSize)
 		if _, err := f.ReadAt(tail, st.Size()-tailSize); err != nil {
-			log.Printf("[WARN] read tail bytes error: %v", err)
+			slog.Warn("read tail bytes error", "err", err)
 		}
 		b = append(head, tail...)
 	}

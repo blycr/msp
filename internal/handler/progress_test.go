@@ -273,6 +273,9 @@ func TestHandleSharesAdd(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
 	s := server.New(configPath, nil)
+	t.Cleanup(func() {
+		s.WaitForBackgroundMediaOps()
+	})
 	store := storage.NewStore(nil)
 	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: store, Prefs: store, Favorites: store})
 

@@ -4,9 +4,9 @@ import { currentList, filterFiles, sortFiles } from '../playlist.js';
 import { formatName, formatBytes, formatTime } from '../utils.js';
 import { bus } from '../eventbus.js';
 import { getFolderContents } from '../folder.js';
-import { addFavorite, removeFavorite } from '../api.js';
 import { icon } from '../icons.js';
-import { createPager } from './pager.js';
+import { createPager, updatePager } from './pager.js';
+import { diffList, clearList } from './diff.js';
 
 // Auto-fit file list page size so a page always fills the box and the pager
 // stays flush at the bottom (same idea as the playlist auto-fit).
@@ -179,6 +179,87 @@ export function updateUIForLang() {
   }
 }
 
+// —— 列表渲染的模块级状态 ——
+// listMode：当前 #list 的内容结构。结构切换（空态/文件夹/平铺互转）允许整体
+// 清空重建（低频）；同为 flat 模式时翻页/排序/搜索走 keyed diff 复用行。
+let listMode = '';
+
+// 可见行 id → item，事件委托点击时按 dataset.id 查找（替代逐行闭包）。
+let rowItemsById = new Map();
+
+export function getRowItem(id) {
+  return rowItemsById.get(id) || null;
+}
+
+// DB 降级提示：追加在 hint 末尾，朴素中文、不打扰。
+const DB_NOTE = '本地数据库不可用，收藏与播放进度已停用';
+
+function setHint(hint, text) {
+  if (!hint) return;
+  hint.textContent = state.dbAvailable === false ? `${text} · ${DB_NOTE}` : text;
+}
+
+// 整体清空：清理缩略图重试定时器（按 data-id 覆盖所有行，含未参与 diff 的
+// 文件夹模式行），同时让稳定 pager 引用失效（元素已移除）。
+function clearBox(box) {
+  for (const row of box.querySelectorAll('[data-id]')) cleanupThumb(row.dataset.id);
+  clearList(box, onRemoveRow);
+  listPager.el = null;
+}
+
+// —— 稳定 pager：元素只创建一次，prev/next 为模块级稳定函数（点击时读当前
+// state.listPage），每次渲染仅 updatePager 刷新文案与 disabled，不再新建闭包。——
+const listPager = { el: null, totalPages: 1 };
+
+function onListPrev() {
+  state.listPage = Math.max(1, (state.listPage || 1) - 1);
+  renderList();
+}
+
+function onListNext() {
+  state.listPage = Math.min(listPager.totalPages, (state.listPage || 1) + 1);
+  renderList();
+}
+
+function syncListPager(box, totalPages) {
+  listPager.totalPages = totalPages;
+  if (totalPages <= 1) {
+    if (listPager.el) {
+      listPager.el.remove();
+      listPager.el = null;
+    }
+    return;
+  }
+  if (!listPager.el) {
+    listPager.el = createPager({ page: 1, totalPages, onPrev: onListPrev, onNext: onListNext });
+  }
+  // appendChild 对已存在节点是移动操作：保证 pager 始终是最后一个子节点
+  // （.pager 靠 margin-top:auto 贴底，必须保持为 flex 容器的直接子节点）。
+  box.appendChild(listPager.el);
+  updatePager(listPager.el, { page: state.listPage, totalPages });
+}
+
+// —— 播放中 active 行切换：只翻转新旧两行的 class，不做全量渲染。——
+let lastActiveId = null;
+
+bus.on('player:current', (item) => {
+  const box = el('list');
+  if (!box) return;
+  if (lastActiveId && lastActiveId !== item?.id) {
+    box.querySelector(`[data-id="${lastActiveId}"]`)?.classList.remove('item--active');
+  }
+  lastActiveId = item?.id || null;
+  if (lastActiveId) {
+    box.querySelector(`[data-id="${lastActiveId}"]`)?.classList.add('item--active');
+  }
+});
+
+// DB 不可用：重新渲染一次（diff 成本极低），fav 按钮经 updateFileRow 置灰、
+// hint 经 setHint 追加降级提示。
+bus.on('db:unavailable', () => {
+  renderList();
+});
+
 export function renderList() {
   // 始终让 .tab--active 高亮与 state.tab 一致——renderList 是左侧列表内容的
   // 单一渲染入口；若后台（resumeLast / loadMedia 304 分支）改写了 state.tab，
@@ -189,11 +270,18 @@ export function renderList() {
 
   const box = el("list");
   const hint = el("hint");
-  box.innerHTML = "";
 
   // Re-fit page size when the box resizes (e.g. F11 fullscreen, window drag).
+  // 防御：SPA 无卸载钩子，若 box 已不在文档中则释放 observer。
   if (!listAutoFit.ro && typeof ResizeObserver !== "undefined") {
-    listAutoFit.ro = new ResizeObserver(() => scheduleAutoFitListPageSize());
+    listAutoFit.ro = new ResizeObserver(() => {
+      if (!box.isConnected) {
+        listAutoFit.ro.disconnect();
+        listAutoFit.ro = null;
+        return;
+      }
+      scheduleAutoFitListPageSize();
+    });
     listAutoFit.ro.observe(box);
   }
 
@@ -204,8 +292,9 @@ export function renderList() {
     (state.media.others || []).length > 0
   );
   if (!hasItems) {
-    const hintKey = state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote';
-    hint.textContent = t(hintKey);
+    clearBox(box);
+    listMode = 'empty:lib';
+    setHint(hint, t(state.accessLevel === 'local' ? 'hint_noshare_local' : 'hint_noshare_remote'));
     const empty = document.createElement('div');
     empty.className = 'list-empty';
 
@@ -225,7 +314,6 @@ export function renderList() {
       action.type = 'button';
       action.className = 'btn btn--ghost list-empty__action';
       action.textContent = t('open_settings');
-      action.addEventListener('click', () => showDlg(true));
       empty.appendChild(action);
     }
 
@@ -234,6 +322,10 @@ export function renderList() {
   }
 
   if (state.browseMode === 'folder' && state.tab !== 'favorites') {
+    // 文件夹模式与平铺模式结构不同：进出文件夹/模式切换都走整体重建（低频），
+    // 同模式内的翻页/排序/搜索才走 keyed diff。
+    clearBox(box);
+    listMode = 'folder';
     renderFolderView(box, hint);
     return;
   }
@@ -243,6 +335,8 @@ export function renderList() {
   list = sortFiles(list);
 
   if (!list.length) {
+    clearBox(box);
+    listMode = 'empty:search';
     const empty = document.createElement('div');
     empty.className = 'list-empty';
     const title = document.createElement('div');
@@ -253,7 +347,7 @@ export function renderList() {
     detail.textContent = t('empty_search_hint');
     empty.append(title, detail);
     box.appendChild(empty);
-    hint.textContent = t('item_count', 0, 0);
+    setHint(hint, t('item_count', 0, 0));
     return;
   }
 
@@ -269,7 +363,7 @@ export function renderList() {
     const v = totals[state.tab];
     if (Number.isFinite(v) && v > 0) totalForHint = v;
   }
-  hint.textContent = t("hint_stats", kindName, totalForHint);
+  setHint(hint, t("hint_stats", kindName, totalForHint));
 
   const pageSize = state.listPageSize || 10;
   const total = list.length;
@@ -278,19 +372,15 @@ export function renderList() {
   const start = (state.listPage - 1) * pageSize;
   const pageItems = list.slice(start, start + pageSize);
 
-  for (const item of pageItems) {
-    const row = renderFileRow(item);
-    box.appendChild(row);
-  }
+  if (listMode !== 'flat') clearBox(box);
+  listMode = 'flat';
 
-  if (totalPages > 1) {
-    box.appendChild(createPager({
-      page: state.listPage,
-      totalPages,
-      onPrev: () => { state.listPage = Math.max(1, state.listPage - 1); renderList(); },
-      onNext: () => { state.listPage = Math.min(totalPages, state.listPage + 1); renderList(); },
-    }));
-  }
+  // 可见行 id → item，供事件委托点击时查找（无需逐行闭包）。
+  rowItemsById = new Map(pageItems.map(x => [x.id, x]));
+
+  diffList(box, pageItems, x => 'i:' + x.id, renderFileRow, updateFileRow, onRemoveRow);
+  syncListPager(box, totalPages);
+  lastActiveId = state.current?.id || null;
   scheduleAutoFitListPageSize();
 }
 
@@ -302,11 +392,11 @@ function renderFolderView(box, hint) {
     ...(state.media?.others || []),
   ];
   const { folders, files } = getFolderContents(allItems, state.currentFolder);
+  rowItemsById = new Map(files.map(x => [x.id, x]));
 
   if (state.currentFolder) {
     const breadcrumb = document.createElement('div');
     breadcrumb.className = 'folder-breadcrumb';
-    const parts = state.currentFolder.split('/');
 
     const backBtn = document.createElement('button');
     backBtn.className = 'btn btn--ghost folder-back';
@@ -314,14 +404,6 @@ function renderFolderView(box, hint) {
     const backLabel = document.createElement('span');
     backLabel.textContent = t('folder_back');
     backBtn.appendChild(backLabel);
-    backBtn.addEventListener('click', () => {
-      if (parts.length <= 1) {
-        state.currentFolder = null;
-      } else {
-        state.currentFolder = parts.slice(0, -1).join('/');
-      }
-      renderList();
-    });
     breadcrumb.appendChild(backBtn);
 
     const pathSpan = document.createElement('span');
@@ -337,11 +419,7 @@ function renderFolderView(box, hint) {
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
     row.setAttribute('aria-label', `${folder.name}, ${folder.count} ${t('folder_items')}`);
-    const openFolder = () => {
-      state.currentFolder = folder.path;
-      renderList();
-    };
-    bindRowInteraction(row, openFolder);
+    row.dataset.path = folder.path;
     const iconWrap = document.createElement('span');
     iconWrap.className = 'folder-icon';
     iconWrap.innerHTML = icon('folder', 20);
@@ -366,7 +444,7 @@ function renderFolderView(box, hint) {
   }
 
   if (hint) {
-    hint.textContent = `${folders.length} ${t('folder_folders')} \u00B7 ${files.length} ${t('folder_files')}`;
+    setHint(hint, `${folders.length} ${t('folder_folders')} · ${files.length} ${t('folder_files')}`);
   }
 }
 
@@ -376,8 +454,7 @@ function renderFileRow(item) {
   row.setAttribute('role', 'button');
   row.tabIndex = 0;
   row.setAttribute('aria-label', formatName(item));
-  const requestPlay = () => bus.emit('play:request', item, { user: true, autoplay: true });
-  bindRowInteraction(row, requestPlay);
+  row.dataset.id = item.id;
 
   if (item.kind === "video") {
     const thumb = document.createElement("img");
@@ -386,7 +463,7 @@ function renderFileRow(item) {
     thumb.alt = "";
     // 初始不设 src，避免立刻触发大量并发首请求；由 IO 观察器在可见时按需加载。
     // 失败时带退避重试，覆盖 429/5xx 临时拥塞与短视频生成延迟。
-    setupThumbRetry(thumb, `/api/thumbnail?id=${encodeURIComponent(item.id)}`);
+    setupThumbRetry(thumb, `/api/thumbnail?id=${encodeURIComponent(item.id)}`, item.id);
     row.appendChild(thumb);
   }
 
@@ -411,39 +488,51 @@ function renderFileRow(item) {
   row.appendChild(main);
   row.appendChild(badge);
 
-  // Favorite button
+  // Favorite button（点击由容器级事件委托处理，见 ui/delegate.js）
   const favBtn = document.createElement('button');
-  const isFavorite = state.favoriteIds?.has(item.id);
   favBtn.type = 'button';
-  favBtn.className = 'fav-btn' + (state.favoriteIds?.has(item.id) ? ' fav-btn--active' : '');
-  favBtn.innerHTML = icon(isFavorite ? 'starFilled' : 'star');
-  favBtn.setAttribute('aria-pressed', String(!!isFavorite));
-  favBtn.setAttribute('aria-label', t(isFavorite ? 'favorite_remove' : 'favorite_add'));
-  favBtn.title = t(isFavorite ? 'favorite_remove' : 'favorite_add');
-  favBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    if (state.favoriteIds?.has(item.id)) {
-      await removeFavorite(item.id);
-      state.favoriteIds.delete(item.id);
-    } else {
-      await addFavorite(item.id);
-      if (!state.favoriteIds) state.favoriteIds = new Set();
-      state.favoriteIds.add(item.id);
-    }
-    renderList();
-  });
+  favBtn.className = 'fav-btn';
+  setFavBtnState(favBtn, state.favoriteIds?.has(item.id));
   row.appendChild(favBtn);
 
   return row;
 }
 
-function bindRowInteraction(row, handler) {
-  row.addEventListener('click', handler);
-  row.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    handler();
-  });
+// 收藏按钮状态：star 图标、active class、ARIA；DB 不可用（503 降级）时置灰禁用。
+export function setFavBtnState(btn, isFav) {
+  const fav = !!isFav;
+  const disabled = state.dbAvailable === false;
+  btn.classList.toggle('fav-btn--active', fav);
+  btn.classList.toggle('fav-btn--disabled', disabled);
+  btn.disabled = disabled;
+  btn.innerHTML = icon(fav ? 'starFilled' : 'star');
+  btn.setAttribute('aria-pressed', String(fav));
+  const label = t(fav ? 'favorite_remove' : 'favorite_add');
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
+}
+
+// keyed diff 的就地更新：只刷新 name/sub/badge 文本、收藏按钮状态与
+// item--active class；复用现有 <img>（不重建、不动 src），缩略图加载不被打断。
+function updateFileRow(row, item) {
+  row.dataset.id = item.id;
+  row.setAttribute('aria-label', formatName(item));
+  row.classList.toggle('item--active', state.current?.id === item.id);
+
+  const name = row.querySelector('.item__name');
+  if (name) name.textContent = formatName(item);
+  const sub = row.querySelector('.item__sub');
+  if (sub) sub.textContent = `${item.shareLabel || ""}  ·  ${formatBytes(item.size)}  ·  ${formatTime(item.modTime)}`;
+  const badge = row.querySelector('.badge');
+  if (badge) badge.textContent = (item.ext || "").replace(".", "").toUpperCase();
+
+  const favBtn = row.querySelector('.fav-btn');
+  if (favBtn) setFavBtnState(favBtn, state.favoriteIds?.has(item.id));
+}
+
+// diff 移除行时的清理：取消该行的缩略图重试定时器。
+function onRemoveRow(row) {
+  if (row.dataset?.id) cleanupThumb(row.dataset.id);
 }
 
 bus.on('transcode:status', (status) => {
@@ -473,38 +562,53 @@ bus.on('transcode:status', (status) => {
 // 后端对并发生成做了排队，但首次批量加载仍可能遇到临时 5xx（排队超时）
 // 或短视频生成失败（已回退首帧，仍失败时返回 404）。这里做有限次退避重试，
 // 并在彻底失败时隐藏 <img>，避免显示碎图图标。
+// 重试状态存模块级 Map（按 item id），diff 复用行时 <img> 不动、状态延续；
+// 行被 diff 移除时经 cleanupThumb 取消挂起的定时器。
 const THUMB_MAX_RETRIES = 3;
 const THUMB_BASE_DELAY = 400; // ms
 
-function setupThumbRetry(img, url) {
-  let attempt = 0;
-  let timer = null;
+const thumbStates = new Map(); // id -> { timer, attempts }
+
+function cleanupThumb(id) {
+  const st = thumbStates.get(id);
+  if (!st) return;
+  if (st.timer) clearTimeout(st.timer);
+  thumbStates.delete(id);
+}
+
+function setupThumbRetry(img, url, id) {
+  const st = { timer: null, attempts: 0 };
+  thumbStates.set(id, st);
 
   const load = () => {
+    if (!img.isConnected) return; // 行已被移除：不再发起请求
     img.src = url;
   };
 
   img.addEventListener('error', () => {
-    if (timer) return; // 已在等待重试
-    if (attempt >= THUMB_MAX_RETRIES) {
+    if (!img.isConnected) return;
+    if (st.timer) return; // 已在等待重试
+    if (st.attempts >= THUMB_MAX_RETRIES) {
       // 彻底失败：隐藏占位，避免碎图图标
       img.classList.add('file-thumb--failed');
       img.removeAttribute('src');
       return;
     }
-    attempt++;
-    const delay = THUMB_BASE_DELAY * Math.pow(2, attempt - 1);
-    timer = setTimeout(() => {
-      timer = null;
+    st.attempts++;
+    const delay = THUMB_BASE_DELAY * Math.pow(2, st.attempts - 1);
+    st.timer = setTimeout(() => {
+      st.timer = null;
       load();
     }, delay);
   });
 
   // 成功时清理状态
   img.addEventListener('load', () => {
-    if (timer) { clearTimeout(timer); timer = null; }
+    if (!img.isConnected) return;
+    if (st.timer) { clearTimeout(st.timer); st.timer = null; }
     img.classList.remove('file-thumb--failed');
   });
 
-  load();
+  // 首次加载：行尚未插入 DOM（isConnected=false），直接设置 src。
+  img.src = url;
 }

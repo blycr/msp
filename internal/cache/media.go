@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"log"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -30,6 +30,7 @@ type MediaCache struct {
 	building      bool
 	cacheFilePath string
 	bg            sync.WaitGroup
+	bgCtx         context.Context
 	processor     *media.MediaProcessor
 }
 
@@ -38,9 +39,29 @@ func NewMediaCache(processor *media.MediaProcessor, cacheFilePath string, ttl ti
 		cacheFilePath: cacheFilePath,
 		ttl:           ttl,
 		processor:     processor,
+		bgCtx:         context.Background(),
 	}
 	c.cond = sync.NewCond(&c.mu)
 	return c
+}
+
+// SetBackgroundContext sets the context governing all background rebuilds and
+// disk writes. It must be called before the cache serves traffic; cancelling
+// it stops background work (e.g. during shutdown). A nil ctx is ignored.
+func (c *MediaCache) SetBackgroundContext(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	c.mu.Lock()
+	c.bgCtx = ctx
+	c.mu.Unlock()
+}
+
+// background returns the context for background work. Never returns nil.
+func (c *MediaCache) background() context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.bgCtx
 }
 
 func (c *MediaCache) runBg(fn func()) {
@@ -59,7 +80,7 @@ func (c *MediaCache) unmarshalResp() domain.MediaResponse {
 	var r domain.MediaResponse
 	if len(c.respJSON) > 0 {
 		if err := json.Unmarshal(c.respJSON, &r); err != nil {
-			log.Printf("[WARN] cache unmarshal error: %v", err)
+			slog.Warn("cache unmarshal error", "err", err)
 		}
 	}
 	return r
@@ -86,13 +107,14 @@ func (c *MediaCache) PeekETag() (string, bool) {
 
 func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blacklist config.BlacklistConfig, refresh bool, maxItems int) (domain.MediaResponse, string) {
 	key := CacheKey(shares, blacklist)
+	bgCtx := c.background()
 
 	c.mu.Lock()
 	if c.key == key && !c.builtAt.IsZero() && !refresh {
 		if time.Since(c.builtAt) >= c.ttl && !c.building {
 			c.building = true
 			c.mu.Unlock()
-			c.runBg(func() { c.rebuild(context.Background(), key, shares, blacklist, maxItems) })
+			c.runBg(func() { c.rebuild(bgCtx, key, shares, blacklist, maxItems) })
 			c.mu.Lock()
 		}
 		r := c.unmarshalResp()
@@ -111,7 +133,7 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 
 	if refresh {
 		c.building = true
-		c.runBg(func() { c.rebuild(context.Background(), key, shares, blacklist, maxItems) })
+		c.runBg(func() { c.rebuild(bgCtx, key, shares, blacklist, maxItems) })
 		r := c.unmarshalResp()
 		r.Scanning = true
 		etag := c.etag
@@ -123,12 +145,12 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 		c.mu.Unlock()
 		if resp, builtAt, ok, dbErr := c.processor.LoadMediaFromDB(ctx, key, shares); ok && !builtAt.IsZero() {
 			if dbErr != nil {
-				log.Printf("[WARN] LoadMediaFromDB error: %v", dbErr)
+				slog.Warn("LoadMediaFromDB error", "err", dbErr)
 			}
 			etag := WeakETag(key, builtAt)
 			c.mu.Lock()
 			if b, err := json.Marshal(resp); err != nil {
-				log.Printf("[WARN] cache marshal error: %v", err)
+				slog.Warn("cache marshal error", "err", err)
 			} else {
 				c.respJSON = b
 			}
@@ -141,15 +163,42 @@ func (c *MediaCache) GetOrBuild(ctx context.Context, shares []domain.Share, blac
 		c.mu.Lock()
 	}
 
+	// First build: run the build on the background context so a client
+	// disconnect never kills an in-progress scan. The request ctx only bounds
+	// how long this caller waits for the result.
 	c.building = true
 	c.mu.Unlock()
+	c.runBg(func() { c.rebuild(bgCtx, key, shares, blacklist, maxItems) })
+	return c.waitForBuild(ctx, key)
+}
 
-	resp, etag, err := c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
-	if err != nil {
-		log.Printf("[WARN] MediaCache build error: %v", err)
-		return domain.MediaResponse{}, ""
+// waitForBuild blocks until the in-flight build finishes or ctx is done.
+// Cancelling ctx only stops the wait (the caller walks away); the build
+// itself runs on the cache's background context and always completes.
+func (c *MediaCache) waitForBuild(ctx context.Context, key string) (domain.MediaResponse, string) {
+	stopWait := context.AfterFunc(ctx, func() {
+		c.mu.Lock()
+		c.cond.Broadcast()
+		c.mu.Unlock()
+	})
+	defer stopWait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for c.building && ctx.Err() == nil {
+		c.cond.Wait()
 	}
-	return resp, etag
+	if c.building {
+		// Request ctx cancelled while the build is still running.
+		r := c.unmarshalResp()
+		r.Scanning = true
+		return r, c.etag
+	}
+	if c.key == key && !c.builtAt.IsZero() {
+		return c.unmarshalResp(), c.etag
+	}
+	// Build failed; nothing usable in cache.
+	return domain.MediaResponse{}, ""
 }
 
 func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) (domain.MediaResponse, string, error) {
@@ -210,7 +259,7 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 	c.mu.Unlock()
 
 	if !c.processor.IsDBAvailable() {
-		c.runBg(func() { c.saveToDisk(key, builtAt, etag, resp) })
+		c.runBg(func() { c.saveToDisk(c.background(), key, builtAt, etag, resp) })
 	}
 
 	return resp, etag, nil
@@ -219,8 +268,24 @@ func (c *MediaCache) buildAndUpdate(ctx context.Context, key string, shares []do
 func (c *MediaCache) rebuild(ctx context.Context, key string, shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) {
 	_, _, err := c.buildAndUpdate(ctx, key, shares, blacklist, maxItems)
 	if err != nil {
-		log.Printf("[WARN] MediaCache rebuild error: %v", err)
+		slog.Warn("MediaCache rebuild error", "err", err)
 	}
+}
+
+// Refresh triggers an asynchronous rebuild for the given shares/blacklist,
+// e.g. after a config hot-reload. It never blocks the caller; if a build is
+// already in progress it is a no-op. The rebuild is tracked by
+// WaitForBackground.
+func (c *MediaCache) Refresh(shares []domain.Share, blacklist config.BlacklistConfig, maxItems int) {
+	key := CacheKey(shares, blacklist)
+	c.mu.Lock()
+	if c.building {
+		c.mu.Unlock()
+		return
+	}
+	c.building = true
+	c.mu.Unlock()
+	c.runBg(func() { c.rebuild(c.background(), key, shares, blacklist, maxItems) })
 }
 
 func (c *MediaCache) LoadFromDisk(key string) bool {
@@ -251,7 +316,7 @@ func (c *MediaCache) LoadFromDisk(key string) bool {
 	c.builtAt = time.Unix(0, v.BuiltAt)
 	c.etag = v.ETag
 	if b, err := json.Marshal(v.Resp); err != nil {
-		log.Printf("[WARN] cache marshal error: %v", err)
+		slog.Warn("cache marshal error", "err", err)
 	} else {
 		c.respJSON = b
 	}
@@ -259,7 +324,13 @@ func (c *MediaCache) LoadFromDisk(key string) bool {
 	return true
 }
 
-func (c *MediaCache) saveToDisk(key string, builtAt time.Time, etag string, resp domain.MediaResponse) {
+// saveToDisk persists the cache via write-to-.tmp + atomic rename. If ctx is
+// already cancelled the write is skipped entirely, so a cancelled save never
+// leaves a .tmp residue; once the write starts it always completes the rename.
+func (c *MediaCache) saveToDisk(ctx context.Context, key string, builtAt time.Time, etag string, resp domain.MediaResponse) {
+	if ctx.Err() != nil {
+		return
+	}
 	v := mediaCacheOnDisk{
 		Key:     key,
 		BuiltAt: builtAt.UnixNano(),

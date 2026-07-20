@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -127,14 +127,14 @@ func (mp *MediaProcessor) GetHWAccel() *HWAccelResult {
 // DisableHWAccel marks hardware acceleration as failed at runtime.
 func (mp *MediaProcessor) DisableHWAccel() {
 	mp.hwAccel.disabled.Store(true)
-	log.Printf("[WARN] Hardware acceleration disabled due to runtime failure, falling back to software encoding")
+	slog.Warn("hardware acceleration disabled due to runtime failure, falling back to software encoding")
 }
 
 func (mp *MediaProcessor) detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 	none := &HWAccelResult{Available: false}
 
 	if mode == HWAccelNone {
-		log.Printf("[INFO] Hardware acceleration disabled by configuration")
+		slog.Info("hardware acceleration disabled by configuration")
 		return none
 	}
 
@@ -152,7 +152,7 @@ func (mp *MediaProcessor) detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 			}
 		}
 		if len(specific) == 0 {
-			log.Printf("[WARN] Requested hardware encoder %q not available on %s", mode, runtime.GOOS)
+			slog.Warn("requested hardware encoder not available", "mode", mode, "os", runtime.GOOS)
 			return none
 		}
 		candidates = specific
@@ -160,7 +160,7 @@ func (mp *MediaProcessor) detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 
 	for _, c := range candidates {
 		if mp.probeEncoder(c) {
-			log.Printf("[INFO] Hardware acceleration enabled: %s (%s)", c.encoder, c.mode)
+			slog.Info("hardware acceleration enabled", "encoder", c.encoder, "mode", c.mode)
 			return &HWAccelResult{
 				Available: true,
 				Encoder:   c.encoder,
@@ -171,7 +171,7 @@ func (mp *MediaProcessor) detectHWAccelOnce(mode HWAccelMode) *HWAccelResult {
 		}
 	}
 
-	log.Printf("[INFO] No hardware encoder available, using software encoding")
+	slog.Info("no hardware encoder available, using software encoding")
 	return none
 }
 
@@ -198,8 +198,7 @@ func (mp *MediaProcessor) probeEncoder(enc hwEncoder) bool {
 
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("[DEBUG] Probe %s failed: %v (stderr: %s)",
-			enc.encoder, err, strings.TrimSpace(stderr.String()))
+		slog.Debug("encoder probe failed", "encoder", enc.encoder, "err", err, "stderr", strings.TrimSpace(stderr.String()))
 		return false
 	}
 	return true

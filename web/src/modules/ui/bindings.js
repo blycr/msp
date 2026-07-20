@@ -7,10 +7,14 @@ import { renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent, playPrev
 import { resumeLast, setFitBtnVisible } from '../player.js';
 import { icon } from '../icons.js';
 import { showDlg, updateUIForLang, renderList } from './render.js';
+import { initListDelegation } from './delegate.js';
 import { renderShares, updateBlacklistUI } from './shares.js';
 import { applyConfigToUI } from './settings.js';
 
 export function bindUI() {
+  // 列表行交互：容器级事件委托（#list / #plList 各绑定一次）
+  initListDelegation();
+
   // Hide settings button for non-local access
   const settingsBtn = el("btnSettings");
   function updateSettingsBtn() {
