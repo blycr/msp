@@ -134,3 +134,4 @@ Do not hand over within a phase.
 <!-- Append below. -->
 [2026-07-13] User correction → use bun/bunx/uv instead of npx/npm/pip; prefer a domestic registry and use SOCKS5 7890 only for network fallback [Tooling]
 [2026-07-18] build.ps1 failed at checksum step → this machine's Windows PowerShell 5.1 lacks Get-FileHash; build.ps1/dev.ps1 now auto re-exec into pwsh (PS7) when PS < 7 [Build]
+[2026-08-07] go get/tidy on proxy.golang.org times out → use `GOPROXY=https://goproxy.cn,direct` for Go dependency fetches (same domestic-registry rule as bun/npm) [Tooling]

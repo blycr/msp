@@ -81,10 +81,10 @@
       “enabled”: true,
       “scope”: “folder”,
 
-      // 是否启用视频转码（默认 true）
-      // 开启后，后端会根据实际编码信息（字节嗅探）判断是否需要转码
+      // 是否启用视频转码（默认 false）
+      // 开启后，后端会根据实际编码信息（ffprobe 为主、字节嗅探兜底）判断是否需要转码
       // H.264/AAC 等浏览器兼容编码 → 直连原始流
-      // HEVC/AV1/AC-3/DTS 等不兼容编码 → 自动转码
+      // HEVC/AV1/AC-3/DTS 等不兼容编码 → 自动转码（视频走 HLS，支持原生拖动）
       // FFmpeg 路径支持 7 层搜索，也可通过 MSP_FFMPEG_PATH 环境变量指定
       “transcode”: true,
 
