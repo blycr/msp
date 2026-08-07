@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/glebarez/sqlite v1.11.0
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.51.0
 	gorm.io/gorm v1.31.1

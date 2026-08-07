@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -249,7 +250,8 @@ func printDBUnavailableBanner() {
 	fmt.Fprintln(os.Stderr, "")
 }
 
-func printStartupBanner(cfgPath string, port int) {	ips := util.GetLanIPv4s()
+func printStartupBanner(cfgPath string, port int) {
+	ips := util.GetLanIPv4s()
 	urls := make([]string, 0, 2+len(ips))
 	urls = append(urls, "http://127.0.0.1:"+util.Itoa(port)+"/")
 	for _, ip := range ips {
@@ -261,6 +263,16 @@ func printStartupBanner(cfgPath string, port int) {	ips := util.GetLanIPv4s()
 	for _, u := range urls {
 		log.Println("访问:", u)
 		fmt.Println("访问:", "\x1b[36m"+u+"\x1b[0m")
+		// 局域网地址下附加二维码，便于手机扫码快捷访问；127.0.0.1 仅本机可
+		// 用，无需扫码，不打印。
+		if !strings.HasPrefix(u, "http://127.") {
+			if qr, err := util.QRCodeTerminal(u); err == nil {
+				fmt.Println("扫码访问（手机连同一局域网后扫描）:")
+				fmt.Println(qr)
+			} else {
+				log.Printf("[WARN] QR code generation failed: %v", err)
+			}
+		}
 	}
 }
 
