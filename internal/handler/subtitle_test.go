@@ -203,3 +203,43 @@ func TestHandleSubtitleUnsupportedFormat(t *testing.T) {
 		t.Errorf("expected 400 for unsupported format, got %d", w.Code)
 	}
 }
+
+func TestHandleSubtitleInvalidTrack(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := newTestServerWithShare(t, tmpDir)
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil, Favorites: nil})
+
+	videoPath := filepath.Join(tmpDir, "test.mkv")
+	_ = os.WriteFile(videoPath, []byte("fake mkv"), 0600)
+	id := util.NewIDCodec(nil).EncodeID(videoPath)
+
+	for _, track := range []string{"abc", "-1", "99", "1.5"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id+"&track="+track, nil)
+		w := httptest.NewRecorder()
+
+		h.HandleSubtitle(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("track=%q: expected 400, got %d", track, w.Code)
+		}
+	}
+}
+
+func TestHandleSubtitleEmbeddedNoFFmpeg(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := newTestServerWithShare(t, tmpDir)
+	h := New(Deps{Config: s, Media: s, Session: s, Logger: s, Progress: nil, Prefs: nil, Favorites: nil})
+
+	videoPath := filepath.Join(tmpDir, "test.mkv")
+	_ = os.WriteFile(videoPath, []byte("fake mkv"), 0600)
+	id := util.NewIDCodec(nil).EncodeID(videoPath)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/subtitle?id="+id+"&track=0", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleSubtitle(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 (no ffmpeg configured), got %d", w.Code)
+	}
+}

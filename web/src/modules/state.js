@@ -23,9 +23,9 @@
  * @property {?Object} current - Currently playing media item
  * @property {string} currentMetaBase - Base metadata string
  * @property {?Object} plyr - Plyr instance
+ * @property {?Object} hls - hls.js instance (HLS transcode playback)
  * @property {?Object} lyrics - Lyrics object
  * @property {Object} prefs - User preferences
- * @property {number} plyrPersistTimer - Timer ID for persistence
  * @property {number} selectionToken - Selection consistency token
  * @property {PlaylistState} playlist - Playlist state management
  * @property {number} listPageSize - Items per page in file list
@@ -67,9 +67,9 @@ export const state = {
   current: null,
   currentMetaBase: '',
   plyr: null,
+  hls: null,
   lyrics: null,
   prefs: {},
-  plyrPersistTimer: 0,
   selectionToken: 0,
   playlist: {
     kind: null,

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +44,11 @@ func (h *Handler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if shouldTranscode && h.processor.CheckFFmpeg() {
+		// HLS 转码（视频 seek/Range 支持）：?hls=1 创建会话并返回播放列表 URL；
+		// 失败时回退渐进式转码。
+		if r.URL.Query().Get("hls") == "1" && h.tryServeHLS(w, r, target) {
+			return
+		}
 		if h.tryServeTranscode(w, r, target, ext) {
 			return
 		}
@@ -214,6 +220,23 @@ func (h *Handler) tryServeTranscode(w http.ResponseWriter, r *http.Request, targ
 	return true
 }
 
+// tryServeHLS starts an HLS transcode session and responds with the playlist
+// URL. The session's segments are served via /api/hls/<sessionID>/<file>.
+func (h *Handler) tryServeHLS(w http.ResponseWriter, r *http.Request, target string) bool {
+	if h.processor == nil {
+		return false
+	}
+	session, err := h.processor.StartHLSStream(target, media.TranscodeOptions{Format: "mp4"})
+	if err != nil {
+		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("HLS stream error: %v", err))
+		return false
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"m3u8": "/api/hls/" + session.ID + "/index.m3u8",
+	})
+	return true
+}
+
 func (h *Handler) serveDirect(w http.ResponseWriter, r *http.Request, f *os.File, st os.FileInfo, ct string) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Accept-Ranges", "bytes")
@@ -261,10 +284,33 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(target))
-	video, audio := scanner.SniffContainerCodecs(target, ext)
+
+	// 播放决策的主数据源是 ffprobe（精确、带 5 分钟缓存）；ffprobe 不可用或
+	// 失败时回退字节嗅探。嗅探仅支持 MKV/MP4/MOV/M4V，其余容器返回空编码。
+	var rawVideo, rawAudio string
+	var info *media.CodecInfo
+	if h.processor != nil {
+		if ci, err := h.processor.GetCodecInfo(r.Context(), target); err == nil {
+			info = &ci
+			rawVideo, rawAudio = ci.VideoCodec, ci.AudioCodec
+		}
+	}
+	if info == nil {
+		rawVideo, rawAudio = scanner.SniffContainerCodecs(target, ext)
+	}
+	video := media.DisplayCodecName(rawVideo)
+	audio := media.DisplayCodecName(rawAudio)
+
 	var subs []domain.Subtitle
 	if scanner.ClassifyExt(ext) == "video" {
 		subs = scanner.FindSidecarSubtitles(target, h.idCodec)
+		// 内嵌文本字幕（ffprobe 成功时可用）：与侧车合并，zh 优先排序，
+		// 第一个轨道标记为默认（与 scanner 侧车字幕行为一致）。
+		if info != nil && len(info.Subtitles) > 0 {
+			subs = append(subs, embeddedSubtitles(id, info.Subtitles)...)
+			sortSubtitleList(subs)
+			subs[0].Default = true
+		}
 	}
 
 	kind := scanner.ClassifyExt(ext)
@@ -277,7 +323,7 @@ func (h *Handler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 
 	var playback *domain.PlaybackStrategy
 	if transcodeEnabled {
-		mode := decidePlaybackMode(video, audio, h.processor.FFmpegAvailable())
+		mode := decidePlaybackMode(rawVideo, rawAudio, h.processor.FFmpegAvailable())
 		playback = &domain.PlaybackStrategy{Mode: mode}
 	}
 
@@ -342,4 +388,41 @@ func decidePlaybackMode(videoCodec, audioCodec string, ffmpegAvailable bool) str
 	}
 
 	return "direct"
+}
+
+// embeddedSubtitles converts ffprobe subtitle-track info into domain.Subtitle
+// entries whose Src points at the extraction endpoint. mediaID is the encoded
+// media-file ID used by /api/subtitle.
+func embeddedSubtitles(mediaID string, tracks []media.SubtitleTrack) []domain.Subtitle {
+	out := make([]domain.Subtitle, 0, len(tracks))
+	for _, tr := range tracks {
+		lang := tr.Language
+		label := tr.Title
+		if label == "" {
+			label = scanner.SubtitleLabel(lang)
+		}
+		if label == "" {
+			label = fmt.Sprintf("Track %d", tr.Index)
+		}
+		out = append(out, domain.Subtitle{
+			Label: label,
+			Lang:  lang,
+			Src:   fmt.Sprintf("/api/subtitle?id=%s&track=%d", mediaID, tr.Index),
+		})
+	}
+	return out
+}
+
+// sortSubtitleList orders subtitles zh-first then by label, mirroring
+// scanner.sortSubtitles so the merged list has a stable default track.
+func sortSubtitleList(out []domain.Subtitle) {
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Lang == "zh" && out[j].Lang != "zh" {
+			return true
+		}
+		if out[i].Lang != "zh" && out[j].Lang == "zh" {
+			return false
+		}
+		return strings.ToLower(out[i].Label) < strings.ToLower(out[j].Label)
+	})
 }

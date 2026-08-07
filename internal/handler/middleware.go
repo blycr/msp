@@ -42,7 +42,9 @@ func WithGzip(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/stream" || r.URL.Path == "/api/subtitle" {
+		if !strings.HasPrefix(r.URL.Path, "/api/") ||
+			r.URL.Path == "/api/stream" || r.URL.Path == "/api/subtitle" ||
+			strings.HasPrefix(r.URL.Path, "/api/hls/") {
 			next.ServeHTTP(w, r)
 			return
 		}

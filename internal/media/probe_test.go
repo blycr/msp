@@ -207,3 +207,28 @@ func TestProbeCacheHit(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, info)
 }
+
+func TestParseProbeJSONWithSubtitles(t *testing.T) {
+	data := []byte(`{
+		"streams": [
+			{"index": 0, "codec_name": "h264", "codec_type": "video"},
+			{"index": 1, "codec_name": "aac", "codec_type": "audio"},
+			{"index": 2, "codec_name": "subrip", "codec_type": "subtitle", "language": "chi", "title": "简体中文"},
+			{"index": 3, "codec_name": "ass", "codec_type": "subtitle", "language": "eng"},
+			{"index": 4, "codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle", "language": "eng"},
+			{"index": 5, "codec_name": "dvd_subtitle", "codec_type": "subtitle"}
+		]
+	}`)
+
+	info, err := parseProbeJSON(data)
+	assert.NoError(t, err)
+	assert.Equal(t, "h264", info.VideoCodec)
+	assert.Equal(t, "aac", info.AudioCodec)
+	// 图像字幕（PGS/DVD）被过滤，只保留文本字幕
+	assert.Len(t, info.Subtitles, 2)
+	assert.Equal(t, 2, info.Subtitles[0].Index)
+	assert.Equal(t, "chi", info.Subtitles[0].Language)
+	assert.Equal(t, "简体中文", info.Subtitles[0].Title)
+	assert.Equal(t, "ass", info.Subtitles[1].CodecName)
+	assert.Equal(t, "eng", info.Subtitles[1].Language)
+}

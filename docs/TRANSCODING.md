@@ -156,10 +156,11 @@ func (mp *MediaProcessor) resolveFFmpegPaths() {
 
 编码信息通过两种方式获取：
 
-1. **字节嗅探**（`SniffContainerCodecs`）：读取文件首尾各 2MB，模式匹配
+1. **ffprobe**（`probeCodecInfo`）：精确检测，结果缓存 5 分钟，是播放决策（`decidePlaybackMode`）的主要数据源
+2. **字节嗅探**（`SniffContainerCodecs`）：读取文件首尾各 2MB，模式匹配，仅在 ffprobe 不可用时作为兜底
    - MKV：匹配 `V_MPEGH/ISO/HEVC`、`V_MPEG4/ISO/AVC` 等 Matroska 编码标签
    - MP4/M4V/MOV：匹配 `hvc1`、`hev1`、`avc1` 等 FourCC
-2. **ffprobe**（`probeCodecInfo`）：精确检测，结果缓存 5 分钟
+   - 其他容器（AVI/WMV/WebM 等）无法嗅探 → 返回空 → 播放决策按直连处理，交给浏览器解码 + 错误回退兜底
 
 ### 3.4 兼容性设计
 
@@ -238,7 +239,7 @@ processor.DetectHWAccel(mode)
     ├── AAC/MP3？ → -acodec copy（零开销）
     │
     └── 其他？ → 重编码为 AAC
-            └── -c:a aac -b:a 192k
+            └── -c:a aac
 ```
 
 ### 5.3 FFmpeg 参数构建
@@ -249,21 +250,46 @@ processor.DetectHWAccel(mode)
 # 硬件加速（NVIDIA）
 ffmpeg -hwaccel cuda -i input.mkv \
   -c:v h264_nvenc -preset p4 -tune ll -pix_fmt yuv420p \
-  -c:a aac -b:a 192k \
+  -c:a aac \
   -movflags +faststart -f mp4 pipe:1
 
 # 软件编码
 ffmpeg -i input.mkv \
   -c:v libx264 -preset fast -crf 23 \
-  -c:a aac -b:a 192k \
+  -c:a aac \
   -movflags +faststart -f mp4 pipe:1
 
 # 视频流复制（H.264 源）
 ffmpeg -i input.mp4 \
   -c:v copy \
-  -c:a aac -b:a 192k \
+  -c:a aac \
   -movflags +faststart -f mp4 pipe:1
 ```
+
+### 5.4 HLS 转码（视频，v1.11.0+）
+
+视频转码输出使用 **HLS**（HTTP Live Streaming）替代单 URL 渐进式流，以支持原生 seek / Range 请求：
+
+- ffmpeg 输出 4 秒分段的 `.ts` 文件与 `index.m3u8` 播放列表（`-hls_list_size 0` 保留全量段，支持回看）
+- 段文件写入系统临时目录 `msp_hls_*`，经 `GET /api/hls/<sessionID>/<file>` 服务（`http.ServeContent`，原生 Range）
+- 会话生命周期：5 分钟无请求自动清理（杀 ffmpeg + 删除临时目录）；服务启动时清理上次异常退出的残留目录；优雅关停时 `KillAllTranscodeProcesses` 一并终止 HLS 会话
+- 前端通过 vendored hls.js 播放；Safari 回退原生 HLS；浏览器不支持时回退渐进式 `transcode=1`
+- 转码并发槽与会话绑定，ffmpeg 退出/清理时释放
+
+```
+GET /api/stream?id=...&transcode=1&hls=1
+    │
+    ▼
+processor.StartHLSStream()  →  ffmpeg -f hls 写段文件
+    │
+    ▼
+{ "m3u8": "/api/hls/<sessionID>/index.m3u8" }
+    │
+    ▼
+hls.js 请求 m3u8 / 段文件（Range 支持）→ 原生 seek
+```
+
+音频转码维持渐进式 mp3（`&start=` 时间 seek，见 §7.1）。
 
 ---
 
@@ -290,7 +316,7 @@ ffmpeg -i input.mp4 \
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `playback.video.transcode` | `true` | 启用视频转码 |
+| `playback.video.transcode` | `false` | 启用视频转码（默认关闭；开启后 HEVC/AV1 等自动转码） |
 | `playback.audio.transcode` | `true` | 启用音频转码 |
 | `playback.video.encoding.hwAccel` | `"auto"` | 硬件加速模式 |
 | `playback.video.encoding.maxJobs` | `0` | 最大并发数（0=自动） |
@@ -312,7 +338,7 @@ ffmpeg -i input.mp4 \
 1. 浏览器解码错误（code 3/4）
 2. 检查是否接近文件末尾（>90%）→ 静默跳到下一个
 3. 重试一次（带时间戳刷新 URL）
-4. 如果转码配置开启，切换到 `&transcode=1` 源
+4. 如果转码配置开启：视频创建 HLS 会话切换（`&transcode=1&hls=1`），音频切 `&transcode=1` 渐进式源
 5. 显示错误提示
 
 正常流程下，前端通过 `getPlaybackUrl()` 直接走正确路径，错误回退极少触发。

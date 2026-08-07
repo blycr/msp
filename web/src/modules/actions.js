@@ -1,8 +1,8 @@
 import { registerSW } from 'virtual:pwa-register';
 import { state, el, lsSet, LS, lsGet } from './state.js';
 import { t, initLang } from './i18n.js';
-import { apiGet, apiRetry, loadPrefs, loadFavorites } from './api.js';
-import { hideAllMedia, bindGlobalHotkeys, resumeLast } from './player.js';
+import { apiGet, apiRetry, loadPrefs, loadFavorites, rememberEnabled } from './api.js';
+import { hideAllMedia, bindGlobalHotkeys, resumeLast, saveProgress } from './player.js';
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
 import { bus } from './eventbus.js';
@@ -122,6 +122,17 @@ export async function boot() {
   // Setup UI bindings
   bindGlobalHotkeys();
   bindPinDialog();
+
+  // 卸载保底：直接关闭标签页时保存当前播放位置（周期保存的最后一道保险）
+  window.addEventListener("pagehide", () => {
+    const cur = state.current;
+    if (!cur || (cur.kind !== "video" && cur.kind !== "audio")) return;
+    if (!rememberEnabled(cur.kind)) return;
+    const mediaEl = el(cur.kind === "audio" ? "audioEl" : "videoEl");
+    if (!mediaEl || mediaEl.paused) return;
+    const t = mediaEl.currentTime || 0;
+    if (t > 0) saveProgress(cur.kind, cur.id, t);
+  });
   bus.on('config:reload', () => loadConfig());
   bus.on('media:refresh', (limit) => loadMedia(true, limit));
   bus.emit('boot:init');

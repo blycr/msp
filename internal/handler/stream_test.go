@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"msp/internal/config"
+	"msp/internal/media"
 	"msp/internal/util"
 )
 
@@ -33,6 +36,22 @@ func TestDecidePlaybackMode(t *testing.T) {
 		{"unknown_video", "unknown", "aac", true, "transcode"},
 		{"unknown_audio", "h264", "unknown", true, "transcode"},
 		{"empty_codecs", "", "", true, "direct"},
+		// ffprobe codec_name 原始名边界
+		{"h264_eac3", "h264", "eac3", true, "transcode"},
+		{"h264_dca", "h264", "dca", true, "transcode"},
+		{"vc1", "vc1", "aac", true, "transcode"},
+		{"wmv3", "wmv3", "aac", true, "transcode"},
+		{"h264_pcm", "h264", "pcm", true, "direct"},
+		{"h264_lpcm", "h264", "lpcm", true, "direct"},
+		{"h264_wav", "h264", "wav", true, "direct"},
+		{"hevc_h265_alias", "h265", "aac", true, "transcode"},
+		// 字节嗅探标签路径（应与 ffprobe 原始名决策一致）
+		{"sniff_h265", "H.265/HEVC", "AAC", true, "transcode"},
+		{"sniff_h264_ac3", "H.264/AVC", "AC-3", true, "transcode"},
+		{"sniff_eac3", "H.264/AVC", "E-AC-3", true, "transcode"},
+		{"sniff_dts", "H.264/AVC", "DTS", true, "transcode"},
+		{"sniff_truehd", "H.264/AVC", "TrueHD", true, "transcode"},
+		{"sniff_aac_mp4a", "H.264/AVC", "AAC/MP4A", true, "direct"},
 	}
 
 	for _, tt := range tests {
@@ -146,4 +165,28 @@ func TestResolveMediaTarget(t *testing.T) {
 			t.Errorf("expected 403, got %d", w.Code)
 		}
 	})
+}
+
+func TestEmbeddedSubtitles(t *testing.T) {
+	tracks := []media.SubtitleTrack{
+		{Index: 2, CodecName: "subrip", Language: "chi", Title: "简体中文"},
+		{Index: 3, CodecName: "ass", Language: "eng"},
+		{Index: 4, CodecName: "webvtt"},
+	}
+
+	subs := embeddedSubtitles("MEDIA_ID", tracks)
+	assert.Len(t, subs, 3)
+
+	// 有 Title 时用 Title
+	assert.Equal(t, "简体中文", subs[0].Label)
+	assert.Equal(t, "chi", subs[0].Lang)
+	assert.Equal(t, "/api/subtitle?id=MEDIA_ID&track=2", subs[0].Src)
+
+	// 无 Title 时用语言标签（scanner.SubtitleLabel）
+	assert.Equal(t, "English", subs[1].Label)
+	assert.Equal(t, "/api/subtitle?id=MEDIA_ID&track=3", subs[1].Src)
+
+	// 无 Title 且无语言 → 回退 Track N
+	assert.Equal(t, "Track 4", subs[2].Label)
+	assert.Equal(t, "/api/subtitle?id=MEDIA_ID&track=4", subs[2].Src)
 }

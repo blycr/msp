@@ -1,25 +1,21 @@
-<div align="center">
-
 # MSP: 极简局域网媒体服务器
 
-<img src="../web/public/logo.svg" width="120" alt="MSP Logo" />
-
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/blycr/msp?style=flat-square&color=blue)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
-![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
-![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
-[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/blycr/msp)
 
-<h3>打造你的家庭局域网影院。</h3>
-<p>面向家庭局域网的轻量媒体服务器。</p>
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/blycr/msp?style=flat-square&color=cyan)
+
+![GitHub license](https://img.shields.io/github/license/blycr/msp?style=flat-square)
+
+![GitHub repo size](https://img.shields.io/github/repo-size/blycr/msp?style=flat-square)
+
+![DeepWiki](https://deepwiki.com/badge.svg)
 
 [English](../README.md) | [CodeMap](CodeMap.md) | [提交 Bug](https://github.com/blycr/msp/issues)
 
-</div>
-
 ---
 
-MSP 是一个单文件部署的媒体服务器，面向家庭场景。  
+MSP 是一个单文件部署的媒体服务器，面向家庭场景。
+
 在电脑上启动后，即可通过浏览器在局域网内访问并播放本地媒体。
 
 ## 核心亮点
@@ -36,33 +32,21 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 ## 播放策略
 
 - 默认优先直连播放。
-- 仅对高风险场景优先转码，例如：
-  - 容器：`AVI`、`WMV`
-  - 编码：`HEVC/H.265`、`VC-1`、`AC-3`、`DTS`、`TrueHD`
-- 直连失败时先重试一次，仍失败再回退到转码（需启用转码）。
+- 预转码基于文件内**实际编码**（而非扩展名）判断，仅对高风险场景应用，例如：
+  - 编码：`HEVC/H.265`、`AV1`、`VC-1`、`AC-3/E-AC-3`、`DTS`、`TrueHD`，或无法识别的编码
+- 无法检测编码的容器（如 `AVI`、`WMV`、`WebM`）先尝试直连；直连失败时先重试一次，仍失败再回退到转码（需启用转码）。
 
 ## 界面预览
 
-<div align="center">
-
 ### 视频模式
 
-<kbd>
-  <img src="images/preview-video-cn.png" alt="视频模式预览" width="100%" />
-</kbd>
-
 ### 音频模式
-
-<kbd>
-  <img src="images/preview-audio-cn.png" alt="音频模式预览" width="100%" />
-</kbd>
-
-</div>
 
 ## 快速开始
 
 1. 从 [Releases 页面](https://github.com/blycr/msp/releases) 下载对应系统版本。
 2. 运行可执行文件：
+
 ```bash
 # Windows
 ./msp.exe
@@ -70,12 +54,14 @@ MSP 是一个单文件部署的媒体服务器，面向家庭场景。
 # Linux/macOS
 ./msp
 ```
-3. 打开控制台输出地址，例如 `http://127.0.0.1:8099`。
-4. 首次进入后在设置中添加共享目录。
+
+1. 打开控制台输出地址，例如 `http://127.0.0.1:8099`。
+2. 首次进入后在设置中添加共享目录。
 
 ## 源码编译
 
-环境要求：`Go 1.25+`、`Node.js 18+`（用于构建前端），Windows 还需 `PowerShell 7+（pwsh）`（`.ps1` 脚本可在 5.1 下自动重入）。  
+环境要求：`Go 1.25+`、`Node.js 18+`（用于构建前端），Windows 还需 `PowerShell 7+（pwsh）`（`.ps1` 脚本可在 5.1 下自动重入）。
+
 详细构建与开发脚本选项，请参阅 [脚本说明](../scripts/README_CN.md)。
 
 ```bash
@@ -93,7 +79,7 @@ cd msp
 ./scripts/build.sh -h                       # 查看所有可用选项
 ```
 
-更多构建与开发脚本选项，请参阅 [脚本说明](../scripts/README_CN.md)。
+更多构建与开发脚本选项，请参阅 脚本说明。
 
 ## 许可证
 
@@ -101,5 +87,5 @@ cd msp
 
 ## 致谢
 
-*   [Plyr](https://github.com/sampotts/plyr) - 简单、灵活的 HTML5 媒体播放器。
-*   [GORM](https://gorm.io/) - 优秀的 Golang ORM 库。
+- [Plyr](https://github.com/sampotts/plyr) - 简单、灵活的 HTML5 媒体播放器。
+- [GORM](https://gorm.io/) - 优秀的 Golang ORM 库。

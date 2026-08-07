@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,6 +17,26 @@ import (
 type CodecInfo struct {
 	VideoCodec string
 	AudioCodec string
+	Subtitles  []SubtitleTrack
+}
+
+// SubtitleTrack describes one embedded text-subtitle stream in the source file.
+type SubtitleTrack struct {
+	Index     int
+	CodecName string
+	Language  string
+	Title     string
+}
+
+// isTextSubtitle reports whether the codec produces text subtitles that can be
+// converted to WebVTT. Image-based subtitles (PGS/DVD/DVB) are excluded because
+// they cannot be re-muxed to WebVTT without OCR.
+func isTextSubtitle(codec string) bool {
+	switch strings.ToLower(codec) {
+	case "subrip", "ass", "ssa", "webvtt", "mov_text":
+		return true
+	}
+	return false
 }
 
 // probeCacheEntry stores cached ffprobe results and expiration time.
@@ -225,8 +246,8 @@ func (mp *MediaProcessor) probeCodecInfo(ctx context.Context, inputPath string) 
 
 	args := []string{
 		"-v", "error",
-		"-select_streams", "v:0,a:0",
-		"-show_entries", "stream=codec_name,codec_type",
+		"-select_streams", "v:0,a:0,s",
+		"-show_entries", "stream=index,codec_name,codec_type,language,title",
 		"-of", "json",
 		inputPath,
 	}
@@ -243,8 +264,11 @@ func (mp *MediaProcessor) probeCodecInfo(ctx context.Context, inputPath string) 
 
 // probeStream represents a single stream in ffprobe JSON output.
 type probeStream struct {
+	Index     int    `json:"index"`
 	CodecName string `json:"codec_name"`
 	CodecType string `json:"codec_type"`
+	Language  string `json:"language"`
+	Title     string `json:"title"`
 }
 
 // probeResult represents the overall ffprobe JSON output structure.
@@ -252,7 +276,8 @@ type probeResult struct {
 	Streams []probeStream `json:"streams"`
 }
 
-// parseProbeJSON extracts encoding information from ffprobe JSON output.
+// parseProbeJSON extracts encoding and embedded text-subtitle information
+// from ffprobe JSON output.
 func parseProbeJSON(data []byte) (CodecInfo, error) {
 	var result probeResult
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -270,6 +295,16 @@ func parseProbeJSON(data []byte) (CodecInfo, error) {
 			if info.AudioCodec == "" {
 				info.AudioCodec = s.CodecName
 			}
+		case "subtitle":
+			if !isTextSubtitle(s.CodecName) {
+				continue // 图像字幕（PGS/DVD/DVB）无法转 webvtt，排除
+			}
+			info.Subtitles = append(info.Subtitles, SubtitleTrack{
+				Index:     s.Index,
+				CodecName: s.CodecName,
+				Language:  s.Language,
+				Title:     s.Title,
+			})
 		}
 	}
 	return info, nil

@@ -107,6 +107,17 @@ export function probeText(p) {
   return parts.length ? `${t("codec_info")}${parts.join(" / ")}` : "";
 }
 
+// 创建 HLS 转码会话（视频 seek/Range 支持）：
+// 返回 { m3u8: "/api/hls/<sessionID>/index.m3u8" }，失败返回 null。
+export async function startHlsSession(id) {
+  if (!id) return null;
+  try {
+    return await apiGet(`/api/stream?id=${encodeURIComponent(id)}&transcode=1&hls=1`);
+  } catch {
+    return null;
+  }
+}
+
 function mediaErrorText(err) {
   if (!err) return "";
   switch (err.code) {

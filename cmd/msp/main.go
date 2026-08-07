@@ -77,6 +77,8 @@ func main() {
 	idCodec := util.NewIDCodec(idKey)
 
 	processor := media.NewMediaProcessor(sq, idCodec)
+	// 清理上次异常退出残留的 HLS 临时目录（msp_hls_*）
+	processor.CleanupStaleHLSTempDirs()
 
 	// Migrate old-format PlaybackProgress media_ids to deterministic IDs.
 	if sq != nil && idCodec != nil {
@@ -217,6 +219,7 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 	mux.Handle("/api/favorites", http.HandlerFunc(h.HandleFavorites))
 	mux.Handle("/api/log", http.HandlerFunc(h.HandleLog))
 	mux.Handle("/api/pin", http.HandlerFunc(h.HandlePIN))
+	mux.Handle("/api/hls/", http.HandlerFunc(h.HandleHLS))
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")

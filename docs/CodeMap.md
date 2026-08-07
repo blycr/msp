@@ -340,7 +340,13 @@ Handler.HandleStream()
     │
     ├──► 需要转码?
     │       │
-    │       ├── 是 -> tryServeTranscode()
+    │       ├── 是且请求 ?hls=1（视频，v1.11.0+）-> tryServeHLS()
+    │       │       ├── processor.StartHLSStream() 启动 ffmpeg -f hls
+    │       │       │       └── 写临时目录 msp_hls_*（4s 段 + index.m3u8）
+    │       │       └── 返回 { m3u8: "/api/hls/<sessionID>/index.m3u8" }
+    │       │               └── hls.js/原生播放；段经 /api/hls/<sid>/ 服务（Range）
+    │       │
+    │       ├── 是 -> tryServeTranscode()（渐进式：音频 / HLS 失败降级）
     │       │       │
     │       │       ├──► processor.TranscodeStream()
     │       │       │       │
@@ -386,10 +392,13 @@ Handler.HandleProbe()
     │
     ├──► 解析并验证媒体 ID
     │
-    ├──► 字节嗅探编码信息 scanner.SniffContainerCodecs()
-    │       ├── 读取文件首尾各 2MB
-    │       ├── MKV: 匹配 V_MPEGH/ISO/HEVC 等编码标签
-    │       └── MP4/M4V/MOV: 匹配 hvc1/avc1 等 FourCC
+    ├──► 探测编码信息（v1.11.0 起 ffprobe 为主、嗅探兜底）
+    │       ├── 优先 processor.GetCodecInfo()（ffprobe，缓存 5 分钟）
+    │       │       └── 与转码参数共用同一数据源，消除两条检测路径不一致
+    │       └── ffprobe 不可用时回退字节嗅探 scanner.SniffContainerCodecs()
+    │               ├── 读取文件首尾各 2MB
+    │               ├── MKV: 匹配 V_MPEGH/ISO/HEVC 等编码标签
+    │               └── MP4/M4V/MOV: 匹配 hvc1/avc1 等 FourCC
     │
     ├──► 检查转码配置是否开启
     │       └── playback.video.transcode / playback.audio.transcode
@@ -412,7 +421,10 @@ Handler.HandleProbe()
     │       │
     │       └── 全部兼容 → "direct"
     │
-    └──► 返回 ProbeResponse（含 playback.mode）
+    ├──► 汇总字幕轨道（v1.11.0+）：侧车 + ffprobe 内嵌文本字幕
+    │       └── zh 优先排序、首轨标记默认；内嵌轨道 Src 指向 /api/subtitle?id=&track=N
+    │
+    └──► 返回 ProbeResponse（含 playback.mode + subtitles）
 ```
 
 ### 4.4 前端初始化流程

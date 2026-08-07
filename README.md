@@ -37,10 +37,9 @@ Run it on your PC, share local folders, and play media from any modern browser i
 ## Playback Behavior
 
 - Direct play is preferred by default.
-- Preemptive transcode is applied only for higher-risk cases, such as:
-  - Containers: `AVI`, `WMV`
-  - Codecs: `HEVC/H.265`, `VC-1`, `AC-3`, `DTS`, `TrueHD`
-- If direct play fails, MSP retries once, then falls back to transcoding (when enabled).
+- Preemptive transcode is applied based on the actual codecs detected inside the file (not the file extension), for higher-risk cases such as:
+  - Codecs: `HEVC/H.265`, `AV1`, `VC-1`, `AC-3/E-AC-3`, `DTS`, `TrueHD`, or unknown codecs
+- Containers whose codecs cannot be detected (e.g. `AVI`, `WMV`, `WebM`) are served directly first; if direct play fails, MSP retries once, then falls back to transcoding (when enabled).
 
 ## Preview
 

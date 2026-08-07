@@ -1,12 +1,37 @@
 import { state } from '../state.js';
 import { t } from '../i18n.js';
-import { logRemote } from '../api.js';
+import { logRemote, startHlsSession } from '../api.js';
 import { streamUrl, getCfg } from '../utils.js';
-import { getActivePlyr } from './core.js';
-import { showPreviewError } from './core.js';
+import { getActivePlyr, showPreviewError, applySource } from './core.js';
 
 export function switchToTranscodeSource(element, isVideo, url, currentTime) {
   const player = getActivePlyr();
+  const isHLS = isVideo && (url.includes("/api/hls/") || url.includes(".m3u8"));
+
+  if (isHLS) {
+    // HLS：Plyr source API 不适用于 hls.js，元素级 attach 后由 Plyr 复用同一元素
+    try {
+      if (!applySource(element, url, true)) {
+        console.error("HLS not supported by this browser");
+        return false;
+      }
+      if (typeof player?.once === "function") {
+        player.once("ready", () => {
+          try { element.currentTime = currentTime; } catch { }
+          player.play().catch(() => { });
+        });
+      } else {
+        setTimeout(() => {
+          try { element.currentTime = currentTime; } catch { }
+          element.play().catch(() => { });
+        }, 120);
+      }
+      return true;
+    } catch (err) {
+      console.error("HLS source switch failed", err);
+    }
+  }
+
   if (!player) {
     try { element.src = url; } catch { return false; }
     try { element.load(); } catch { }
@@ -108,9 +133,23 @@ export function setupErrorHandler(element, onMediaEnded) {
           e.preventDefault();
           e.stopPropagation();
 
-          const url = streamUrl(state.current.id, currentTime) + "&transcode=1";
           logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
-          if (switchToTranscodeSource(element, isVideo, url, currentTime)) return;
+          if (isVideo) {
+            // 视频：创建 HLS 会话（原生 seek），完成后异步切换
+            startHlsSession(state.current.id).then((hi) => {
+              if (!hi?.m3u8) {
+                console.error("HLS session creation failed");
+                showPreviewError(t("err_unsupported") + " (Transcode Failed)");
+                return;
+              }
+              switchToTranscodeSource(element, true, hi.m3u8, currentTime);
+            }).catch(() => {
+              showPreviewError(t("err_unsupported") + " (Transcode Failed)");
+            });
+            return;
+          }
+          const url = streamUrl(state.current.id, currentTime) + "&transcode=1";
+          if (switchToTranscodeSource(element, false, url, currentTime)) return;
         }
 
         console.error("Playback failed permanently. Transcode enabled:", allowFallback);

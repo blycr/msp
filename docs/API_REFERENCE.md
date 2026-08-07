@@ -120,10 +120,11 @@
 - **参数**:
   - `id`: 媒体文件 ID (必须)。
   - `transcode`: `1` 请求服务端转码 (默认返回原文件)。
-  - `start`: 转码流的起始时间（秒，仅转码模式有效）。
+  - `hls`: `1` 视频转码使用 HLS 会话（v1.11.0+，原生 seek/Range）。与 `transcode=1` 同时传递，响应为 JSON `{ "m3u8": "/api/hls/<sessionID>/index.m3u8" }`。
+  - `start`: 转码流的起始时间（秒，仅渐进式转码模式有效）。
   - `format`: 强制转码格式 (如 `mp4`, `mp3`)。
   - `bitrate`: 限制转码码率 (如 `2M`)。
-- **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)。
+- **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)；HLS 模式返回播放列表 JSON。
 - **缓存**: 原始流响应携带 `Last-Modified`，支持 `If-Modified-Since` 条件请求（未修改返回 304）。转码流为动态内容，恒 `Cache-Control: no-store`。
 - **播放策略说明**（v1.2.0 更新）:
   - 默认优先返回原始流（直连），需要转码时前端传递 `transcode=1`。
@@ -133,12 +134,22 @@
   - FFmpeg 路径支持 7 层搜索（环境变量 → 可执行文件目录 → bin/ → 平台路径 → PATH），详见 `MSP_FFMPEG_PATH` 环境变量。
   - `.wmv` 原始流响应头为 `video/x-ms-wmv`。
 
+### HLS 播放列表（v1.11.0+）
+视频转码会话的 m3u8 播放列表与 TS 段文件。会话由 `GET /api/stream?id=...&transcode=1&hls=1` 创建，5 分钟无访问自动清理。
+
+- **端点**: `GET /api/hls/<sessionID>/index.m3u8` — 播放列表
+- **端点**: `GET /api/hls/<sessionID>/seg_00000.ts` — 段文件（支持 Range）
+- **参数**: 路径中的 `<sessionID>` 与文件名（白名单：`index.m3u8` / `seg_%05d.ts`）
+- **响应**: `application/vnd.apple.mpegurl`（m3u8）或 `video/mp2t`（TS 段）
+- **缓存**: 动态内容，恒 `Cache-Control: no-store`
+
 ### 字幕流
-获取外挂字幕文件。支持 SRT、ASS、SSA 格式，自动转换为 WebVTT。
+获取字幕内容并转换为 WebVTT。支持外挂字幕（SRT、ASS、SSA）与内嵌字幕轨道提取。
 
 - **端点**: `GET /api/subtitle`
 - **参数**:
-  - `id`: 字幕文件 ID (注意：这是字幕文件的 ID，不是视频 ID)。
+  - `id`: 字幕文件 ID；若同时携带 `track`，则为媒体文件 ID。
+  - `track`: 内嵌字幕轨道号（0-63，v1.11.0+）。从媒体文件内提取该文本字幕轨道并转换为 WebVTT。
 - **响应**: `text/vtt` 内容。
 - **补充**: 也支持 `HEAD` 请求（仅返回头信息，不返回内容）。
 
@@ -164,8 +175,11 @@
   - 仅在对应类型的转码配置开启时返回（`playback.video.transcode` 或 `playback.audio.transcode`）
   - `mode: "direct"` — 浏览器可直接播放（H.264/AAC/MP3/Opus 等）
   - `mode: "transcode"` — 需要服务端转码（HEVC/AV1/VC-1/AC-3/DTS/TrueHD 等）
-  - 判断基于实际编码信息（字节嗅探 + ffprobe），非文件扩展名
+  - 判断基于实际编码信息（v1.11.0 起 ffprobe 为主、字节嗅探兜底），非文件扩展名
   - 字段为 `omitempty`，旧客户端忽略即可，向后兼容
+- **`subtitles` 字段**（v1.11.0+）：
+  - 返回侧车外挂字幕与内嵌文本字幕轨道的合并列表，zh 优先排序、首轨标记默认
+  - 内嵌轨道 `src` 形如 `/api/subtitle?id=<媒体ID>&track=<轨道号>`；图像字幕（PGS/DVD）不返回
 - **编码兼容性参考**:
   - 浏览器原生支持的视频编码：H.264/AVC
   - 浏览器原生支持的音频编码：AAC、MP3、Opus、Vorbis、FLAC

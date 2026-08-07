@@ -47,6 +47,8 @@ type MediaProcessor struct {
 		hook func(items []domain.MediaItem)
 	}
 
+	hls hlsManager
+
 	idCodec *util.IDCodec
 }
 
@@ -70,6 +72,7 @@ func NewMediaProcessor(db *storage.SQLite, idCodec *util.IDCodec, opts ...Option
 	mp.probeTTL.Store(int64(5 * time.Minute))
 	mp.transcode.limit = make(chan struct{}, 2)
 	mp.transcode.active = make(map[*exec.Cmd]struct{})
+	mp.hls.sessions = make(map[string]*HLSSession)
 	for _, opt := range opts {
 		opt(mp)
 	}

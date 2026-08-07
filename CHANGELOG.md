@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.11.0
+
+- **视频播放进度回归修复**：
+  - 恢复播放期间周期性保存进度（10s 节流 + 播放结束保存 + `pagehide` 卸载保底）：此前视频播放进度从不写入，跨设备/跨标签续播对视频实际无效（恢复管线完整、写入端缺失）
+  - 移除从未赋值的 `plyrPersistTimer` 遗留代码
+- **MKV 内嵌字幕支持**：
+  - `/api/probe` 现通过 ffprobe 返回内嵌文本字幕轨道，与侧车字幕合并（zh 优先、首轨默认）；新增 `/api/subtitle?id=&track=N` 提取内嵌轨道为 WebVTT
+  - 图像字幕（PGS/DVD/DVB）无法转 WebVTT，探测时过滤；外挂字幕行为不变
+- **编解码检测统一**：
+  - 播放决策（direct/transcode）改以 ffprobe 为准（带 5 分钟缓存），字节嗅探降级为 ffprobe 不可用时的兜底——决策与转码参数不再各用一套检测结果
+- **转码流 seek/Range 支持（HLS）**：
+  - 视频转码输出改为 HLS（ffmpeg 4s 分段 + m3u8 全量列表），段文件经 `/api/hls/<sessionID>/<file>` 服务（原生 Range），拖动进度条不再重建播放源
+  - 前端接入 vendored hls.js（Safari 回退原生 HLS，不支持时回退渐进式转码）；会话 5 分钟无访问自动清理，服务启动时清理残留临时目录
+  - 音频转码维持渐进式 mp3（`&start=` 时间 seek）
+- **文档修正**：
+  - README/README_CN：AVI/WMV 不再列为预转码容器（实际按编码决策；无法嗅探的容器走直连 + 错误回退）
+  - TRANSCODING.md：`playback.video.transcode` 默认值修正为 `false`；示例命令去掉与代码不符的 `-b:a 192k`
+
 ## 1.10.0
 
 - **可靠性修复（配置热重载）**：

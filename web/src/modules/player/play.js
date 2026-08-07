@@ -1,11 +1,11 @@
 import { state, el, LS } from '../state.js';
 import { bus } from '../eventbus.js';
 import { t } from '../i18n.js';
-import { gpGet, logRemote, probeItem, probeText, rememberEnabled, getProgress } from '../api.js';
+import { gpGet, logRemote, probeItem, probeText, rememberEnabled, getProgress, startHlsSession } from '../api.js';
 import { canPlayMedia, streamUrl, formatName, formatBytes, formatTime, getCfg } from '../utils.js';
 import { resetLyrics, renderLyrics, parseLrc, updateLyricsByTime } from '../lyrics.js';
 import { setPlaylist, updateNavLabels, playNext, buildPlaylist, generatePlayOrder } from '../playlist.js';
-import { resetMediaEl, hideAllMedia, showPreviewError, setFitBtnVisible, updateFitBtnFromVideo, setTracks, applyPlyr } from './core.js';
+import { resetMediaEl, hideAllMedia, showPreviewError, setFitBtnVisible, updateFitBtnFromVideo, setTracks, applyPlyr, applySource } from './core.js';
 import { setupErrorHandler } from './transcode.js';
 import { saveProgress } from './seek.js';
 import { setupAudioTrackHandling } from './audio-track.js';
@@ -32,6 +32,11 @@ async function getPlaybackUrl(item) {
     const p = await probeItem(item.id);
     if (p?.playback?.mode === "transcode") {
       bus.emit('transcode:status', 'transcoding');
+      // 视频转码走 HLS（原生 seek/Range）；音频维持渐进式 mp3
+      if (kind === "video") {
+        const hi = await startHlsSession(item.id);
+        if (hi?.m3u8) return { url: hi.m3u8, mode: "transcode" };
+      }
       return { url: base + "&transcode=1", mode: "transcode" };
     }
   }
@@ -54,6 +59,14 @@ function onMediaEnded() {
   if (state.playlist.kind !== k) return;
 
   if (state.playlist.playIndex < 0) return;
+
+  // 播放结束 / 心跳强制结束时，保存当前文件最终播放位置再切下一个
+  if (rememberEnabled(k)) {
+    const mediaEl = el(k === "audio" ? "audioEl" : "videoEl");
+    const t = mediaEl?.currentTime || 0;
+    if (t > 0) saveProgress(k, state.current.id, t);
+  }
+
   playNext(true);
 }
 
@@ -97,14 +110,17 @@ export async function playItem(item, opts) {
     try { state.plyr?.pause?.(); } catch { }
     try { el("videoEl")?.pause?.(); } catch { }
     try { el("audioEl")?.pause?.(); } catch { }
-    if (item.kind === "video" && Array.isArray(item.subtitles) && item.subtitles.length > 0) {
+    // 使用合并后的字幕（含内嵌轨道）；probe 未完成时回退 item 侧车字幕
+    const subsForOpen = (state.current?.subtitles && state.current.subtitles.length)
+      ? state.current.subtitles : (item.subtitles || []);
+    if (item.kind === "video" && subsForOpen.length > 0) {
       const base = String(window.location.origin || "");
       const toAbs = (u) => {
         if (!u) return u;
         return u.startsWith("/") ? (base + u) : u;
       };
       const src = toAbs(streamUrl(item.id));
-      const tr = (item.subtitles || []).map(s => {
+      const tr = subsForOpen.map(s => {
         const label = s.label || t("label_subtitle");
         const lang = s.lang || "zh";
         const tsrc = toAbs(s.src || streamUrl(s.id));
@@ -289,6 +305,14 @@ export async function playItem(item, opts) {
   }
 
   if (item.kind === "video") {
+    // 内嵌字幕依赖 ffprobe（/api/probe）；总是探测以合并侧车 + 内嵌轨道，
+    // 并将结果写回 state.current 供后续 track 构建复用。probeItem 有
+    // 500 条前端缓存，重复播放零开销。
+    const probe = await probeItem(item.id);
+    if (token !== state.selectionToken) return;
+    const subs = (probe?.subtitles && probe.subtitles.length) ? probe.subtitles : (item.subtitles || []);
+    state.current.subtitles = subs;
+
     let video = el("videoEl");
 
     if (isVideoSwitch && state.plyr && state.plyr.media) {
@@ -315,11 +339,47 @@ export async function playItem(item, opts) {
           const switchPlayback = await getPlaybackUrl(item);
           if (token !== state.selectionToken) return;
 
+          if (switchPlayback.url.includes("/api/hls/")) {
+            // HLS 切换：Plyr source API 不适用于 hls.js，元素级 attach
+            setTracks(video, subs);
+            applySource(video, switchPlayback.url, true);
+            try { video.currentTime = 0; } catch (e) { }
+            const forceCaptionsHLS = () => {
+              try {
+                if (state.plyr.captions) {
+                  state.plyr.currentTrack = 0;
+                  state.plyr.captions.active = true;
+                }
+                const tt = video.textTracks;
+                if (tt && tt.length > 0) {
+                  for (let i = 0; i < tt.length; i++) tt[i].mode = "disabled";
+                  tt[0].mode = "showing";
+                }
+              } catch (e) { }
+            };
+            if (options.autoplay) {
+              setTimeout(() => {
+                if (state.plyr) state.plyr.play().catch(() => { });
+                forceCaptionsHLS();
+                state.plyr.on("ended", onMediaEnded);
+                state.isSwitchingMedia = false;
+              }, 150);
+            } else {
+              setTimeout(() => {
+                forceCaptionsHLS();
+                state.plyr.on("ended", onMediaEnded);
+                state.isSwitchingMedia = false;
+              }, 150);
+            }
+            updateFitBtnFromVideo(video);
+            return;
+          }
+
           state.plyr.source = {
             type: "video",
             title: item.name || "",
             sources: [{ src: switchPlayback.url }],
-            tracks: (item.subtitles || []).map(s => ({
+            tracks: subs.map(s => ({
               kind: "subtitles",
               label: s.label || t("label_subtitle"),
               srclang: s.lang || "zh",
@@ -371,12 +431,16 @@ export async function playItem(item, opts) {
         state.isSwitchingMedia = true;
         const switchPlayback = await getPlaybackUrl(item);
         if (token !== state.selectionToken) return;
-        video.src = switchPlayback.url;
         video.addEventListener('canplay', () => {
           bus.emit('transcode:status', null);
         }, { once: true });
-        setTracks(video, item.subtitles || []);
-        try { video.load(); } catch { }
+        setTracks(video, subs);
+        if (switchPlayback.url.includes("/api/hls/")) {
+          applySource(video, switchPlayback.url, true);
+        } else {
+          video.src = switchPlayback.url;
+          try { video.load(); } catch { }
+        }
         if (options.autoplay) {
           video.play().then(() => {
             state.isSwitchingMedia = false;
@@ -395,8 +459,7 @@ export async function playItem(item, opts) {
     const videoPlayback = await getPlaybackUrl(item);
     if (token !== state.selectionToken) return;
 
-    video.src = videoPlayback.url;
-    setTracks(video, item.subtitles || []);
+    setTracks(video, subs);
     video.style.display = "block";
     video.addEventListener('canplay', () => {
       bus.emit('transcode:status', null);
@@ -405,7 +468,15 @@ export async function playItem(item, opts) {
     setupErrorHandler(video, onMediaEnded);
     applyPlyr(video, onMediaEnded);
     setupAudioTrackHandling(video);
-    try { video.load(); } catch { }
+
+    if (videoPlayback.url.includes("/api/hls/")) {
+      // HLS：applyPlyr（内部 destroyPlyr）之后 attach hls.js；hls.js 驱动
+      // MediaSource，不能再对元素调用 load()。
+      applySource(video, videoPlayback.url, true);
+    } else {
+      video.src = videoPlayback.url;
+      try { video.load(); } catch { }
+    }
 
     if (options.autoplay) {
       if (state.plyr) {

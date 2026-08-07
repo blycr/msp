@@ -1,6 +1,7 @@
 import { state, el, canStorage } from '../state.js';
 import { t } from '../i18n.js';
-import { gpGet, gpSet, logRemote } from '../api.js';
+import { gpGet, gpSet, logRemote, rememberEnabled } from '../api.js';
+import { saveProgress } from './seek.js';
 import { streamUrl, getCfg } from '../utils.js';
 import { cleanupAudioTrackHandling } from './audio-track.js';
 
@@ -8,6 +9,9 @@ import { cleanupAudioTrackHandling } from './audio-track.js';
 let plyrStallTimer = 0;
 let volumeChangeHandler = null;
 let rateChangeHandler = null;
+let lastSavedAt = 0;
+// 播放进度保存节流间隔（毫秒）：timeupdate 高频触发，每 10s 落一次
+const PROGRESS_SAVE_INTERVAL = 10000;
 
 export function destroyPlyr() {
   if (state.plyr) {
@@ -15,9 +19,9 @@ export function destroyPlyr() {
     state.plyr = null;
   }
   try {
-    if (state.plyrPersistTimer) {
-      clearInterval(state.plyrPersistTimer);
-      state.plyrPersistTimer = 0;
+    if (state.hls) {
+      state.hls.destroy();
+      state.hls = null;
     }
   } catch { }
   try {
@@ -198,6 +202,16 @@ export function applyPlyr(element, onMediaEnded) {
     const instance = event.detail.plyr;
     if (!instance.paused && !instance.seeking) {
       lastProgressTime = Date.now();
+      // 节流保存播放进度（视频/音频），遵守 remember 配置；
+      // 与 plyrStallTimer 心跳共用本回调，避免额外定时器。
+      const cur = state.current;
+      if (cur && (cur.kind === "video" || cur.kind === "audio") && rememberEnabled(cur.kind)) {
+        const now = Date.now();
+        if (now - lastSavedAt >= PROGRESS_SAVE_INTERVAL) {
+          lastSavedAt = now;
+          saveProgress(cur.kind, cur.id, element.currentTime || 0);
+        }
+      }
     }
   });
 
@@ -304,4 +318,36 @@ export function applyPlyr(element, onMediaEnded) {
     };
     element.addEventListener("ratechange", rateChangeHandler);
   } catch { }
+}
+
+// applySource 设置媒体元素的数据源。对 HLS 播放列表 URL（视频转码）优先走
+// hls.js（MediaSource），Safari 回退原生 HLS；其余直连/渐进式 URL 直接设 src。
+// 返回 true 表示已应用；HLS 不支持时返回 false 供调用方回退。
+export function applySource(element, url, isVideo) {
+  if (isVideo && url && (url.includes("/api/hls/") || url.includes(".m3u8"))) {
+    if (window.Hls && Hls.isSupported()) {
+      try {
+        if (state.hls) {
+          try { state.hls.destroy(); } catch { }
+          state.hls = null;
+        }
+        const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
+        state.hls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(element);
+        return true;
+      } catch (err) {
+        console.error("hls.js attach failed", err);
+        return false;
+      }
+    }
+    // Safari 原生 HLS
+    if (element.canPlayType && element.canPlayType("application/vnd.apple.mpegurl")) {
+      element.src = url;
+      return true;
+    }
+    return false;
+  }
+  element.src = url;
+  return true;
 }

@@ -197,15 +197,29 @@ func (mp *MediaProcessor) TranscodeStream(ctx context.Context, inputPath string,
 }
 
 // KillAllTranscodeProcesses kills all active ffmpeg processes for graceful shutdown.
+// HLS session ffmpeg processes live in the same active map, so a single pass
+// covers both progressive and HLS transcodes.
 func (mp *MediaProcessor) KillAllTranscodeProcesses() {
 	mp.transcode.mu.Lock()
-	defer mp.transcode.mu.Unlock()
-
 	for cmd := range mp.transcode.active {
 		if cmd.Process != nil {
 			slog.Info("killing ffmpeg process", "pid", cmd.Process.Pid)
 			_ = cmd.Process.Kill()
 		}
+	}
+	mp.transcode.mu.Unlock()
+
+	// Stop HLS sessions: cancel + remove temp dirs. Their cmd.Wait goroutines
+	// release the transcode slots.
+	mp.hls.mu.Lock()
+	sessions := make([]*HLSSession, 0, len(mp.hls.sessions))
+	for _, s := range mp.hls.sessions {
+		sessions = append(sessions, s)
+	}
+	mp.hls.sessions = make(map[string]*HLSSession)
+	mp.hls.mu.Unlock()
+	for _, s := range sessions {
+		s.stop()
 	}
 }
 
