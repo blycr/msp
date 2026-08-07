@@ -70,7 +70,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 # Linux/macOS
 ./msp
 ```
-3. Open the URL printed in the console, for example `http://127.0.0.1:8099`.
+3. Open the URL printed in the console, for example `http://127.0.0.1:8099`. A QR code is printed under each LAN address — scan it with your phone (on the same LAN) to open the page directly.
 4. Add shared folders from Settings on first launch.
 
 ## Build from Source
