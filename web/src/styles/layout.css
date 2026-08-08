@@ -101,7 +101,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(420px, min(1fr, 1920px)) minmax(260px, 360px);
+  grid-template-columns: minmax(260px, 360px) minmax(420px, 1fr) minmax(260px, 360px);
   grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   width: 100%;
@@ -166,14 +166,8 @@
 /* 桌面折叠态（>1024px）：播放列表列隐藏，播放器获得全部剩余空间。
    移动端（<=1024px）由 mobile-nav 面板切换管理，此规则天然不生效。 */
 @media (min-width: 1025px) {
-  /* 播放器列封顶 1920px：原生 4K（无系统缩放）视口下轨道组不再被 1fr 撑满，
-     整体居中，空白对称分布；<=2636px 视口时 min(1fr, 1920px) = 1fr，行为不变。 */
-  .layout {
-    justify-content: center;
-  }
-
   .layout--pl-collapsed {
-    grid-template-columns: minmax(260px, 360px) minmax(420px, min(1fr, 1920px));
+    grid-template-columns: minmax(260px, 360px) minmax(420px, 1fr);
   }
 
   .layout--pl-collapsed .playlist {
