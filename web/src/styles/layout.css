@@ -105,6 +105,9 @@
   grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   width: 100%;
+  max-width: 2736px; /* 超宽屏（原生 4K）下播放器列 1fr 无上限会膨胀到 3000px+，
+                       容器级封顶后整体居中：播放器 1920 + 侧栏 360×2 + gap 32 + padding 64 */
+  margin-inline: auto;
   min-height: 0;
   padding: 16px clamp(16px, 2.4vw, 32px) 12px;
   overflow: hidden;
