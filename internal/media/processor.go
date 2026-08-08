@@ -22,7 +22,9 @@ type MediaProcessor struct {
 	probePaths struct {
 		ffmpeg  string
 		ffprobe string
+		version string
 		once    sync.Once
+		verOnce sync.Once
 	}
 
 	probeCache sync.Map

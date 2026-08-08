@@ -185,8 +185,80 @@ func (mp *MediaProcessor) CheckFFmpeg() bool {
 		slog.Warn("FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)")
 		return false
 	}
-	slog.Info("FFmpeg found", "path", mp.probePaths.ffmpeg)
+	version := mp.FFmpegVersion()
+	if version == "" {
+		slog.Info("FFmpeg found", "path", mp.probePaths.ffmpeg)
+		return true
+	}
+	slog.Info("FFmpeg found", "path", mp.probePaths.ffmpeg, "version", version)
+	if major, minor, ok := parseFFmpegVersionLine(version); ok && (major < 2 || (major == 2 && minor < 6)) {
+		slog.Warn("FFmpeg version is older than 2.6; video/audio re-encode may fail", "version", version)
+	}
 	return true
+}
+
+// FFmpegVersion returns the first line of `ffmpeg -version` output, or "" if ffmpeg
+// is unavailable or the query failed. The query runs at most once per process.
+func (mp *MediaProcessor) FFmpegVersion() string {
+	if mp == nil {
+		return ""
+	}
+	mp.probePaths.verOnce.Do(func() {
+		path := mp.FFmpegPath()
+		if path == "" {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		//nolint:gosec // path 来自处理器已发现的可信路径
+		out, err := exec.CommandContext(ctx, path, "-hide_banner", "-version").CombinedOutput()
+		if err != nil {
+			slog.Warn("failed to query ffmpeg version", "path", path, "err", err)
+			return
+		}
+
+		line, _, _ := strings.Cut(string(out), "\n")
+		mp.probePaths.version = strings.TrimSpace(line)
+	})
+	return mp.probePaths.version
+}
+
+// parseFFmpegVersionLine extracts major/minor from the first line of
+// `ffmpeg -version` output, e.g. `ffmpeg version 7.1.2 Copyright ...`. Returns ok=false
+// for snapshot builds (`N-123456-gabc`, `git-...`) which are treated as unknown-newer.
+func parseFFmpegVersionLine(line string) (major, minor int, ok bool) {
+	const prefix = "ffmpeg version "
+	if !strings.HasPrefix(line, prefix) {
+		return 0, 0, false
+	}
+	token := line[len(prefix):]
+	if i := strings.IndexByte(token, ' '); i >= 0 {
+		token = token[:i]
+	}
+	if token == "" || token[0] < '0' || token[0] > '9' {
+		return 0, 0, false
+	}
+	if i := strings.IndexByte(token, '-'); i >= 0 {
+		token = token[:i]
+	}
+	parts := strings.SplitN(token, ".", 3)
+	major = atoiLeadingDigits(parts[0])
+	if len(parts) > 1 {
+		minor = atoiLeadingDigits(parts[1])
+	}
+	return major, minor, true
+}
+
+// atoiLeadingDigits parses the leading digit run of s; returns 0 if none.
+func atoiLeadingDigits(s string) int {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
 }
 
 func (mp *MediaProcessor) CheckFFprobe() bool {

@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"os"
+	"path/filepath"
+	"time"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,5 +36,71 @@ func TestHandleThumbnail_InvalidID(t *testing.T) {
 	h.HandleThumbnail(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestThumbIsFresh(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "movie.mp4")
+	thumb := filepath.Join(dir, "thumb.jpg")
+	//nolint:gosec // test fixture file
+	if err := os.WriteFile(src, []byte("media"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// 缩略图不存在
+	if thumbIsFresh(src, thumb) {
+		t.Error("expected false when thumb missing")
+	}
+
+	// 空缩略图
+	//nolint:gosec // test fixture file
+	if err := os.WriteFile(thumb, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if thumbIsFresh(src, thumb) {
+		t.Error("expected false when thumb empty")
+	}
+
+	// 源文件不存在
+	if thumbIsFresh(filepath.Join(dir, "missing.mp4"), thumb) {
+		t.Error("expected false when source missing")
+	}
+
+	//nolint:gosec // test fixture file
+	if err := os.WriteFile(thumb, []byte("thumb"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	base := time.Now()
+	//nolint:gosec // test fixture files
+	if err := os.Chtimes(thumb, base, base); err != nil {
+		t.Fatal(err)
+	}
+	//nolint:gosec // test fixture files
+	if err := os.Chtimes(src, base.Add(-time.Minute), base.Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	// 缩略图新于源文件 → 新鲜
+	if !thumbIsFresh(src, thumb) {
+		t.Error("expected true when thumb newer than source")
+	}
+
+	// 源文件被替换（mtime 新于缩略图）→ stale
+	//nolint:gosec // test fixture files
+	if err := os.Chtimes(src, base.Add(time.Minute), base.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if thumbIsFresh(src, thumb) {
+		t.Error("expected false when source replaced (newer than thumb)")
+	}
+
+	// 容差范围内（源仅晚 1s）→ 仍视为新鲜
+	//nolint:gosec // test fixture files
+	if err := os.Chtimes(src, base.Add(time.Second), base.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if !thumbIsFresh(src, thumb) {
+		t.Error("expected true within thumbFreshTolerance")
 	}
 }

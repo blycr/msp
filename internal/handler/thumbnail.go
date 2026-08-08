@@ -35,6 +35,27 @@ const thumbnailSeekTime = "5"
 // 因此 max-age 不能取更大的量级，7 天是稳妥上限。
 const thumbnailCacheControl = "public, max-age=604800"
 
+// thumbFreshTolerance 是缩略图新鲜度判断的时间容差：
+// 源文件 mtime 在粗粒度文件系统上可能略早于生成时刻，直接比较会误判为过期。
+const thumbFreshTolerance = 2 * time.Second
+
+// thumbIsFresh 判断 thumbPath 是否为 filePath 的有效缓存：存在、非空、且
+// mtime 不早于源文件（±thumbFreshTolerance）。源文件被替换后 mtime 更新，
+// 旧缩略图即失效，调用方重新生成并覆盖同名文件（URL 不变，无缓存抖动）。
+func thumbIsFresh(filePath, thumbPath string) bool {
+	//nolint:gosec // filePath 由调用方经 DecodeID + NormalizePath 校验
+	srcInfo, err := os.Stat(filePath)
+	if err != nil {
+		return false
+	}
+	//nolint:gosec // thumbPath 是由 SHA-256 哈希派生的本地缓存路径
+	thumbInfo, err := os.Stat(thumbPath)
+	if err != nil || thumbInfo.Size() <= 0 {
+		return false
+	}
+	return !thumbInfo.ModTime().Before(srcInfo.ModTime().Add(-thumbFreshTolerance))
+}
+
 // noStoreHeader prevents the browser from caching error responses so that
 // frontend retry logic can re-request a thumbnail that previously failed.
 func noStoreHeader(w http.ResponseWriter) {
@@ -75,9 +96,9 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(filePath)))
 	thumbPath := filepath.Join(thumbDir, hash+".jpg")
 
-	//nolint:gosec
-	if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
+	if thumbIsFresh(filePath, thumbPath) {
 		w.Header().Set("Cache-Control", thumbnailCacheControl)
+		//nolint:gosec // G703: thumbPath 是由 SHA-256 哈希派生的本地缓存路径
 		http.ServeFile(w, r, thumbPath)
 		return
 	}
@@ -102,9 +123,9 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 拿到槽位后再检查缓存：排队期间可能已被其它请求生成好
-	//nolint:gosec
-	if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
+	if thumbIsFresh(filePath, thumbPath) {
 		w.Header().Set("Cache-Control", thumbnailCacheControl)
+		//nolint:gosec // G703: thumbPath 是由 SHA-256 哈希派生的本地缓存路径
 		http.ServeFile(w, r, thumbPath)
 		return
 	}
@@ -222,12 +243,12 @@ func (h *Handler) pregenerateThumbnails(ctx context.Context, items []domain.Medi
 			continue
 		}
 		thumbPath := filepath.Join(thumbDir, fmt.Sprintf("%x", sha256.Sum256([]byte(filePath)))+".jpg")
-		//nolint:gosec // thumbPath 是由 SHA-256 哈希派生的本地缓存路径
-		if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
-			continue
-		}
 		//nolint:gosec // filePath 来自本库扫描结果
 		if _, err := os.Stat(filePath); err != nil {
+			continue
+		}
+		// 已存在且新鲜（mtime 不早于源文件）则跳过；stale 缩略图重新生成
+		if thumbIsFresh(filePath, thumbPath) {
 			continue
 		}
 
@@ -244,8 +265,7 @@ func (h *Handler) pregenerateThumbnails(ctx context.Context, items []domain.Medi
 			return
 		}
 		// 拿到槽位后复查缓存：排队期间可能已被请求路径生成。
-		//nolint:gosec // thumbPath 是由 SHA-256 哈希派生的本地缓存路径
-		if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
+		if thumbIsFresh(filePath, thumbPath) {
 			<-thumbSema
 			continue
 		}

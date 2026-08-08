@@ -232,3 +232,29 @@ func TestParseProbeJSONWithSubtitles(t *testing.T) {
 	assert.Equal(t, "ass", info.Subtitles[1].CodecName)
 	assert.Equal(t, "eng", info.Subtitles[1].Language)
 }
+
+func TestParseFFmpegVersionLine(t *testing.T) {
+	cases := []struct {
+		line  string
+		major int
+		minor int
+		ok    bool
+	}{
+		{"ffmpeg version 7.1.2 Copyright (c) 2000-2024 the FFmpeg developers", 7, 1, true},
+		{"ffmpeg version 2.6.2 Copyright (c) 2000-2016 the FFmpeg developers", 2, 6, true},
+		{"ffmpeg version 2.4.10-0ubuntu0.18.04.1", 2, 4, true},
+		{"ffmpeg version 6.0-full_build-www.gyan.dev", 6, 0, true},
+		{"ffmpeg version 4.4.4", 4, 4, true},
+		{"ffmpeg version N-123456-gabc123", 0, 0, false},
+		{"ffmpeg version git-2024-01-01-abc123", 0, 0, false},
+		{"not an ffmpeg line", 0, 0, false},
+	}
+	for _, c := range cases {
+		major, minor, ok := parseFFmpegVersionLine(c.line)
+		assert.Equal(t, c.ok, ok, "ok for %q", c.line)
+		if c.ok {
+			assert.Equal(t, c.major, major, "major for %q", c.line)
+			assert.Equal(t, c.minor, minor, "minor for %q", c.line)
+		}
+	}
+}
