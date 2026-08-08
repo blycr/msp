@@ -7,10 +7,10 @@
 
 ```json
 {
-  // 日志级别：debug, info, error, none
-  "logLevel": "info",
+  // 日志级别：debug, info, warning, error, none（默认 warning）
+  "logLevel": "warning",
   
-  // 日志文件路径（相对于可执行文件目录）
+  // 日志文件路径；留空时写入 <exe目录>/logs/msp.log，设置后按所给路径（相对路径基于启动目录）
   "logFile": "msp.log",
   
   // 服务器端口
@@ -77,19 +77,19 @@
       // 开启后，浏览器不支持的音频格式（如 AC-3、DTS、TrueHD）会自动转码为 AAC
       "transcode": true
     },
-    “video”: {
-      “enabled”: true,
-      “scope”: “folder”,
+    "video": {
+      "enabled": true,
+      "scope": "folder",
 
       // 是否启用视频转码（默认 false）
       // 开启后，后端会根据实际编码信息（ffprobe 为主、字节嗅探兜底）判断是否需要转码
       // H.264/AAC 等浏览器兼容编码 → 直连原始流
       // HEVC/AV1/AC-3/DTS 等不兼容编码 → 自动转码（视频走 HLS，支持原生拖动）
       // FFmpeg 路径支持 7 层搜索，也可通过 MSP_FFMPEG_PATH 环境变量指定
-      “transcode”: true,
+      "transcode": true,
 
       // 是否记住播放位置（默认 true）
-      “resume”: true,
+      "resume": true,
 
       // 转码编码配置
       "encoding": {
@@ -152,9 +152,12 @@
     // 是否启用 PIN 认证
     "pinEnabled": false,
     
-    // PIN 码（默认：0000）
+    // PIN 码（默认：空，即未设置）
     // 必须为 4-8 位数字（仅 0-9）
-    "pin": "0000",
+    "pin": "",
+
+    // pinHash：持久化存储的 bcrypt 哈希（由 pin 自动生成并回写，无需手填）
+    "pinHash": "",
 
     // 是否信任反向代理转发头（默认 false）
     // 家庭局域网模式下通常保持 false，客户端 IP 直接取 RemoteAddr
@@ -173,7 +176,7 @@
     "ipWhitelist": ["127.0.0.1", "192.168.1.0/24"],
     "ipBlacklist": [],
     "pinEnabled": false,
-    "pin": "0000"
+    "pin": ""
   }
 }
 ```

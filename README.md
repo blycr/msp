@@ -75,7 +75,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 
 ## Build from Source
 
-Requirements: `Go 1.25+`, `Node.js 18+` (frontend build), and `PowerShell 7+ (pwsh)` on Windows (`.ps1` scripts auto re-exec from 5.1).  
+Requirements: `Go 1.25+`, `bun 1.3.x` (frontend build), and `PowerShell 7+ (pwsh)` on Windows (`.ps1` scripts auto re-exec from 5.1).  
 See [Scripts Guide](scripts/README.md) for detailed build and dev script options.
 
 ```bash

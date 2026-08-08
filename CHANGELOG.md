@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.12.0
+
+- **布局与响应式**：
+  - 修复 981–1024px 断点缝隙：桌面三栏 grid 最小需求 ~1021px，而移动断点在 980px，两者之间右侧播放列表列被三层 overflow:hidden 裁剪不可恢复；断点统一上移至 1024px（CSS + mobile.js/play.js 三处同步），该区间改用移动布局
+  - 桌面端（>1024px）播放列表列支持折叠/展开：收起按钮位于播放列表面板头部（36px icon-btn + chevron），恢复入口在顶栏（ghost + 标签）；状态经 localStorage 持久化，跨断点自动恢复/清除，移动端布局不受影响（mobile-nav 独立管理）
+- **前端样式规范**：
+  - 全部 inline SVG 收敛到 icons.js 注册表单一来源（顶栏 settings/refresh、下拉箭头、空态 play 三角、音频占位符、sortOrder 重复 SVG 共 6 处）；inline 样式移入组件 CSS
+  - 对话框开合动画真正生效：可见性由 [hidden] 属性改为 .dialog--open 类驱动（opacity/visibility 过渡），声明的 0.3s 淡入 + scale 不再被 display:none 杀死；PIN 与设置对话框同步
+  - 原生 alert() 替换为设置对话框内联提示（4s 自动消失，错误态 danger 色），覆盖添加共享失败/保存过滤成功失败/移除共享失败
+  - 清理死代码/死令牌：--transition、.theme-fade 死类、topbar__lang 桌面字号补齐
+- **缩略图自愈**：
+  - 缩略图缓存按源文件 mtime 判定新鲜度（±2s 容差）：媒体内容替换后下次请求自动重新生成并覆盖同名文件（URL 不变），服务端不再无限期提供旧图（此前 7 天 max-age 仅约束客户端缓存）
+- **可观测性**：
+  - 启动时记录 ffmpeg 版本号（一次性查询、5s 超时），版本 <2.6 时告警（仅诊断，不拦截任何功能）
+- **Docker 端到端可用**：
+  - 修复 bun.lockb 不存在导致前端构建阶段直接失败；appuser 无 /app 写权限导致配置初始化 log.Fatal 崩溃循环；symlink+tmp+rename 冲突导致数据不持久
+  - 运行时内置 ffmpeg（apk）；`./data:/app` 数据卷持久化全部运行时数据；entrypoint 首启播种 /media 共享；GOPROXY/BUN 国内源；新增 .dockerignore
+- **前端代码卫生**：
+  - 断开两处循环依赖（resume↔player、shares↔actions↔ui）；清除死代码（mediaErrorText 及 5 个孤儿 i18n key、state.queue/queueActive）
+- **文档修正**：
+  - CodeMap：热重载 5s→2s、progress 参数 mediaId→id、pin 仅 POST、ID 为 AES-GCM 加密、端点表补齐等 10 处误导修正；API_REFERENCE 补 4 个缺失端点与速率限制；TRANSCODING 改 ffprobe 优先描述；CONFIG_EXAMPLE logLevel/PIN 默认值修正；README 构建要求 Node.js→bun
+
 ## 1.11.0
 
 - **启动体验**：

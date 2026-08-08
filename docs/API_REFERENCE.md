@@ -82,13 +82,13 @@
 - **端点**: `GET /api/media`
 - **参数**:
   - `refresh` (可选): `1` 表示强制重新扫描磁盘（后台进行）。
-  - `limit` (可选): 限制返回的项目数量（用于低内存模式）。
+  - `limit` (可选): 限制返回的项目数量（前端首屏快速加载 + 分页使用，配合各分类的 *Total 字段）。
 - **响应**: `MediaResponse`
   ```json
   {
     "videos": [
       {
-        "id": "base64_path...",
+        "id": "media_id...",
         "name": "Movie.mp4",
         "ext": ".mp4",
         "kind": "video",
@@ -204,11 +204,18 @@
 - **请求体**:
   ```json
   {
-    "id": "base64_path...",
+    "id": "media_id...",
     "time": 120.5
   }
   ```
 - **响应**: 204 No Content
+
+### 获取最近播放记录
+返回最近播放过的媒体及其进度。
+
+- **端点**: `GET /api/progress/recent`
+- **参数**: `limit` (可选，1-50，默认 10)
+- **响应**: `{"items": [{"mediaId": "...", "time": 120.5, "updatedAt": ...}]}`
 
 ### 获取偏好设置
 获取前端存储的所有用户偏好（如音量、主题等）。
@@ -228,6 +235,15 @@
     }
   }
   ```
+
+---
+
+### 收藏管理
+管理收藏的媒体。
+
+- **端点**: `GET /api/favorites` — 返回收藏列表 `{"items": [{"mediaId": "..."}]}`
+- **端点**: `POST /api/favorites` — 添加收藏，请求体 `{"mediaId": "..."}`，响应 `{"ok": true}`
+- **端点**: `DELETE /api/favorites?id=...` — 移除收藏，响应 `{"ok": true}`
 
 ---
 
@@ -266,3 +282,29 @@
   }
   ```
 - **响应**: 204 No Content
+
+---
+
+## 7. 缩略图 (Thumbnail)
+
+- **端点**: `GET /api/thumbnail`
+- **参数**: `id` — 媒体文件 ID（视频或图片）
+- **响应**: JPEG 图片；生成队列超时返回 503（`Cache-Control: no-store`，前端会重试）；成功响应 `Cache-Control: public, max-age=604800`
+- **缓存**: `<exe_dir>/thumbs/<sha256(绝对路径)>.jpg`，按源文件 mtime 判断新鲜度，内容变化后自动重新生成
+
+---
+
+## 8. 健康检查与速率限制
+
+### 健康检查
+
+- **端点**: `GET /healthz`（无需 PIN）
+- **响应**: `{"status": "ok", "db": true, "uptime": 123}`（`db` 反映 SQLite 可用性）
+
+### 速率限制（仅非本地/LAN 客户端；Local 与 LAN 豁免）
+
+| 端点 | 限制 |
+|------|------|
+| `POST /api/pin` | 0.2/s（突发 5）；单 IP 连续 5 次失败封禁 15 分钟 |
+| `GET /api/media?refresh=1` | 1/30s（突发 1） |
+| `POST /api/config`、`POST /api/shares` | 0.2/s（突发 3），且仅允许本地访问（远程 403） |

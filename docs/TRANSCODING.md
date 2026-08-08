@@ -14,7 +14,7 @@ MSP 采用 **"后端决策 + 前端执行"** 的播放架构（v1.2.0+）：
     ▼
 前端 getPlaybackUrl(item)
     │
-    ├──► GET /api/probe?id=xxx（字节嗅探 ~10-50ms）
+    ├──► GET /api/probe?id=xxx（ffprobe 探测，5 分钟缓存；无 ffprobe 时字节嗅探兜底）
     │       └── 后端返回 playback.mode: "direct" | "transcode"
     │
     ├──► "direct" → video.src = streamUrl(id)
@@ -30,10 +30,10 @@ MSP 采用 **"后端决策 + 前端执行"** 的播放架构（v1.2.0+）：
 ```
 
 **核心优势**：
-- 决策基于**实际编码**（字节嗅探），非文件扩展名
+- 决策基于**实际编码**（ffprobe 为主、字节嗅探兜底），非文件扩展名
 - 同一容器（MKV）中的 H.264 和 H.265 会得到不同策略
 - 音频编码检查解决"有画无声"——Chrome 不会对 AC-3 抛 error，但后端知道它不兼容
-- 首次播放延迟从 5-10 秒（错误回退）降至约 50ms（probe）
+- 首次播放延迟从 5-10 秒（错误回退）降至一次 probe（ffprobe 百毫秒级，命中缓存后近零）
 
 ---
 
@@ -50,7 +50,7 @@ FFmpeg/ffprobe 查找采用 7 层优先级搜索（`internal/media/probe.go`）�
 | 3 | `bin/` 子目录 | 可执行文件的 bin/ 子目录 |
 | 4 | 当前工作目录 | `./ffmpeg` |
 | 5 | `CWD/bin/` | `./bin/ffmpeg` |
-| 6 | 平台特定路径 | Windows: `C:\FFmpeg\bin`；Linux: `/usr/local/bin`；macOS: `/opt/homebrew/bin` |
+| 6 | 平台特定路径 | Windows: `C:\FFmpeg\bin`、`C:\Program Files\FFmpeg\bin`；Linux: `/usr/local/bin`、`/usr/bin`；macOS: `/opt/homebrew/bin` |
 | 7 | 系统 PATH | `exec.LookPath`，最后回退 |
 
 ### 2.2 缓存机制
@@ -89,11 +89,11 @@ func (mp *MediaProcessor) resolveFFmpegPaths() {
 
 ```
 # FFmpeg 找到
-[INFO] FFmpeg found: C:\Users\<username>\bin\ffmpeg.exe
+[INFO] FFmpeg found: C:\Users\<username>\bin\ffmpeg.exe version=ffmpeg version 7.1.2 ...
 转码引擎: hardware (h264_nvenc) (并发上限: 4)
 
 # FFmpeg 未找到
-[WARN] FFmpeg not found (searched: executable dir, ./bin, platform paths, PATH)
+[WARN] FFmpeg not found (searched: MSP_FFMPEG_PATH, executable dir, ./bin, platform paths, PATH)
 转码引擎: unavailable (FFmpeg not found) (并发上限: 0)
 ```
 
@@ -251,19 +251,19 @@ processor.DetectHWAccel(mode)
 ffmpeg -hwaccel cuda -i input.mkv \
   -c:v h264_nvenc -preset p4 -tune ll -pix_fmt yuv420p \
   -c:a aac \
-  -movflags +faststart -f mp4 pipe:1
+  -movflags frag_keyframe+empty_moov+default_base_moof+faststart -f mp4 pipe:1
 
 # 软件编码
 ffmpeg -i input.mkv \
-  -c:v libx264 -preset fast -crf 23 \
+  -c:v libx264 -preset fast -pix_fmt yuv420p -threads 2 \
   -c:a aac \
-  -movflags +faststart -f mp4 pipe:1
+  -movflags frag_keyframe+empty_moov+default_base_moof+faststart -f mp4 pipe:1
 
 # 视频流复制（H.264 源）
 ffmpeg -i input.mp4 \
   -c:v copy \
   -c:a aac \
-  -movflags +faststart -f mp4 pipe:1
+  -movflags frag_keyframe+empty_moov+default_base_moof+faststart -f mp4 pipe:1
 ```
 
 ### 5.4 HLS 转码（视频，v1.11.0+）

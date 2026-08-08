@@ -107,10 +107,12 @@ msp/
 │   │           ├── bindings.js # 事件绑定
 │   │           ├── render.js   # 界面渲染
 │   │           ├── pager.js    # 通用分页器组件（文件列表/播放列表共用）
+│   │           ├── panel.js    # 桌面端播放列表列折叠/展开（>1024px）
+│   │           ├── mobile.js   # 移动端面板切换（<=1024px，mobile-nav）
 │   │           ├── settings.js # 设置面板
 │   │           └── shares.js   # 共享目录管理
 │   ├── public/                 # 静态资源
-│   │   └── assets/             # 第三方库（Plyr、pinyin-pro）
+│   │   └── assets/             # 第三方库（Plyr、pinyin-pro、hls.js）
 │   ├── index.html              # HTML 模板
 │   └── vite.config.js          # Vite 配置
 ├── scripts/                    # 构建脚本
@@ -212,6 +214,9 @@ main.go
     │
     ├──► 设置 GC 参数、日志格式
     │
+    ├──► 初始化数据库 InitSQLite()
+    │       └── 失败时降级模式（进度/收藏/偏好不可用，继续启动）
+    │
     ├──► 初始化 IDCodec
     │       └── util.NewIDCodec(key) — 加载/生成 msp.key
     │           └── 确定性 nonce：HMAC-SHA256(key, path)[:gcm.NonceSize()]
@@ -223,6 +228,8 @@ main.go
     │           └── 初始化 MediaService (含 MediaCache + MediaProcessor)
     │
     ├──► 加载或初始化配置 LoadOrInitConfig()
+    │
+    ├──► PIN 明文 → bcrypt 哈希迁移 SanitizeSecurity()
     │
     ├──► 设置日志 SetupLogger()
     │
@@ -255,6 +262,12 @@ main.go
     │       ├── /api/prefs    -> HandlePrefs
     │       ├── /api/log      -> HandleLog
     │       ├── /api/pin      -> HandlePIN
+    │       ├── /api/thumbnail -> HandleThumbnail
+    │       ├── /api/favorites -> HandleFavorites
+    │       ├── /api/progress/recent -> HandleRecentProgress
+    │       ├── /api/hls/      -> HandleHLS
+    │       ├── /api/ip        -> HandleIP
+    │       ├── /healthz       -> 健康检查
     │       └── /             -> ServeEmbeddedWeb
     │
     ├──► 启动 HTTP 服务器
@@ -469,7 +482,7 @@ app.js: boot()
 ```go
 // MediaItem - 媒体文件实体
 type MediaItem struct {
-    ID         string     // 路径的 Base64 编码（URL Safe）
+    ID         string     // 路径的 AES-GCM 加密编码（无密钥时回退 Base64 URL Safe）
     Path       string     // 绝对路径（不序列化到 JSON）
     Name       string     // 文件名
     Ext        string     // 扩展名（小写）
@@ -481,6 +494,8 @@ type MediaItem struct {
     CoverID    string     // 音频封面图 ID
     LyricsID   string     // 歌词文件 ID
     ScanID     int64      // 扫描批次 ID
+    ShareRoot  string     // 所属共享目录根路径
+    RelPath    string     // 相对共享目录的路径
 }
 
 // PlaybackProgress - 播放进度
@@ -579,12 +594,21 @@ type Logger interface {
 type ProgressStore interface {
     GetProgress(ctx context.Context, mediaID string) (float64, error)
     SetProgress(ctx context.Context, mediaID string, t float64) error
+    ListRecentProgress(ctx context.Context, limit int) ([]domain.PlaybackProgress, error)
 }
 
 // PrefsStore - 用户偏好存储
 type PrefsStore interface {
     GetAllPrefs(ctx context.Context) (map[string]string, error)
-    SetPrefs(ctx context.Context, kv map[string]string) error
+    SetPrefs(ctx context.Context, prefs map[string]string) error
+}
+
+// FavoriteStore - 收藏存储
+ FavoriteStore interface {
+    ListFavorites(ctx context.Context) ([]domain.Favorite, error)
+    AddFavorite(ctx context.Context, mediaID string) error
+    RemoveFavorite(ctx context.Context, mediaID string) error
+    IsFavorite(ctx context.Context, mediaID string) (bool, error)
 }
 ```
 
@@ -687,14 +711,19 @@ MediaProcessor.TranscodeStream(ctx, inputPath, opts)
 | `/api/config` | GET/POST | 获取/更新配置 | - |
 | `/api/shares` | POST | 共享目录操作（增删改） | op, label, path |
 | `/api/media` | GET | 获取媒体列表 | refresh, limit |
-| `/api/stream` | GET/HEAD | 流媒体传输 | id, transcode, format, bitrate, start |
+| `/api/stream` | GET/HEAD | 流媒体传输 | id, transcode, hls, format, bitrate, start |
 | `/api/subtitle` | GET | 获取字幕内容 | id |
 | `/api/probe` | GET | 探测媒体信息 | id |
-| `/api/progress` | GET/POST | 获取/更新播放进度 | mediaId, time |
-| `/api/prefs` | GET/POST | 获取/更新用户偏好 | prefs |
+| /api/progress | GET/POST | 获取/更新播放进度 | id, time |
+| /api/progress/recent | GET | 最近播放记录 | limit |
+| /api/prefs | GET/POST | 获取/更新用户偏好 | prefs |
+| /api/favorites | GET/POST/DELETE | 收藏管理 | mediaId, id |
+| /api/thumbnail | GET | 视频缩略图 | id |
 | `/api/log` | POST | 客户端日志上报 | level, msg |
-| `/api/pin` | GET/POST | PIN 码验证 | pin |
-| `/api/ip` | GET | 获取服务器 IP | - |
+| `/api/pin` | POST | PIN 码验证 | pin |
+| /api/ip | GET | 获取服务器 IP | - |
+| /api/hls/ | GET/HEAD | HLS 播放列表与分段 | sessionID, 文件名 |
+| /healthz | GET | 健康检查 | - |
 
 ---
 
@@ -703,7 +732,7 @@ MediaProcessor.TranscodeStream(ctx, inputPath, opts)
 ```
 Server.WatchConfig()
     │
-    ├── 每 5 秒检查配置文件修改时间
+    ├── 每 2 秒检查配置文件修改时间
     │
     ├── 检测到修改?
     │       │
@@ -736,8 +765,8 @@ Server.WatchConfig()
 
 ```
 HandlePIN()
-    ├── GET -> 返回 PIN 是否启用
-    └── POST -> 验证 PIN 码
+    ├──（无 GET 分支）
+    └── POST -> 验证 PIN 码（PIN 是否启用通过 GET /api/config 反映）
             ├── 匹配 -> 创建 Session Cookie
             └── 不匹配 -> 返回 401
 
@@ -785,9 +814,9 @@ WithSecurity 中间件
 
 ```dockerfile
 # 多阶段构建
-1. 前端构建（node:22-alpine）
+1. 前端构建（oven/bun:1.3-alpine）
 2. 后端编译（golang:1.25-alpine）
-3. 运行时（alpine）
+3. 运行时（alpine + ffmpeg）
 ```
 
 ---
@@ -828,8 +857,8 @@ WithSecurity 中间件
 ### 日志级别
 
 - `debug` - 详细调试信息
-- `info` - 常规操作日志（默认）
-- `warn` - 警告信息
+- `info` - 常规操作日志
+- `warning` - 警告信息（默认）
 - `error` - 错误信息
 
 ### 关键指标
@@ -840,5 +869,5 @@ WithSecurity 中间件
 
 ---
 
-*文档版本: 1.2*
-*最后更新: 2026-07-18*
+*文档版本: 1.3*
+*最后更新: 2026-08-08*
