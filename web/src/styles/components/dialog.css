@@ -167,3 +167,15 @@
   gap: 8px;
   padding: 14px 22px;
 }
+
+/* 黑名单输入：占满剩余宽度（原 inline flex 样式吸收） */
+#blFiles,
+#blFolders {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 设置对话框内联提示（#dlgMsg）错误态 */
+.dialog__msg--error {
+  color: var(--md-danger);
+}

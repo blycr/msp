@@ -41,9 +41,7 @@ export function initTheme() {
     if (document.startViewTransition) {
       document.startViewTransition(apply);
     } else {
-      document.documentElement.classList.add("theme-fade");
       apply();
-      setTimeout(() => document.documentElement.classList.remove("theme-fade"), 300);
     }
   });
 
@@ -57,9 +55,7 @@ export function initTheme() {
       if (document.startViewTransition) {
         document.startViewTransition(apply);
       } else {
-        document.documentElement.classList.add("theme-fade");
         apply();
-        setTimeout(() => document.documentElement.classList.remove("theme-fade"), 300);
       }
     }
   });

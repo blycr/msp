@@ -88,6 +88,11 @@
   flex: 0 0 auto;
 }
 
+.topbar__lang {
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -156,4 +161,16 @@
 
 .footer__sep {
   color: var(--md-border);
+}
+
+/* 桌面折叠态（>1024px）：播放列表列隐藏，播放器获得全部剩余空间。
+   移动端（<=1024px）由 mobile-nav 面板切换管理，此规则天然不生效。 */
+@media (min-width: 1025px) {
+  .layout--pl-collapsed {
+    grid-template-columns: minmax(260px, 360px) minmax(420px, 1fr);
+  }
+
+  .layout--pl-collapsed .playlist {
+    display: none;
+  }
 }

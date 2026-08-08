@@ -121,12 +121,26 @@ export function setMeta(text) {
   meta.innerHTML = html;
 }
 
+// 设置对话框内联提示（替代原生 alert，符合设计语言）。自动 4 秒后消失。
+let dlgMsgTimer = 0;
+export function setDlgMsg(text, isError) {
+  const msg = el("dlgMsg");
+  if (!msg) return;
+  msg.textContent = text || "";
+  msg.hidden = !text;
+  msg.classList.toggle("dialog__msg--error", !!isError);
+  clearTimeout(dlgMsgTimer);
+  if (text) dlgMsgTimer = setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
 export function showDlg(show) {
   if (show && state.accessLevel !== 'local') {
     return;
   }
-  el("dlgBackdrop").hidden = !show;
-  el("dlg").hidden = !show;
+  // 类驱动的可见性（见 other.css .dialog--open）：[hidden] 会被 display:none
+  // 杀死过渡，类切换让声明的淡入/scale 动画真正生效。
+  el('dlgBackdrop').classList.toggle('dialog--open', !!show);
+  el('dlg').classList.toggle('dialog--open', !!show);
 }
 
 export function updateUIForLang() {

@@ -8,8 +8,8 @@ export function showPinDialog() {
   const input = el("pinInput");
   const errorEl = el("pinError");
 
-  backdrop.hidden = false;
-  dialog.hidden = false;
+  backdrop.classList.add("dialog--open");
+  dialog.classList.add("dialog--open");
 
   // Update i18n
   el("pinDlgTitle").textContent = t("pin_title");
@@ -23,8 +23,8 @@ export function showPinDialog() {
 }
 
 function hidePinDialog() {
-  el("pinBackdrop").hidden = true;
-  el("pinDlg").hidden = true;
+  el("pinBackdrop").classList.remove("dialog--open");
+  el("pinDlg").classList.remove("dialog--open");
   el("pinInput").value = "";
   el("pinError").textContent = "";
 }

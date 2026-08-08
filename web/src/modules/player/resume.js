@@ -4,7 +4,7 @@ import { getCfg } from '../utils.js';
 import { setPlaylist, buildPlaylist, generatePlayOrder, playNext, playAtIndex } from '../playlist.js';
 import { updateNavLabels } from '../playlist.js';
 import { restorePlaybackTime, getActiveMedia } from './seek.js';
-import { playItem } from '../player.js';
+import { playItem } from './play.js';
 
 let hotkeyHandler = null;
 

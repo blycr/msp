@@ -118,16 +118,6 @@ export async function startHlsSession(id) {
   }
 }
 
-function mediaErrorText(err) {
-  if (!err) return "";
-  switch (err.code) {
-    case 1: return t("err_aborted");
-    case 2: return t("err_network");
-    case 3: return t("err_decode");
-    case 4: return t("err_src");
-    default: return t("err_unknown");
-  }
-}
 
 let progressBatchQueue = {};
 let progressBatchTimer = 0;

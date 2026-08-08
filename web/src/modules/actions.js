@@ -6,7 +6,6 @@ import { hideAllMedia, bindGlobalHotkeys, resumeLast, saveProgress } from './pla
 import { initTheme } from './theme.js';
 import { bindPinDialog, checkPinRequired, showPinDialog } from './pin.js';
 import { bus } from './eventbus.js';
-import './ui.js';
 
 export async function loadConfig() {
   try {

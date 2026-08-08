@@ -32,10 +32,29 @@ body {
     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Dialog exit state: fade out + slight scale down + slight upward shift for smooth dismiss */
-.dialog[hidden] {
+/* Dialog open/close: class-driven visibility. [hidden] would be killed by
+   display:none (base.css), so .dialog--open toggles opacity/visibility and the
+   declared fade + slight scale animation actually runs. */
+.dialog,
+.dialog__backdrop {
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.dialog {
   transform: translate(-50%, -48%) scale(0.96);
+}
+
+.dialog.dialog--open,
+.dialog__backdrop.dialog--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.dialog.dialog--open {
+  transform: translate(-50%, -50%);
 }
 
 /* Optimize media transitions (opacity only, 0.25s); removed will-change to avoid over-compositing */
@@ -72,9 +91,13 @@ body {
   transition: opacity 0.3s ease, backdrop-filter 0.3s ease;
 }
 
-/* Backdrop exit state: fade out and remove blur to avoid compositor jank */
-.dialog__backdrop[hidden] {
-  opacity: 0;
+/* Backdrop hidden state: blur removed to avoid compositor jank during fade-out */
+.dialog__backdrop {
   backdrop-filter: blur(0px);
   -webkit-backdrop-filter: blur(0px);
+}
+
+.dialog__backdrop.dialog--open {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }

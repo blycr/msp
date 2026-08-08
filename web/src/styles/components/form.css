@@ -10,7 +10,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
-  margin-top: 10px !important;
+  margin-top: 8px;
 }
 
 #sortOrder {
@@ -154,15 +154,19 @@
 }
 
 .dropdown__arrow {
-  width: 16px;
-  height: 16px;
+  display: inline-flex;
   flex: 0 0 auto;
   margin-left: 8px;
+}
+
+.dropdown__arrow svg {
+  width: 16px;
+  height: 16px;
   stroke: var(--md-sub);
   transition: transform 0.18s ease;
 }
 
-.dropdown--open .dropdown__arrow {
+.dropdown--open .dropdown__arrow svg {
   transform: rotate(180deg);
 }
 

@@ -42,12 +42,30 @@
   background: var(--md-active) !important;
 }
 
-.playlist__title {
+.playlist__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 16px 16px 12px;
+}
+
+.playlist__title {
+  min-width: 0;
+  overflow: hidden;
   color: var(--md-text);
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 收起播放列表列（桌面）：36px 次级密度，与 .pager__btn 同档 */
+.pl-toggle {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
 }
 
 .playlist__meta {

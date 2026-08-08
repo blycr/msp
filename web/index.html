@@ -21,26 +21,16 @@
       <button class="theme-btn topbar__lang" id="langBtn" type="button" title="Language" aria-label="Language" data-i18n-aria-label="language">EN</button>
       <button class="theme-btn" id="themeBtn" type="button" title="Switch Theme" data-i18n-title="theme" aria-label="Switch Theme" data-i18n-aria-label="theme"></button>
       <button class="btn btn--ghost topbar__action" id="btnSettings" type="button" aria-label="Settings" data-i18n-aria-label="settings">
-        <svg class="topbar__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="4" y1="21" x2="4" y2="14"></line>
-          <line x1="4" y1="10" x2="4" y2="3"></line>
-          <line x1="12" y1="21" x2="12" y2="12"></line>
-          <line x1="12" y1="8" x2="12" y2="3"></line>
-          <line x1="20" y1="21" x2="20" y2="16"></line>
-          <line x1="20" y1="12" x2="20" y2="3"></line>
-          <line x1="1" y1="14" x2="7" y2="14"></line>
-          <line x1="9" y1="8" x2="15" y2="8"></line>
-          <line x1="17" y1="16" x2="23" y2="16"></line>
-        </svg>
+        <span class="topbar__action-icon" id="iconSettings"></span>
         <span class="topbar__action-label" data-i18n="settings">Settings</span>
       </button>
       <button class="btn btn--ghost topbar__action" id="btnRefresh" type="button" aria-label="Refresh" data-i18n-aria-label="refresh">
-        <svg class="topbar__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="23 4 23 10 17 10"></polyline>
-          <polyline points="1 20 1 14 7 14"></polyline>
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-        </svg>
+        <span class="topbar__action-icon" id="iconRefresh"></span>
         <span class="topbar__action-label" data-i18n="refresh">Refresh</span>
+      </button>
+      <button class="btn btn--ghost topbar__action" id="btnShowPl" type="button" aria-label="Playlist" data-i18n-aria-label="pl_show" hidden>
+        <span class="topbar__action-icon" id="iconShowPl"></span>
+        <span class="topbar__action-label" data-i18n="pl_show">Playlist</span>
       </button>
     </div>
   </header>
@@ -69,13 +59,11 @@
 
       <div class="search">
         <input class="textfield" id="q" placeholder="Search..." data-i18n-ph="search_ph" />
-        <div class="row" style="margin-top: 8px;">
-          <div class="dropdown" id="sortField" style="flex: 1;">
+        <div class="row search-row">
+          <div class="dropdown" id="sortField">
             <button class="dropdown__trigger textfield" type="button" aria-haspopup="listbox" aria-expanded="false">
               <span class="dropdown__value" data-i18n="sort_name">Name</span>
-              <svg class="dropdown__arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              <span class="dropdown__arrow" id="sortArrow" aria-hidden="true"></span>
             </button>
             <div class="dropdown__menu" role="listbox" hidden>
               <div class="dropdown__item dropdown__item--selected" role="option" data-value="name" data-i18n="sort_name" aria-selected="true">Name</div>
@@ -85,11 +73,7 @@
           </div>
           <button class="btn btn--ghost" id="sortOrder" title="Order" data-i18n-title="sort_order"
             aria-label="Toggle sort order">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <polyline points="19 12 12 19 5 12"></polyline>
-            </svg>
+
           </button>
           <button class="btn btn--ghost btn--sm" id="browseMode" data-i18n="mode_folder">Folder</button>
         </div>
@@ -127,21 +111,14 @@
         <div class="audioMeta" id="audioMeta">
           <img class="audioCover" id="audioCover" alt="" />
           <div class="audioCoverPlaceholder" id="audioCoverPlaceholder" hidden>
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
+            
           </div>
           <div class="lyrics" id="lyrics"></div>
         </div>
         <img id="imgEl" alt="" />
         <div class="empty" id="emptyEl">
           <span class="empty__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
+            
           </span>
           <span id="emptyText" data-i18n="empty_tip">Select a file to preview</span>
         </div>
@@ -149,7 +126,10 @@
     </section>
 
     <aside class="panel playlist" id="playlistPanel">
-      <div class="playlist__title" data-i18n="playlist">Playlist</div>
+      <div class="playlist__head">
+        <div class="playlist__title" data-i18n="playlist">Playlist</div>
+        <button class="icon-btn pl-toggle" id="btnCollapsePl" type="button" title="Collapse playlist" aria-label="Collapse playlist" data-i18n-title="pl_collapse" data-i18n-aria-label="pl_collapse"></button>
+      </div>
       <div class="playlist__meta" id="plMeta" data-i18n="not_loaded">Not Loaded</div>
       <div class="playlist__body" id="plList"></div>
     </aside>
@@ -167,8 +147,8 @@
   </footer>
 
   <!-- PIN Authentication Dialog -->
-  <div class="dialog__backdrop" id="pinBackdrop" hidden></div>
-  <section class="dialog dialog--pin" id="pinDlg" hidden aria-modal="true" role="dialog" aria-labelledby="pinDlgTitle">
+  <div class="dialog__backdrop" id="pinBackdrop"></div>
+  <section class="dialog dialog--pin" id="pinDlg" aria-modal="true" role="dialog" aria-labelledby="pinDlgTitle">
     <div class="dialog__title" id="pinDlgTitle">Authentication Required</div>
     <form class="pin-form" id="pinForm">
       <div class="dialog__body">
@@ -186,10 +166,11 @@
     </form>
   </section>
 
-  <div class="dialog__backdrop" id="dlgBackdrop" hidden></div>
-  <section class="dialog" id="dlg" hidden aria-modal="true" role="dialog" aria-labelledby="dlgTitle">
+  <div class="dialog__backdrop" id="dlgBackdrop"></div>
+  <section class="dialog" id="dlg" aria-modal="true" role="dialog" aria-labelledby="dlgTitle">
     <div class="dialog__title" id="dlgTitle" data-i18n="dlg_title">Settings</div>
     <div class="dialog__body">
+      <div class="dialog__note" id="dlgMsg" role="status" aria-live="polite" hidden></div>
       <!-- Share Settings Section -->
       <div class="dialog__subtitle" data-i18n="share_settings">Folders</div>
       <div class="dialog__section">
@@ -216,11 +197,10 @@
         </div>
         <div class="dialog__row">
           <input class="textfield" id="blFiles" placeholder="Block Filenames (Regex supported)"
-            data-i18n-ph="bl_files_ph" style="flex: 1;" />
+            data-i18n-ph="bl_files_ph" />
         </div>
         <div class="dialog__row">
-          <input class="textfield" id="blFolders" placeholder="Block Folder Names" data-i18n-ph="bl_folders_ph"
-            style="flex: 1;" />
+          <input class="textfield" id="blFolders" placeholder="Block Folder Names" data-i18n-ph="bl_folders_ph" />
           <button class="btn" id="btnSaveBlacklist" data-i18n="save_bl">Save Filters</button>
         </div>
 

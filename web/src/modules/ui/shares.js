@@ -2,6 +2,7 @@ import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { apiPost } from '../api.js';
 import { loadMedia } from '../actions.js';
+import { setDlgMsg } from './render.js';
 
 export function renderShares() {
   const list = el("shareList");
@@ -44,7 +45,7 @@ export function renderShares() {
         renderShares();
         await loadMedia(true);
       } catch (e) {
-        alert(String(e?.message || e));
+        setDlgMsg(String(e?.message || e), true);
       }
     });
 

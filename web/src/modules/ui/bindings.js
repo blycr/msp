@@ -6,14 +6,31 @@ import { bus } from '../eventbus.js';
 import { renderPlaylist, updateNavButtons, rebuildPlayOrderFromCurrent, playPrev, playNext } from '../playlist.js';
 import { resumeLast, setFitBtnVisible } from '../player.js';
 import { icon } from '../icons.js';
-import { showDlg, updateUIForLang, renderList } from './render.js';
+import { showDlg, updateUIForLang, renderList, setDlgMsg } from './render.js';
 import { initListDelegation } from './delegate.js';
 import { renderShares, updateBlacklistUI } from './shares.js';
 import { applyConfigToUI } from './settings.js';
+import { bindPanelToggle } from './panel.js';
 
 export function bindUI() {
+  // 图标单一来源（icons.js 注册表）：顶栏/下拉箭头/占位图标统一注入，
+  // 避免 inline SVG 绕过注册表（见 icons.js 头注释）。
+  const iconSettings = el('iconSettings');
+  if (iconSettings) iconSettings.innerHTML = icon('settings', 16);
+  const iconRefresh = el('iconRefresh');
+  if (iconRefresh) iconRefresh.innerHTML = icon('refresh', 16);
+  const sortArrow = el('sortArrow');
+  if (sortArrow) sortArrow.innerHTML = icon('chevronDown');
+  const coverPh = el('audioCoverPlaceholder');
+  if (coverPh) coverPh.innerHTML = icon('musicNote', 48);
+  const emptyIc = document.querySelector('#emptyEl .empty__icon');
+  if (emptyIc) emptyIc.innerHTML = icon('play');
+
   // 列表行交互：容器级事件委托（#list / #plList 各绑定一次）
   initListDelegation();
+
+  // 桌面端播放列表列折叠（移动端由 mobile-nav 管理，自动失效）
+  bindPanelToggle();
 
   // Hide settings button for non-local access
   const settingsBtn = el("btnSettings");
@@ -52,7 +69,7 @@ export function bindUI() {
       renderShares();
       bus.emit('media:refresh');
     } catch (e) {
-      alert(String(e?.message || e));
+      setDlgMsg(String(e?.message || e), true);
     }
   });
 
@@ -67,10 +84,10 @@ export function bindUI() {
     try {
       const data = await apiPost("/api/config", state.config);
       state.config = data.config;
-      alert(t("msg_bl_saved"));
+      setDlgMsg(t("msg_bl_saved"), false);
       bus.emit('media:refresh');
     } catch (e) {
-      alert(String(e?.message || e));
+      setDlgMsg(String(e?.message || e), true);
     }
   });
 

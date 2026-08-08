@@ -150,7 +150,7 @@ export async function playItem(item, opts) {
   }
   resetLyrics();
 
-  if (options.user && window.matchMedia && window.matchMedia("(max-width: 980px)").matches) {
+  if (options.user && window.matchMedia && window.matchMedia("(max-width: 1024px)").matches) {
     try {
       document.querySelector(".stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch { }

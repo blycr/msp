@@ -11,7 +11,7 @@ let bound = false;
 let mobileQuery = null;
 
 function isMobile() {
-  return mobileQuery?.matches ?? window.matchMedia('(max-width: 980px)').matches;
+  return mobileQuery?.matches ?? window.matchMedia('(max-width: 1024px)').matches;
 }
 
 function getPanel(view) {
@@ -59,7 +59,7 @@ export function bindMobileNav() {
   if (bound) return;
   bound = true;
 
-  mobileQuery = window.matchMedia('(max-width: 980px)');
+  mobileQuery = window.matchMedia('(max-width: 1024px)');
   const onViewportChange = () => updateMobileNav();
   if (mobileQuery.addEventListener) {
     mobileQuery.addEventListener('change', onViewportChange);
