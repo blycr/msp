@@ -7,13 +7,15 @@ services:
     ports:
       - "8099:8099"
     volumes:
-      # Map config and database to host for persistence
-      # The app expects config.json and msp.db in the working directory (/app)
-      - ./data:/data
+      # /app IS the data volume: config.json, msp.db (+wal/shm), msp.key,
+      # thumbs/ and the media cache all persist under ./data on the host.
+      # The binary itself lives in /opt and is copied in by the entrypoint.
+      - ./data:/app
       # Map your media folders
       - ./media:/media
     environment:
       - MSP_NO_AUTO_OPEN=1
-    # Create symlinks at startup to map /data/config.json -> /app/config.json
-    # This allows users to map a single volume for all data
-    entrypoint: ["/bin/sh", "-c", "ln -sf /data/config.json /app/config.json && ln -sf /data/msp.db /app/msp.db && ./msp-server"]
+    # Copy the binary into the mounted /app, seed a config with a /media share
+    # on first boot, then exec the server (exe_dir = /app = volume, so the
+    # app's tmp+rename writes land in ./data and survive restarts).
+    entrypoint: ["/bin/sh", "-c", "cp /opt/msp-server /app/msp-server && if [ ! -f /app/config.json ]; then printf '%s' '{\"port\":8099,\"shares\":[{\"path\":\"/media\",\"label\":\"media\"}]}' > /app/config.json; fi && exec /app/msp-server"]

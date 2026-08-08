@@ -2,14 +2,16 @@
 
 # Stage 1: Build Frontend
 FROM oven/bun:1.3-alpine AS frontend-builder
+ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 WORKDIR /app/web
-COPY web/package.json web/bun.lockb ./
+COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./
 RUN bun run build
 
 # Stage 2: Build Backend
 FROM golang:1.25-alpine AS backend-builder
+ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -26,22 +28,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o msp-server ./cmd/msp
 FROM alpine:3.21
 WORKDIR /app
 
-# No extra sqlite libs needed for glebarez/sqlite
+# FFmpeg for transcode/thumbnails/probing; no sqlite libs needed (pure Go driver)
+RUN apk add --no-cache ffmpeg
 
-COPY --from=backend-builder /app/msp-server .
-# Create data directory
-RUN mkdir -p /data
 # Set environment variable to disable auto-open browser
 ENV MSP_NO_AUTO_OPEN=1
 
+# Binary lives in /opt so /app can be bind-mounted as the data volume
+COPY --from=backend-builder /app/msp-server /opt/msp-server
+
 # Expose default port
 EXPOSE 8099
-
-# Volume for data (config, db) and media
-VOLUME ["/data", "/media"]
-
-# Run as non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
 
 CMD ["./msp-server"]
