@@ -10,6 +10,7 @@ import (
 	"msp/internal/config"
 	"msp/internal/constants"
 	"msp/internal/domain"
+	"msp/internal/service"
 	"msp/internal/util"
 )
 
@@ -73,10 +74,15 @@ func (h *Handler) HandleConfig(w http.ResponseWriter, r *http.Request) {
 
 		newCfg, err := h.configService.UpdateConfig(cfg)
 		if err != nil {
+			var verr *config.ValidationError
+			if errors.As(err, &verr) {
+				writeJSON(w, http.StatusBadRequest, domain.ConfigResponse{Error: &domain.ApiError{Message: verr.Error()}})
+				return
+			}
 			writeJSON(w, http.StatusInternalServerError, domain.ConfigResponse{Error: &domain.ApiError{Message: constants.ErrMsgWriteConfig}})
 			return
 		}
-		writeJSON(w, http.StatusOK, domain.ConfigResponse{Config: newCfg})
+		writeJSON(w, http.StatusOK, domain.ConfigResponse{Config: service.ToSafeConfig(newCfg)})
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -107,7 +113,7 @@ func (h *Handler) HandleShares(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.media.InvalidateMediaCache()
-	writeJSON(w, http.StatusOK, domain.SharesOpResponse{Config: newCfg})
+	writeJSON(w, http.StatusOK, domain.SharesOpResponse{Config: service.ToSafeConfig(newCfg)})
 }
 
 func normalizeSharesOp(req domain.SharesOpRequest) (op string, path string, label string) {
@@ -138,7 +144,11 @@ func (h *Handler) handleShareAdd(p, label string) (config.Config, error) {
 
 	var newCfg config.Config
 	err := h.config.UpdateConfig(func(cfg *config.Config) {
-		cfg.Shares = append(cfg.Shares, domain.Share{Label: label, Path: p})
+		// Copy-on-write so concurrent Config() readers cannot observe a
+		// mid-append Shares backing array.
+		next := make([]domain.Share, len(cfg.Shares), len(cfg.Shares)+1)
+		copy(next, cfg.Shares)
+		cfg.Shares = append(next, domain.Share{Label: label, Path: p})
 		cfg.Shares = util.NormalizeShares(cfg.Shares)
 		cfg.Shares = util.DedupeShares(cfg.Shares)
 		newCfg = *cfg

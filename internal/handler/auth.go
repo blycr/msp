@@ -26,11 +26,17 @@ var (
 	maxPinAttempts   = 1000
 )
 
-func getPINAttempt(ip string) *pinAttempt {
+func pinLocked(ip string) bool {
+	pinAttemptsMu.Lock()
+	defer pinAttemptsMu.Unlock()
+	entry, ok := pinAttempts[ip]
+	return ok && entry.blockedUntil.After(time.Now())
+}
+
+func recordPINFailure(ip string) {
 	pinAttemptsMu.Lock()
 	defer pinAttemptsMu.Unlock()
 
-	// Evict a random entry if at capacity and this is a new IP.
 	if len(pinAttempts) >= maxPinAttempts {
 		if _, exists := pinAttempts[ip]; !exists {
 			for k := range pinAttempts {
@@ -45,7 +51,11 @@ func getPINAttempt(ip string) *pinAttempt {
 		entry = &pinAttempt{}
 		pinAttempts[ip] = entry
 	}
-	return entry
+	entry.failures++
+	entry.lastFailure = time.Now()
+	if entry.failures >= maxPINFailures {
+		entry.blockedUntil = time.Now().Add(pinBlockDuration)
+	}
 }
 
 func resetPINAttempt(ip string) {
@@ -80,9 +90,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientIP := getClientIP(r, false)
-	attempt := getPINAttempt(clientIP)
-
-	if attempt.blockedUntil.After(time.Now()) {
+	if pinLocked(clientIP) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]any{
 			"valid":   false,
 			"enabled": true,
@@ -120,11 +128,7 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 			Secure:   secure,
 		})
 	} else {
-		attempt.failures++
-		attempt.lastFailure = time.Now()
-		if attempt.failures >= maxPINFailures {
-			attempt.blockedUntil = time.Now().Add(pinBlockDuration)
-		}
+		recordPINFailure(clientIP)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -132,5 +136,3 @@ func (h *Handler) HandlePIN(w http.ResponseWriter, r *http.Request) {
 		"enabled": true,
 	})
 }
-
-

@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"msp/internal/constants"
 	"msp/internal/domain"
 	"msp/internal/service"
 	"msp/internal/util"
@@ -31,9 +30,10 @@ const thumbnailQueueTimeout = 8 * time.Second
 const thumbnailSeekTime = "5"
 
 // thumbnailCacheControl 是缩略图成功响应的 Cache-Control。
+// private：缩略图走 PIN 会话，不得被共享缓存或 SW 当公共资源存。
 // 缓存键是 sha256(文件路径)，不含 mtime：文件内容变化而路径不变时会命中旧缓存，
 // 因此 max-age 不能取更大的量级，7 天是稳妥上限。
-const thumbnailCacheControl = "public, max-age=604800"
+const thumbnailCacheControl = "private, max-age=604800"
 
 // thumbFreshTolerance 是缩略图新鲜度判断的时间容差：
 // 源文件 mtime 在粗粒度文件系统上可能略早于生成时刻，直接比较会误判为过期。
@@ -70,25 +70,11 @@ func (h *Handler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, constants.ErrMsgMissingID)
-		return
-	}
-
-	filePath, err := h.idCodec.DecodeID(id)
+	filePath, f, _, err := h.resolveMediaTarget(w, r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	filePath = util.NormalizePath(filePath)
-
-	//nolint:gosec
-	if _, err := os.Stat(filePath); err != nil {
-		noStoreHeader(w)
-		writeError(w, http.StatusNotFound, "file not found")
-		return
-	}
+	_ = f.Close()
 
 	// 缩略图缓存目录
 	exeDir := util.MustExeDir()

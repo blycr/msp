@@ -7,8 +7,7 @@ Thank you for your interest in contributing to MSP! We welcome contributions fro
 To contribute to this project, you will need:
 
 *   **Go**: Version 1.25 or higher.
-*   **Node.js**: Version 20 or higher.
-*   **bun**: Version 1.3 or higher.
+*   **bun**: Version 1.3 or higher (frontend build).
 
 ## Getting Started
 
@@ -25,18 +24,15 @@ To contribute to this project, you will need:
 
 ## Building the Project
 
-### Backend (Go)
-
-```bash
-go build ./cmd/msp
-```
-
-### Frontend (Vite)
+The frontend must be built before `go build` / `go test`, because `web/embed.go` embeds `web/dist/`.
 
 ```bash
 cd web
 bun install
 bun run build
+cd ..
+go test ./...
+go build ./cmd/msp
 ```
 
 ## Running Tests

@@ -148,6 +148,11 @@ netlify.toml
 .shared/
 .agent/
 
+# Docker compose / runtime data dirs
+data/
+media/
+thumbs/
+
 # Generated codemap
 codemap.html
 scripts/codemap-gen/

@@ -4,6 +4,7 @@ services:
     image: msp-server:latest
     container_name: msp
     restart: unless-stopped
+    init: true
     ports:
       - "8099:8099"
     volumes:
@@ -15,6 +16,12 @@ services:
       - ./media:/media
     environment:
       - MSP_NO_AUTO_OPEN=1
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8099/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     # Copy the binary into the mounted /app, seed a config with a /media share
     # on first boot, then exec the server (exe_dir = /app = volume, so the
     # app's tmp+rename writes land in ./data and survive restarts).

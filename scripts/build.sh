@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROFILES_FILE="$SCRIPT_DIR/build-profiles.json"
 root="$(cd "$SCRIPT_DIR/.." && pwd)"
 logFile="$SCRIPT_DIR/build.log"
+VERSION="${MSP_VERSION:-$(git -C "$root" describe --tags --always --dirty 2>/dev/null || echo dev)}"
+LDFLAGS="-s -w -X main.version=${VERSION}"
 
 PLATFORMS=""
 ARCHITECTURES=""
@@ -276,7 +278,7 @@ build_go() {
       unset GOARM || true
     fi
     new_dir "$(dirname "$out")"
-    go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/msp
+    go build -trimpath -ldflags="$LDFLAGS" -o "$out" ./cmd/msp
     log "Built: $out" "SUCCESS"
   )
 }

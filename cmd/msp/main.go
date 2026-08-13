@@ -46,6 +46,9 @@ var (
 // startTime records process start for /healthz uptime reporting.
 var startTime = time.Now()
 
+// Set via -ldflags "-X main.version=..." at release time.
+var version = "dev"
+
 func main() {
 	debug.SetGCPercent(100)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
@@ -73,7 +76,7 @@ func main() {
 	idKeyPath := filepath.Join(util.MustExeDir(), "msp.key")
 	idKey, err := util.LoadOrCreateKey(idKeyPath)
 	if err != nil {
-		slog.Warn("failed to load/create ID key", "err", err)
+		log.Fatalf("failed to load/create ID key %s: %v", idKeyPath, err)
 	}
 	idCodec := util.NewIDCodec(idKey)
 
@@ -134,8 +137,10 @@ func main() {
 		Handler:           finalHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// WriteTimeout is 0: progressive transcode and long Range-less
+		// downloads outlive 60s. Slowloris is bounded by ReadHeaderTimeout.
+		WriteTimeout: 0,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	if os.Getenv("MSP_NO_AUTO_OPEN") != "1" {
@@ -225,9 +230,10 @@ func registerRoutes(s *server.Server, processor *media.MediaProcessor, store *st
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status": "ok",
-			"db":     processor.IsDBAvailable(),
-			"uptime": int64(time.Since(startTime).Seconds()),
+			"status":  "ok",
+			"db":      processor.IsDBAvailable(),
+			"uptime":  int64(time.Since(startTime).Seconds()),
+			"version": version,
 		})
 	})
 
@@ -258,6 +264,8 @@ func printStartupBanner(cfgPath string, port int) {
 		urls = append(urls, "http://"+ip+":"+util.Itoa(port)+"/")
 	}
 
+	log.Println("版本:", version)
+	fmt.Println("版本:", version)
 	log.Println("配置文件:", cfgPath)
 	fmt.Println("配置文件:", cfgPath)
 	for _, u := range urls {

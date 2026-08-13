@@ -22,7 +22,8 @@ COPY . .
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # Build with CGO disabled (using glebarez/sqlite, pure Go)
-RUN CGO_ENABLED=0 GOOS=linux go build -o msp-server ./cmd/msp
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o msp-server ./cmd/msp
 
 # Stage 3: Runtime
 FROM alpine:3.21
@@ -40,4 +41,7 @@ COPY --from=backend-builder /app/msp-server /opt/msp-server
 # Expose default port
 EXPOSE 8099
 
-CMD ["./msp-server"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8099/healthz || exit 1
+
+CMD ["/opt/msp-server"]

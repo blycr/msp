@@ -23,9 +23,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality:
+    name: Test & Lint
+    uses: ./.github/workflows/check.yml
+
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
-    needs: []
+    needs: quality
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,31 +37,26 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            suffix: ""
           - goos: linux
             goarch: arm64
-            suffix: ""
           - goos: linux
             goarch: arm
             goarm: "7"
-            suffix: "-armv7"
+            artifact: msp-linux-armv7
           - goos: linux
             goarch: loong64
-            suffix: "-loong64"
+            artifact: msp-linux-loong64
           - goos: darwin
             goarch: amd64
-            suffix: ""
           - goos: darwin
             goarch: arm64
-            suffix: ""
           - goos: windows
             goarch: amd64
             ext: .exe
-            suffix: ""
           - goos: windows
             goarch: "386"
             ext: .exe
-            suffix: "-386"
+            artifact: msp-windows-386.exe
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,8 +93,11 @@ jobs:
           GOARM: ${{ matrix.goarm || '' }}
           CGO_ENABLED: 0
         run: |
-          output="msp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}${{ matrix.ext }}"
-          go build -trimpath -ldflags="-s -w" -o "${output}" ./cmd/msp
+          output="${{ matrix.artifact }}"
+          if [ -z "$output" ]; then
+            output="msp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          fi
+          go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${output}" ./cmd/msp
           echo "artifact=${output}" >> "$GITHUB_ENV"
           ls -la "${output}"
 
@@ -107,7 +109,7 @@ jobs:
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: msp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          name: ${{ env.artifact }}
           path: |
             ${{ env.artifact }}
             ${{ env.artifact }}.sha256
@@ -168,12 +170,8 @@ jobs:
           else
             if [ "${{ github.event_name }}" = "push" ]; then
               echo "Release notes file not found: $notes_path" >&2
-              echo "Creating default release notes..."
-              tmp_notes="$RUNNER_TEMP/release_notes_$RELEASE_TAG.md"
-              echo "Release $RELEASE_TAG" > "$tmp_notes"
-              echo "" >> "$tmp_notes"
-              echo "See commit history for details." >> "$tmp_notes"
-              echo "RELEASE_NOTES_PATH=$tmp_notes" >> "$GITHUB_ENV"
+              echo "Create docs/release/$RELEASE_TAG.md before tagging." >&2
+              exit 1
             elif [ -z "$NOTES_INPUT" ]; then
               echo "Release notes file not found and no input notes provided: $notes_path" >&2
               exit 1

@@ -11,7 +11,7 @@ updates:
         patterns:
           - "*"
 
-  # Maintain Frontend dependencies (pnpm)
+  # Maintain Frontend dependencies (bun lockfile in /web)
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:

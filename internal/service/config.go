@@ -61,6 +61,11 @@ type SafeConfig struct {
 	Blacklist config.BlacklistConfig `json:"blacklist"`
 }
 
+// ToSafeConfig converts Config to its safe view (no PIN / pinHash).
+func ToSafeConfig(cfg config.Config) SafeConfig {
+	return toSafeConfig(cfg)
+}
+
 // toSafeConfig converts Config to its safe view
 func toSafeConfig(cfg config.Config) SafeConfig {
 	return SafeConfig{
@@ -101,6 +106,14 @@ func (s *ConfigService) GetConfigView() ConfigView {
 }
 
 func (s *ConfigService) UpdateConfig(cfg config.Config) (config.Config, error) {
+	// SafeConfig from the UI has pinEnabled but never pinHash. Replacing the
+	// live config wholesale would empty the hash and ApplyDefaults would then
+	// disable PIN. Keep the stored hash unless a new plaintext PIN or hash is sent.
+	current := s.config.Config()
+	if cfg.Security.PIN == "" && cfg.Security.PINHash == "" {
+		cfg.Security.PINHash = current.Security.PINHash
+	}
+
 	config.ApplyDefaults(&cfg)
 	config.SanitizeSecurity(&cfg)
 	cfg.Shares = util.NormalizeShares(cfg.Shares)
@@ -121,6 +134,10 @@ func (s *ConfigService) UpdateConfig(cfg config.Config) (config.Config, error) {
 		validShares = append(validShares, sh)
 	}
 	cfg.Shares = util.DedupeShares(validShares)
+
+	if errs := config.Validate(&cfg); len(errs) > 0 {
+		return config.Config{}, errs[0]
+	}
 
 	err := s.config.UpdateConfig(func(c *config.Config) {
 		*c = cfg

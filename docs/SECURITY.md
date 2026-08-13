@@ -67,22 +67,24 @@ IP 黑名单用于阻止特定的 IP 地址访问服务器。
 
 PIN 认证要求用户输入正确的 PIN 码才能访问服务。
 
-**配置示例：**
+**配置示例（设置 PIN 时写入明文 `pin`，落盘后只会留下 `pinHash`）：**
 
 ```json
 {
   "security": {
     "pinEnabled": true,
-    "pin": "1234"
+    "pin": "123456"
   }
 }
 ```
 
 **说明：**
 - `pinEnabled`: 是否启用 PIN 认证（`true` 或 `false`）
-- `pin`: PIN 码，默认为 `"0000"`
+- `pin`: 仅用于**设置/更换** PIN 的瞬时字段；保存时会 bcrypt 哈希到 `pinHash` 并清空 `pin`
+- `pinHash`: 持久化的 bcrypt 哈希。默认未启用 PIN，哈希为空
 - PIN 码必须为 **4-8 位数字**（仅 `0-9`）
 - 建议使用 6-8 位数字并定期更换
+- 默认配置**没有** PIN，也没有 `"0000"` 后门
 
 ## 完整配置示例
 
@@ -97,7 +99,7 @@ PIN 认证要求用户输入正确的 PIN 码才能访问服务。
     ],
     "ipBlacklist": [],
     "pinEnabled": false,
-    "pin": "0000"
+    "pinHash": ""
   }
 }
 ```
@@ -185,8 +187,9 @@ PIN 认证要求用户输入正确的 PIN 码才能访问服务。
 2. 如果配置了 IP 白名单，请确保包含您自己的 IP，否则您将无法访问服务器
 
 3. 如果忘记 PIN 码，可以：
-   - 编辑 `config.json` 文件修改或禁用 PIN
-   - 删除 `config.json` 文件，系统将使用默认配置（PIN: `0000`）
+   - 编辑 `config.json`：设 `"pinEnabled": false`，或写入新的 `"pin"` 后保存（进程会哈希并清空明文）
+   - 删除 `config.json` 后重启：回到默认（PIN **关闭**，不是 `0000`）
 
-4. `trustProxy` 字段仅为配置兼容保留，当前家庭模式不会启用代理头取源 IP
-5. 配置支持热重载，保存后通常 2 秒内生效
+4. `trustProxy` 当前不改变取源 IP 的方式。例外：当 `RemoteAddr` 是回环地址且请求带 `CF-Connecting-IP` 时，IP 黑白名单会使用该头（给本机 Cloudflare Tunnel 用）。任意本机进程也可以伪造这个头。
+5. `POST /api/config` 与 `POST /api/shares` 仅本机可写。
+6. 配置支持热重载，保存后通常 2 秒内生效。非法配置会被拒绝并保留旧配置。

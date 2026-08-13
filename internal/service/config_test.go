@@ -103,3 +103,49 @@ func TestConfigService_UpdateConfig(t *testing.T) {
 		t.Errorf("Config not updated, port is %d", current.Port)
 	}
 }
+
+func TestConfigService_UpdateConfigPreservesPINHash(t *testing.T) {
+	cfg := config.Default()
+	cfg.Security.PINEnabled = true
+	cfg.Security.PIN = "1234"
+	config.SanitizeSecurity(&cfg)
+	if cfg.Security.PINHash == "" {
+		t.Fatal("expected PINHash after SanitizeSecurity")
+	}
+	hash := cfg.Security.PINHash
+
+	mock := &mockConfigProvider{cfg: cfg}
+	svc := NewConfigService(mock, &mockCacheInvalidator{}, nil)
+
+	// Reproduce the settings UI POST: SafeConfig has pinEnabled but no hash.
+	incoming := mock.Config()
+	incoming.Security.PIN = ""
+	incoming.Security.PINHash = ""
+	incoming.Security.PINEnabled = true
+
+	updated, err := svc.UpdateConfig(incoming)
+	if err != nil {
+		t.Fatalf("UpdateConfig: %v", err)
+	}
+	if updated.Security.PINHash != hash {
+		t.Errorf("PINHash was overwritten: got %q", updated.Security.PINHash)
+	}
+	if !updated.Security.PINEnabled {
+		t.Error("PINEnabled was cleared")
+	}
+	if mock.Config().Security.PINHash != hash {
+		t.Error("stored PINHash was overwritten")
+	}
+}
+
+func TestConfigService_UpdateConfigRejectsInvalidPort(t *testing.T) {
+	mock := &mockConfigProvider{cfg: config.Default()}
+	svc := NewConfigService(mock, &mockCacheInvalidator{}, nil)
+
+	incoming := mock.Config()
+	incoming.Port = 99999
+	_, err := svc.UpdateConfig(incoming)
+	if err == nil {
+		t.Fatal("expected validation error for port 99999")
+	}
+}

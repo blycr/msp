@@ -1,7 +1,7 @@
 import { state, el } from '../state.js';
 import { t } from '../i18n.js';
 import { logRemote } from '../api.js';
-import { getCfg, formatName, dirOfAbsPath, absPathOfItem } from '../utils.js';
+import { getCfg, playlistFolderKey } from '../utils.js';
 import { bus } from '../eventbus.js';
 
 export function navLabelsForKind(kind) {
@@ -142,8 +142,8 @@ export function buildPlaylist(item, kind, shuffle = null) {
 
   let items = [...all];
   if (scope === "folder") {
-    const dir = dirOfAbsPath(absPathOfItem(item));
-    items = items.filter(x => dirOfAbsPath(absPathOfItem(x)) === dir);
+    const key = playlistFolderKey(item);
+    items = items.filter(x => playlistFolderKey(x) === key);
   } else if (scope === "share") {
     items = items.filter(x => x.shareLabel === item.shareLabel);
   }

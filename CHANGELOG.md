@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+## 1.12.1
+
+- **播放**：
+  - 视频/图片「当前文件夹」播放列表修好：按 `relPath` + 分享名分组，不再把加密 ID 当路径解码（此前下一集经常只剩当前这一条）
+  - 去掉全局 `WriteTimeout 60s`，长片直连、渐进式转码、长有声书不再大约一分钟被掐断
+  - 超宽屏布局：`.layout` 容器 `max-width: 2736px` 居中，避免超宽显示器上三栏被拉得过散
+- **设置 / 安全**：
+  - 设置页「保存过滤」不再清空 PIN（此前本机点一次保存，局域网 PIN 会失效）
+  - `/api/thumbnail` 与播放共用分享目录校验；`msp.key` 无法创建时拒绝启动
+  - PIN 失败计数在锁内更新；缩略图改为 `Cache-Control: private`，不再被 Service Worker 当公共资源缓存
+  - 分享目录中的 SVG 改为附件下载，不再当图片内嵌
+- **稳定与运维**：
+  - 配置热重载拒绝非法文件，保留旧配置
+  - SQLite `busy_timeout` 等 PRAGMA 写入 DSN，扫描大库时进度/收藏更不容易写入失败
+  - Docker：`CMD` 指向 `/opt/msp-server`，增加 `HEALTHCHECK`，compose 启用 `init`
+  - 启动横幅与 `/healthz` 带版本号
+- **发布**：修正 armv7 / loong64 / windows-386 产物文件名；缺 `docs/release/<tag>.md` 则失败；release 先跑 check
+
 ## 1.12.0
 
 - **布局与响应式**：

@@ -75,6 +75,14 @@ func (s *Server) LoadOrInitConfig() error {
 	}
 
 	changed := config.ApplyDefaults(&cfg)
+	oldPIN := cfg.Security.PIN
+	config.SanitizeSecurity(&cfg)
+	if oldPIN != "" && cfg.Security.PIN == "" {
+		changed = true
+	}
+	if errs := config.Validate(&cfg); len(errs) > 0 {
+		slog.Warn("loaded config failed validation; continuing", "err", errs[0])
+	}
 
 	s.mu.Lock()
 	s.cfg = cfg
@@ -108,7 +116,7 @@ func (s *Server) saveConfigLocked() error {
 func (s *Server) Config() config.Config {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.cfg
+	return s.cfg.Clone()
 }
 
 func (s *Server) UpdateConfig(fn func(*config.Config)) error {
@@ -219,6 +227,10 @@ func (s *Server) checkAndReloadConfig() {
 
 	oldPIN := cfg.Security.PIN
 	config.SanitizeSecurity(&cfg)
+	if errs := config.Validate(&cfg); len(errs) > 0 {
+		s.Log("error", "Ignoring invalid config reload: "+errs[0].Error())
+		return
+	}
 	needsSave := oldPIN != "" && cfg.Security.PIN == ""
 
 	s.mu.Lock()

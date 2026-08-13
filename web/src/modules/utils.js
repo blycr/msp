@@ -43,6 +43,13 @@ export function absPathOfItem(item) {
   try { return base64UrlDecodeToString(item?.id || ""); } catch { return ""; }
 }
 
+/** Parent directory of a media item for folder-scoped playlists. Uses relPath
+ *  (and shareLabel), never item.id — IDs are opaque AES-GCM, not paths. */
+export function playlistFolderKey(item) {
+  const rel = item?.relPath || item?.name || "";
+  return `${item?.shareLabel || ""}\n${dirOfAbsPath(rel)}`;
+}
+
 export function dirOfAbsPath(p) {
   if (!p) return "";
   const s = String(p);

@@ -9,7 +9,6 @@ import (
 	"msp/internal/domain"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -24,6 +23,18 @@ var ErrUnavailable = errors.New("storage: database unavailable")
 
 type SQLite struct {
 	db *gorm.DB
+}
+
+// sqliteDSN puts per-connection PRAGMAs in the DSN so every pooled
+// connection gets busy_timeout (and the rest), not just the first Exec.
+func sqliteDSN(dbPath string) string {
+	return "file:" + filepath.ToSlash(dbPath) +
+		"?_pragma=busy_timeout(5000)" +
+		"&_pragma=journal_mode(WAL)" +
+		"&_pragma=synchronous(NORMAL)" +
+		"&_pragma=cache_size(-16000)" +
+		"&_pragma=temp_store(MEMORY)" +
+		"&_pragma=mmap_size(268435456)"
 }
 
 func NewGormLogger() logger.Interface {
@@ -48,7 +59,7 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 		return nil, err
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(sqliteDSN(dbPath)), &gorm.Config{
 		Logger:                 NewGormLogger(),
 		PrepareStmt:            true,
 		SkipDefaultTransaction: true,
@@ -59,8 +70,11 @@ func InitSQLite(dbPath string) (*SQLite, error) {
 
 	sqlDB, err := db.DB()
 	if err == nil {
-		sqlDB.SetMaxOpenConns(runtime.GOMAXPROCS(0))
-		sqlDB.SetMaxIdleConns(max(2, runtime.GOMAXPROCS(0)/2))
+		// busy_timeout and friends are per-connection; they are in the DSN so
+		// pooled conns inherit them. Cap the pool — GOMAXPROCS writers fight
+		// SQLite's single-writer lock during a scan.
+		sqlDB.SetMaxOpenConns(4)
+		sqlDB.SetMaxIdleConns(2)
 
 		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 			slog.Warn("failed to set WAL mode", "err", err)

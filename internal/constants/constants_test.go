@@ -69,29 +69,6 @@ func TestByteUnits(t *testing.T) {
 	}
 }
 
-func TestHTTPStatusCodes(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    int
-		expected int
-	}{
-		{"StatusOK", StatusOK, 200},
-		{"StatusBadRequest", StatusBadRequest, 400},
-		{"StatusUnauthorized", StatusUnauthorized, 401},
-		{"StatusForbidden", StatusForbidden, 403},
-		{"StatusNotFound", StatusNotFound, 404},
-		{"StatusInternalServerError", StatusInternalServerError, 500},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.value != tt.expected {
-				t.Errorf("%s = %d, want %d", tt.name, tt.value, tt.expected)
-			}
-		})
-	}
-}
-
 func TestNetworkAddresses(t *testing.T) {
 	if LocalhostIPv4 != "127.0.0.1" {
 		t.Errorf("LocalhostIPv4 = %s, want 127.0.0.1", LocalhostIPv4)

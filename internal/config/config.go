@@ -119,6 +119,38 @@ func boolPtr(v bool) *bool { return &v }
 
 func stringPtr(v string) *string { return &v }
 
+// Clone returns a deep copy of slice and nested-pointer fields so callers
+// cannot race with UpdateConfig appending to Shares / IP lists / blacklist.
+func (c Config) Clone() Config {
+	out := c
+	if c.Shares != nil {
+		out.Shares = append([]domain.Share(nil), c.Shares...)
+	}
+	if c.Features.SpeedOptions != nil {
+		out.Features.SpeedOptions = append([]float64(nil), c.Features.SpeedOptions...)
+	}
+	if c.Blacklist.Extensions != nil {
+		out.Blacklist.Extensions = append([]string(nil), c.Blacklist.Extensions...)
+	}
+	if c.Blacklist.Filenames != nil {
+		out.Blacklist.Filenames = append([]string(nil), c.Blacklist.Filenames...)
+	}
+	if c.Blacklist.Folders != nil {
+		out.Blacklist.Folders = append([]string(nil), c.Blacklist.Folders...)
+	}
+	if c.Security.IPWhitelist != nil {
+		out.Security.IPWhitelist = append([]string(nil), c.Security.IPWhitelist...)
+	}
+	if c.Security.IPBlacklist != nil {
+		out.Security.IPBlacklist = append([]string(nil), c.Security.IPBlacklist...)
+	}
+	if c.Playback.Video.Encoding != nil {
+		enc := *c.Playback.Video.Encoding
+		out.Playback.Video.Encoding = &enc
+	}
+	return out
+}
+
 // Default configuration values
 func Default() Config {
 	return Config{

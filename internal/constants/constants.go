@@ -94,19 +94,6 @@ const (
 	BytesPerTB = 1024 * 1024 * 1024 * 1024
 )
 
-// HTTP 状态码 (常用)
-const (
-	StatusOK                  = 200
-	StatusBadRequest          = 400
-	StatusUnauthorized        = 401
-	StatusForbidden           = 403
-	StatusNotFound            = 404
-	StatusMethodNotAllowed    = 405
-	StatusInternalServerError = 500
-	StatusNotModified         = 304
-	StatusNoContent           = 204
-)
-
 // 网络地址
 const (
 	LocalhostIPv4 = "127.0.0.1"

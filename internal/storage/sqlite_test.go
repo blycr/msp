@@ -28,6 +28,28 @@ func setupTestDB(t *testing.T) (*SQLite, func()) {
 	return sq, cleanup
 }
 
+func TestSQLiteBusyTimeoutOnPooledConns(t *testing.T) {
+	sq, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	sqlDB, err := sq.DB().DB()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	c1, err := sqlDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = c1.Close() }()
+	c2, err := sqlDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = c2.Close() }()
+
+	var t1, t2 int
+	require.NoError(t, c1.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&t1))
+	require.NoError(t, c2.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&t2))
+	assert.Equal(t, 5000, t1)
+	assert.Equal(t, 5000, t2)
+}
+
 func TestInitSQLite(t *testing.T) {
 	t.Run("creates new database", func(t *testing.T) {
 		sq, cleanup := setupTestDB(t)

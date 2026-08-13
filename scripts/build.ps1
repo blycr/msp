@@ -28,6 +28,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logFile = Join-Path $PSScriptRoot 'build.log'
 $profilesFile = Join-Path $PSScriptRoot 'build-profiles.json'
+$script:MspVersion = if ($env:MSP_VERSION) { $env:MSP_VERSION } else {
+  $desc = git -C $root describe --tags --always --dirty 2>$null
+  if ($desc) { $desc.Trim() } else { 'dev' }
+}
+$script:MspLdflags = "-s -w -X main.version=$($script:MspVersion)"
 
 function Write-Log {
   param(
@@ -233,7 +238,7 @@ function Build-Go {
     $env:CGO_ENABLED = "0"
     if ($GOARM) { $env:GOARM = $GOARM } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
     New-Dir ([System.IO.Path]::GetDirectoryName($OutPath))
-    & go build -trimpath -ldflags="-s -w" -o $OutPath ./cmd/msp
+    & go build -trimpath -ldflags $script:MspLdflags -o $OutPath ./cmd/msp
     if ($LASTEXITCODE -ne 0) { throw "go build failed. exitCode=$LASTEXITCODE" }
     Write-Log "Built: $OutPath" 'SUCCESS'
   }
@@ -417,7 +422,7 @@ Invoke-Step 'Cross Build Artifacts' {
 
     foreach ($item in $batch) {
       $sb = {
-        param($Root, $Platform, $Arch, $OutPath, $ChkPath, $GOARM)
+        param($Root, $Platform, $Arch, $OutPath, $ChkPath, $GOARM, $Ldflags)
         $env:GOOS = $Platform
         $env:GOARCH = $Arch
         $env:CGO_ENABLED = '0'
@@ -429,7 +434,7 @@ Invoke-Step 'Cross Build Artifacts' {
           $dir = Split-Path $OutPath -Parent
           if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 
-          & go build -trimpath -ldflags='-s -w' -o $OutPath ./cmd/msp
+          & go build -trimpath -ldflags $Ldflags -o $OutPath ./cmd/msp
           if ($LASTEXITCODE -ne 0) { throw "go build failed for $Platform/$Arch" }
 
           $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $OutPath
@@ -444,7 +449,7 @@ Invoke-Step 'Cross Build Artifacts' {
           Pop-Location
         }
       }
-      $job = Start-Job -ScriptBlock $sb -ArgumentList $root, $item.Platform, $item.Arch, $item.OutPath, $item.ChkPath, $item.GOARM
+      $job = Start-Job -ScriptBlock $sb -ArgumentList $root, $item.Platform, $item.Arch, $item.OutPath, $item.ChkPath, $item.GOARM, $script:MspLdflags
       $jobs += $job
     }
 

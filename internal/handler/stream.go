@@ -145,7 +145,7 @@ var mediaExts = map[string]bool{
 	".mp3": true, ".aac": true, ".ogg": true, ".flac": true,
 	".wav": true, ".m4a": true,
 	".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
-	".webp": true, ".svg": true, ".bmp": true,
+	".webp": true, ".bmp": true,
 	".vtt": true, ".srt": true, ".lrc": true,
 }
 

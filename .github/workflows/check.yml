@@ -4,6 +4,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -147,5 +148,5 @@ jobs:
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             output="${output}.exe"
           fi
-          go build -trimpath -ldflags="-s -w" -o "${output}" ./cmd/msp
+          go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${output}" ./cmd/msp
           ls -la "${output}"
