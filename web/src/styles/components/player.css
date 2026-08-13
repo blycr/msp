@@ -99,10 +99,25 @@
   flex: 1 1 auto;
 }
 
+/* 封面槽：列表展开时中间列变窄，槽宽跟着收，图在槽内左右居中并等比缩小。 */
+.audioCoverSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 28%;
+  width: min(280px, 40%);
+  max-width: 280px;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+}
+
 .audioCover,
 .audioCoverPlaceholder {
-  width: 200px;
-  height: 200px;
+  width: min(200px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  max-height: 100%;
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   background: var(--stage-hover);
@@ -110,7 +125,8 @@
 }
 
 .audioCover {
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 
 .audioCoverPlaceholder {

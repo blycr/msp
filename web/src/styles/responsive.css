@@ -194,6 +194,13 @@
     gap: 16px;
   }
 
+  .audioCoverSlot {
+    width: auto;
+    max-width: none;
+    flex: 0 0 auto;
+    align-self: center;
+  }
+
   .audioCover,
   .audioCoverPlaceholder {
     width: 160px;
