@@ -127,5 +127,3 @@ func TestHandleShares_UnsupportedOp(t *testing.T) {
 		t.Errorf("expected 400 for unsupported op, got %d", w.Code)
 	}
 }
-
-

@@ -276,10 +276,10 @@ func validateSizeRule(rule string) error {
 			return fmt.Errorf("无效的大小范围格式")
 		}
 		if _, err := parseSize(parts[0]); err != nil {
-			return fmt.Errorf("无效的最小值: %v", err)
+			return fmt.Errorf("无效的最小值: %w", err)
 		}
 		if _, err := parseSize(parts[1]); err != nil {
-			return fmt.Errorf("无效的最大值: %v", err)
+			return fmt.Errorf("无效的最大值: %w", err)
 		}
 		return nil
 	}
@@ -289,7 +289,7 @@ func validateSizeRule(rule string) error {
 		if strings.HasPrefix(rule, prefix) {
 			val := strings.TrimPrefix(rule, prefix)
 			if _, err := parseSize(val); err != nil {
-				return fmt.Errorf("无效的大小值: %v", err)
+				return fmt.Errorf("无效的大小值: %w", err)
 			}
 			return nil
 		}
@@ -306,19 +306,20 @@ func parseSize(s string) (int64, error) {
 	}
 
 	multiplier := int64(1)
-	if strings.HasSuffix(s, "TB") {
+	switch {
+	case strings.HasSuffix(s, "TB"):
 		multiplier = 1 << 40
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "GB") {
+	case strings.HasSuffix(s, "GB"):
 		multiplier = 1 << 30
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "MB") {
+	case strings.HasSuffix(s, "MB"):
 		multiplier = 1 << 20
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "KB") {
+	case strings.HasSuffix(s, "KB"):
 		multiplier = 1 << 10
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "B") {
+	case strings.HasSuffix(s, "B"):
 		s = s[:len(s)-1]
 	}
 

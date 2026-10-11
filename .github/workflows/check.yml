@@ -4,7 +4,6 @@ on:
   push:
     branches: ["**"]
   pull_request:
-  workflow_call:
 
 permissions:
   contents: read
@@ -14,18 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test & Build
+  frontend:
+    name: Frontend Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -36,7 +29,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('web/package.json') }}
+          key: ${{ runner.os }}-bun-store-${{ hashFiles('web/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-store-
 
@@ -45,6 +38,33 @@ jobs:
           cd web
           bun install --frozen-lockfile
           bun run build
+
+      - name: Upload Frontend Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download Frontend Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
 
       - name: Run Go Tests
         run: go test -v -race -coverprofile=coverage.out ./...
@@ -84,9 +104,38 @@ jobs:
           version: v2.7.2
           args: --timeout=5m
 
+  vulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-latest
+    # Advisory only: a new CVE or a flaky vuln.go.dev lookup must not block a
+    # release. Findings are visible in the job log and step summary.
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Create Dummy Frontend
+        run: |
+          mkdir -p web/dist
+          echo "DUMMY" > web/dist/index.html
+          echo "DUMMY" > web/dist/manifest.webmanifest
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
   build-check:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
+    needs: frontend
     strategy:
       fail-fast: false
       matrix:
@@ -118,24 +167,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      # The frontend bundle is identical for every target, so it is built once
+      # in the `frontend` job instead of eight times in this matrix.
+      - name: Download Frontend Bundle
+        uses: actions/download-artifact@v4
         with:
-          bun-version: 1.3.11
-
-      - name: Setup Bun cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('web/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-store-
-
-      - name: Build Frontend
-        run: |
-          cd web
-          bun install --frozen-lockfile
-          bun run build
+          name: web-dist
+          path: web/dist
 
       - name: Build Binary (${{ matrix.goos }}/${{ matrix.goarch }})
         env:

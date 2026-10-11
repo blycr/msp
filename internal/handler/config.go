@@ -145,9 +145,11 @@ func (h *Handler) handleShareAdd(p, label string) (config.Config, error) {
 	var newCfg config.Config
 	err := h.config.UpdateConfig(func(cfg *config.Config) {
 		// Copy-on-write so concurrent Config() readers cannot observe a
-		// mid-append Shares backing array.
-		next := make([]domain.Share, len(cfg.Shares), len(cfg.Shares)+1)
-		copy(next, cfg.Shares)
+		// mid-append Shares backing array: append always allocates a new
+		// array here, so cfg.Shares' original backing array is never written.
+		next := append([]domain.Share(nil), cfg.Shares...)
+		//nolint:gocritic // appendAssign is the intent: the copy above must stay
+		// independent, so the result must not be assigned back into `next`.
 		cfg.Shares = append(next, domain.Share{Label: label, Path: p})
 		cfg.Shares = util.NormalizeShares(cfg.Shares)
 		cfg.Shares = util.DedupeShares(cfg.Shares)

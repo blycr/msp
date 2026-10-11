@@ -28,3 +28,10 @@ updates:
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 10
+
+  # Maintain Docker base images used by Dockerfile / docker-compose.yml
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5

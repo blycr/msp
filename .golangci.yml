@@ -14,6 +14,33 @@ linters:
     - gosec
     - gocyclo
     - misspell
+    # Error handling correctness.
+    - errorlint
+    - nilerr
+    # Resource hygiene: leaked HTTP bodies and unclosed SQL rows.
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    # Dead / redundant code.
+    - unconvert
+    - wastedassign
+    # Bug-prone constructs.
+    - gocritic
+
+  settings:
+    gocritic:
+      # Keep gocritic's default check set only. Enabling the whole `style` /
+      # `performance` tag adds ~200 findings that are pure micro-optimisation
+      # noise (hugeParam, rangeValCopy) and would bury real defects.
+      disabled-checks:
+        # main() deliberately uses log.Fatal* for unrecoverable startup
+        # errors, so skipping deferred cleanup there is intended.
+        - exitAfterDefer
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
   max-issues-per-linter: 0

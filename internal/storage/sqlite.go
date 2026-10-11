@@ -154,7 +154,7 @@ func (s *SQLite) GetProgress(ctx context.Context, mediaID string) (float64, erro
 	}
 	var p domain.PlaybackProgress
 	err := dbConn.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).WithContext(ctx).First(&p, "media_id = ?", mediaID).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, nil
 	}
 	return p.Time, err
@@ -267,7 +267,7 @@ func (s *SQLite) GetScanMeta(ctx context.Context, cacheKey string) (domain.Media
 	}
 	var scan domain.MediaScan
 	err := dbConn.WithContext(ctx).First(&scan, "cache_key = ?", cacheKey).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return domain.MediaScan{}, false, nil
 	}
 	return scan, true, err

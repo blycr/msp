@@ -342,7 +342,7 @@ func readSniffBytes(fileAbs string) ([]byte, error) {
 		if _, err := f.ReadAt(tail, st.Size()-tailSize); err != nil {
 			slog.Warn("read tail bytes error", "err", err)
 		}
-		b = append(head, tail...)
+		b = append(b, tail...)
 	}
 	return b, nil
 }

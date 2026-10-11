@@ -37,19 +37,20 @@ func ParseSize(s string) int64 {
 	}
 
 	scale := int64(1)
-	if strings.HasSuffix(s, "TB") {
+	switch {
+	case strings.HasSuffix(s, "TB"):
 		scale = constants.BytesPerTB
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "GB") {
+	case strings.HasSuffix(s, "GB"):
 		scale = constants.BytesPerGB
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "MB") {
+	case strings.HasSuffix(s, "MB"):
 		scale = constants.BytesPerMB
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "KB") {
+	case strings.HasSuffix(s, "KB"):
 		scale = constants.BytesPerKB
 		s = s[:len(s)-2]
-	} else if strings.HasSuffix(s, "B") {
+	case strings.HasSuffix(s, "B"):
 		s = s[:len(s)-1]
 	}
 
@@ -131,14 +132,14 @@ func IsAllowedFile(fileAbs string, shares []domain.Share) bool {
 	if fileAbs == "" {
 		return false
 	}
-	
+
 	// 获取绝对路径
 	f, err := filepath.Abs(fileAbs)
 	if err != nil {
 		return false
 	}
 	f = filepath.Clean(f)
-	
+
 	// 解析符号链接获取真实路径（安全关键）
 	realPath, err := filepath.EvalSymlinks(f)
 	if err != nil {

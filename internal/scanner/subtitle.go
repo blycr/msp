@@ -410,13 +410,14 @@ func AssToVtt(in []byte) []byte {
 			}
 			if dotIdx := strings.Index(seconds, "."); dotIdx != -1 {
 				cs := seconds[dotIdx+1:]
-				if len(cs) == 2 {
+				switch {
+				case len(cs) == 2:
 					ms := cs + "0"
 					seconds = seconds[:dotIdx+1] + ms
-				} else if len(cs) == 1 {
+				case len(cs) == 1:
 					ms := cs + "00"
 					seconds = seconds[:dotIdx+1] + ms
-				} else if len(cs) > 3 {
+				case len(cs) > 3:
 					seconds = seconds[:dotIdx+4]
 				}
 			}
@@ -483,15 +484,13 @@ func AssToVtt(in []byte) []byte {
 				startTime = fieldMap["start"]
 				endTime = fieldMap["end"]
 				text = fieldMap["text"]
-			} else {
-				if len(parts) >= 3 {
-					startTime = parts[1]
-					endTime = parts[2]
-					if len(parts) >= 10 {
-						text = parts[9]
-					} else if len(parts) > 3 {
-						text = strings.Join(parts[3:], ",")
-					}
+			} else if len(parts) >= 3 {
+				startTime = parts[1]
+				endTime = parts[2]
+				if len(parts) >= 10 {
+					text = parts[9]
+				} else if len(parts) > 3 {
+					text = strings.Join(parts[3:], ",")
 				}
 			}
 

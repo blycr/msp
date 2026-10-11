@@ -161,14 +161,14 @@ func applySecurityHeaders(w http.ResponseWriter) {
 	// Content Security Policy
 	w.Header().Set("Content-Security-Policy",
 		"default-src 'self'; "+
-		"script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; "+
-		"style-src 'self' 'unsafe-inline'; "+
-		"connect-src 'self' https://cdn.plyr.io; "+
-		"img-src 'self' blob: https://cdn.plyr.io; "+
-		"media-src 'self' blob: https://cdn.plyr.io; "+
-		"manifest-src data:; "+
-		"frame-ancestors 'none'; "+
-		"base-uri 'self';")
+			"script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; "+
+			"style-src 'self' 'unsafe-inline'; "+
+			"connect-src 'self' https://cdn.plyr.io; "+
+			"img-src 'self' blob: https://cdn.plyr.io; "+
+			"media-src 'self' blob: https://cdn.plyr.io; "+
+			"manifest-src data:; "+
+			"frame-ancestors 'none'; "+
+			"base-uri 'self';")
 }
 
 // --- Rate Limiting ---
@@ -382,8 +382,8 @@ type AccessLevel int
 
 const (
 	AccessLocal  AccessLevel = iota // localhost / 127.0.0.1 / ::1
-	AccessLAN                        // private LAN ranges
-	AccessRemote                     // anything else (Cloudflare Tunnel, public IP)
+	AccessLAN                       // private LAN ranges
+	AccessRemote                    // anything else (Cloudflare Tunnel, public IP)
 )
 
 // getAccessLevel classifies an IP into Local / LAN / Remote.

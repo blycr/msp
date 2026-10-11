@@ -24,7 +24,7 @@ func TestDisplayCodecName(t *testing.T) {
 		{"dts", "DTS"},
 		{"dca", "DCA"},
 		{"truehd", "TrueHD"},
-		{"mjpeg", "MJPEG"},          // 未知 → 大写原始名
+		{"mjpeg", "MJPEG"},           // 未知 → 大写原始名
 		{"H.265/HEVC", "H.265/HEVC"}, // 字节嗅探标签透传
 		{"TrueHD", "TrueHD"},
 		{"", ""},

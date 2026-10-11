@@ -1,0 +1,23 @@
+# Normalize text files to LF in the repository and in every working tree.
+# Without this, Windows checkouts store CRLF and `gofmt`/`git diff` disagree
+# with the LF blobs that Linux CI checks out.
+* text=auto eol=lf
+
+# Binary assets: never convert, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.gz binary
+*.exe binary
+*.db binary
+
+# Pin the lockfile explicitly so tooling that inspects it does not depend on
+# local git config.
+bun.lock text eol=lf

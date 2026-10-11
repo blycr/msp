@@ -30,7 +30,7 @@ func (s *SessionService) CreateSession() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.sessions[tokenStr] = time.Now().Add(time.Duration(constants.CookieMaxAge)*time.Second)
+	s.sessions[tokenStr] = time.Now().Add(time.Duration(constants.CookieMaxAge) * time.Second)
 
 	s.cleanupExpiredSessionsLocked()
 
