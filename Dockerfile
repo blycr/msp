@@ -26,7 +26,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o msp-server ./cmd/msp
 
 # Stage 3: Runtime
-FROM alpine:3.21
+FROM alpine:3.24
 WORKDIR /app
 
 # FFmpeg for transcode/thumbnails/probing; no sqlite libs needed (pure Go driver)
