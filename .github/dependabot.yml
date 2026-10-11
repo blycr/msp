@@ -11,8 +11,11 @@ updates:
         patterns:
           - "*"
 
-  # Maintain Frontend dependencies (bun lockfile in /web)
-  - package-ecosystem: "npm"
+  # Maintain frontend dependencies. `web/` is managed by Bun (only bun.lock is
+  # tracked — no package-lock.json / yarn.lock / pnpm-lock.yaml), so the
+  # ecosystem must be "bun". The npm_and_yarn updater aborts with
+  # misconfigured_tooling and cannot update bun.lock.
+  - package-ecosystem: "bun"
     directory: "/web"
     schedule:
       interval: "weekly"

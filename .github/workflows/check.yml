@@ -106,15 +106,16 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.7.2
+          # Must stay >= the Go version in go.mod: a golangci-lint built with an
+          # older Go refuses to lint a module targeting a newer one and exits 3
+          # with "can't load config: the Go language version (goX) used to build
+          # golangci-lint is lower than the targeted Go version (goY)".
+          version: v2.12.2
           args: --timeout=5m
 
   vulncheck:
     name: Vulnerability Check
     runs-on: ubuntu-latest
-    # Advisory only: a new CVE or a flaky vuln.go.dev lookup must not block a
-    # release. Findings are visible in the job log and step summary.
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -134,8 +135,32 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # Advisory. continue-on-error is set on the STEP, not the job: a job-level
+      # flag still reports the job as failed and paints a red X on every PR,
+      # which is pure noise for results nobody can act on from a PR (the runner
+      # toolchain's own stdlib CVEs). Findings stay visible in the job log and in
+      # the run summary written by the next step.
       - name: Run govulncheck
-        run: govulncheck ./...
+        id: govulncheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          govulncheck ./... 2>&1 | tee govulncheck.txt
+
+      - name: Summarize govulncheck findings
+        if: always()
+        run: |
+          if [ ! -f govulncheck.txt ]; then
+            echo "govulncheck produced no output" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## govulncheck (advisory)"
+            echo ""
+            echo '```'
+            tail -c 5000 govulncheck.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   build-check:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
