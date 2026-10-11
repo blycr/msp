@@ -27,7 +27,7 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 ## Architecture
 
-- **Go 1.25**. Entrypoint: `cmd/msp/main.go` (HTTP `:8099`).
+- **Go 1.26** (`go.mod`), pure Go, no CGO. Entrypoint: `cmd/msp/main.go` (HTTP `:8099`).
 - **Embed**: `web/embed.go` → `//go:embed dist`.
 - **Config**: `<exe_dir>/config.json`, hot-reloaded. Template: `config.example.json`.
 - **DB**: SQLite (`glebarez/sqlite`, pure Go, no CGO). File: `<exe_dir>/msp.db`.
@@ -65,7 +65,7 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 - **Lint**: `.golangci.yml` v2 (errcheck, govet, ineffassign, staticcheck, unused, gosec, gocyclo, misspell, errorlint, nilerr, bodyclose, rowserrcheck, sqlclosecheck, unconvert, wastedassign, gocritic) + `gofmt`/`goimports` formatters. Timeout 5m. Validate workflow edits with `actionlint`.
 - **CI**: `check.yml` — jobs `frontend` (builds `web/dist` once, uploads it as the `web-dist` artifact), then `test` (race + coverage), `lint`, `vulncheck` (advisory, `continue-on-error`), and `build-check` (8-target matrix, downloads `web-dist`). Must keep its `workflow_call` trigger: `release.yml` reuses it via `uses:`. `release.yml` runs on `v*` tags. Release notes from `docs/release/<tag>.md`.
-- **Docker**: Multi-stage (node:22-alpine → golang:1.25-alpine → alpine). CGO_ENABLED=0. Volumes: `/data`, `/media`.
+- **Docker**: Multi-stage (`oven/bun:1.3-alpine` → `golang:1.25-alpine` → `alpine:3.24`). CGO_ENABLED=0. Volumes: `/data`, `/media`. The backend image tag is stale relative to `go.mod`'s `go 1.26.0`; `go` auto-fetches the newer toolchain there, so it builds, but consider bumping the tag.
 - **Release checklist**: Update `CHANGELOG.md` → create `docs/release/vX.Y.Z.md` → verify `bun run build && go build` → commit → tag → push.
 - **Common release mistakes**: forgetting release notes file; tagging before commit; skipping frontend build before `go build`.
 
@@ -118,6 +118,64 @@ Do not hand over within a phase.
 
 ---
 
+## Waiting & Verification Protocol
+
+**Why this section exists**: this was the single largest measured waste in this repo's history. A
+long-running external process (CI, a release, a network fetch) was polled with a fixed
+`Start-Sleep` per turn, and the check was split into a separate turn. Work that was already
+finished by turn N was still being waited on at turn N+3, and each turn replayed the whole
+conversation prefix as prompt. The cost is dominated by turns, not by wall-clock.
+
+### The asymmetric cost rule
+
+One long-running tool call costs almost the same as a short one — but splitting it into two turns
+costs another full context replay. **Therefore: put the wait and the check inside ONE invocation,
+and move across turns only when there is independent work to do.**
+
+### Anti-patterns (do not do these)
+
+- ❌ `Start-Sleep 180` in one call, then check status in the *next* call.
+- ❌ Repeated multi-minute fixed sleeps across several turns "to be safe".
+- ❌ Polling for a ref that can never produce a run (a tag that does not match the workflow's
+  `on:` filters) until the timeout expires.
+
+### Required pattern
+
+1. **Poll with early exit + a hard deadline, in a single call.** Local background commands go
+   through `job_output(wait: true)`; GitHub runs go through `scripts/ci-wait.ps1` (below). Both
+   return the moment the condition is true.
+2. **Interval 15–30 s is the sweet spot**: 5 s just burns API calls, 120 s overshoots by up to two
+   minutes. Fine for GitHub's ~20 s queue lag.
+3. **Pick an honest deadline**: typical 3–8 min for the 12-job matrix; 20 min cap. Never rely on
+   "it should be done by now".
+4. **Do not shorten the wait so much that the answer is missed.** If the deadline hits with the
+   work still running, report the real state — never guess from a partial poll. A `cancelled` run
+   caused by `concurrency.cancel-in-progress` is a superseded run, not a failure.
+5. **Batch independent verifications into one call** (e.g. `go vet` + `go test` + `golangci-lint`
+   in a single invocation).
+6. **For long waits, run the waiting itself as a background job and do unrelated work meanwhile**;
+   do not `job_output(wait: true)` it while nothing else depends on it.
+
+### `scripts/ci-wait.ps1`
+
+```powershell
+pwsh -NoProfile -File scripts/ci-wait.ps1 -Ref main -Workflow check -Event push
+pwsh -NoProfile -File scripts/ci-wait.ps1 -Ref v1.12.3 -Event push -Workflow release
+```
+
+Exit codes: `0` = terminal state reached (per-job conclusions printed; the *run* may still be a
+failure — inspect the jobs), `2` = deadline hit while still running, `3` = no run ever appeared,
+i.e. the ref matches no workflow trigger — add `docs/release/<tag>.md` before tagging a release,
+and remember `release.yml` only fires for tags matching `v*`.
+
+### Verify the artefact, not the badge
+
+A green run is not proof. After a release or CI change, check the **product**: the published asset
+list and a downloaded binary's contents, not just `conclusion: success`. A one second
+`Start-Sleep` before a local smoke test is fine and often necessary; a multi-minute one is not.
+
+---
+
 ## Evolution Log
 
 **Write only when a lesson is worth remembering across sessions.** Do not append after every task.
@@ -141,3 +199,5 @@ Do not hand over within a phase.
 [2026-10-11] Adding a new artifact upload to a reusable workflow leaks into every consumer of `download-artifact` with `merge-multiple: true` → the `web-dist` artifact from `check.yml`'s frontend job showed up as `index.html`/`sw.js`/`workbox-*.js` release assets; scope the download with `pattern: msp-*` and always inspect the published asset list after a release, not just the run conclusion [CI]
 [2026-10-11] Local `govulncheck` reports the *toolchain's* stdlib CVEs (`go1.26.4` on this box) mixed with real dependency findings → separate them before acting; only the module findings are actionable in-repo (bump the dep), the stdlib ones need a newer Go on the runner [Security]
 [2026-10-11] User correction → when the network is slow or blocked, route through the local SOCKS5 proxy on port 7890 instead of retrying direct; this applies to GitHub API/release-asset downloads and `gh` calls, same fallback role as `GOPROXY=https://goproxy.cn,direct` for Go modules [Tooling]
+[2026-10-11] User correction (biggest measured waste in this repo's history) → do NOT poll long-running CI/releases with fixed multi-minute `Start-Sleep` spread across turns: each turn replays the whole conversation prefix, so the cost is turns, not wall-clock; put the wait AND the check in ONE invocation via `scripts/ci-wait.ps1` (GitHub) or `job_output(wait: true)` (local commands) with early exit + honest deadline, and use 15–30 s intervals so the answer is not missed [Process]
+[2026-10-11] Self-test design error worth remembering → a throwaway tag named without the `v*` prefix produced no run at all, so the wait only proved the timeout path; when testing a wait, first assert that the thing being waited for can actually happen, and make the waiter fail fast (`ci-wait.ps1` exit 3) instead of burning the full deadline on a ref that matches no trigger [Process]
