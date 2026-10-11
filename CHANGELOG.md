@@ -4,6 +4,9 @@
 
 ## 1.12.2
 
+- **安全**：
+  - `golang.org/x/text` 由 v0.37.0 升到 v0.39.0，修掉 GO-2026-5970（无效输入导致死循环）。该依赖经 `gorm/schema` 进入转码/媒体路径，此前版本已打进 v1.12.2 的二进制
+  - `vulncheck` job 首次运行即报出该问题（另外 12 项是 CI 运行器 Go 标准库版本偏旧，与仓库代码无关）
 - **播放**：
   - 桌面端展开播放列表时歌曲封面不再跳出封面区：封面移入 `audioCoverSlot` 槽内左右居中，中间列变窄时等比缩小（`object-fit: contain`），歌词布局不受影响
 - **行尾与格式（仓库级一次性归一化）**：
@@ -18,6 +21,8 @@
   - 新增 `vulncheck` job（`govulncheck`），`continue-on-error` 仅作告警，不让新 CVE 或 vuln.go.dev 抖动阻塞发布
   - Bun 缓存 key 由 `package.json` 改为 `bun.lock`；`push` 触发不再重复跑同仓 PR 的两遍
   - Dependabot 新增 `docker` 生态，覆盖 `Dockerfile` 的三个基础镜像
+  - 修复重写 `check.yml` 时误删 `workflow_call` 触发器导致 release 工作流启动即失败（`jobs` 为空）的问题；仓库 workflow 现纳入 `actionlint` 校验
+  - 修复 `frontend` job 的 `web-dist` 工件被 release 的 `download-artifact(merge-multiple)` 一并收进发布资产、导致 `index.html`/`sw.js`/`workbox-*.js` 混入下载列表的问题；现只下载 `msp-*` 二进制
 
 ## 1.12.1
 

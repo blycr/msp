@@ -140,11 +140,16 @@ jobs:
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
           echo "Release tag: $tag"
 
-      - name: Download all artifacts
+      # Only the release binaries are downloaded. `merge-multiple: true` alone
+      # would also pull in the `web-dist` artifact uploaded by check.yml's
+      # frontend job, leaking index.html/sw.js/workbox-*.js into the release
+      # assets, so the pattern deliberately excludes it.
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+          pattern: msp-*
 
       - name: List artifacts
         shell: bash

@@ -63,8 +63,8 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 ## CI / Release / Docker
 
-- **Lint**: `.golangci.yml` v2 (errcheck, govet, ineffassign, staticcheck, unused, gosec, gocyclo, misspell). Timeout 5m.
-- **CI**: `check.yml` (test, lint, build-check). `release.yml` on `v*` tags. Release notes from `docs/release/<tag>.md`.
+- **Lint**: `.golangci.yml` v2 (errcheck, govet, ineffassign, staticcheck, unused, gosec, gocyclo, misspell, errorlint, nilerr, bodyclose, rowserrcheck, sqlclosecheck, unconvert, wastedassign, gocritic) + `gofmt`/`goimports` formatters. Timeout 5m. Validate workflow edits with `actionlint`.
+- **CI**: `check.yml` — jobs `frontend` (builds `web/dist` once, uploads it as the `web-dist` artifact), then `test` (race + coverage), `lint`, `vulncheck` (advisory, `continue-on-error`), and `build-check` (8-target matrix, downloads `web-dist`). Must keep its `workflow_call` trigger: `release.yml` reuses it via `uses:`. `release.yml` runs on `v*` tags. Release notes from `docs/release/<tag>.md`.
 - **Docker**: Multi-stage (node:22-alpine → golang:1.25-alpine → alpine). CGO_ENABLED=0. Volumes: `/data`, `/media`.
 - **Release checklist**: Update `CHANGELOG.md` → create `docs/release/vX.Y.Z.md` → verify `bun run build && go build` → commit → tag → push.
 - **Common release mistakes**: forgetting release notes file; tagging before commit; skipping frontend build before `go build`.
@@ -135,3 +135,8 @@ Do not hand over within a phase.
 [2026-07-13] User correction → use bun/bunx/uv instead of npx/npm/pip; prefer a domestic registry and use SOCKS5 7890 only for network fallback [Tooling]
 [2026-07-18] build.ps1 failed at checksum step → this machine's Windows PowerShell 5.1 lacks Get-FileHash; build.ps1/dev.ps1 now auto re-exec into pwsh (PS7) when PS < 7 [Build]
 [2026-08-07] go get/tidy on proxy.golang.org times out → use `GOPROXY=https://goproxy.cn,direct` for Go dependency fetches (same domestic-registry rule as bun/npm) [Tooling]
+[2026-10-11] Rewriting `.github/workflows/check.yml` dropped its `workflow_call` trigger → `release.yml`'s `uses: ./.github/workflows/check.yml` made the release run fail at startup with `conclusion=failure` and **zero jobs**, which looks nothing like a YAML error; run `actionlint` (catches it as `workflow-call`) before pushing workflow edits, and never edit a reusable workflow's `on:` block without checking its callers [CI]
+[2026-10-11] Windows `core.autocrlf=true` hides CRLF blobs: `gofmt -l`, `git diff` and `golangci-lint` flagged ~170 files while `git status` was clean → commit `.gitattributes` (`* text=auto eol=lf`) once; after adding it, refresh the worktree (delete + `git checkout-index -a -f`) or the old CRLF bytes stay and keep failing `gofmt` [Tooling]
+[2026-10-11] `git checkout -- .` only rewrites paths whose index differs, so a newly added `.gitattributes` does not renormalize the existing worktree; and on a shell that pipes `git cat-file` through `Out-File` the line-ending counts are poisoned by encoding/BOM — compare via `git ls-files --eol` or raw bytes instead [Tooling]
+[2026-10-11] Adding a new artifact upload to a reusable workflow leaks into every consumer of `download-artifact` with `merge-multiple: true` → the `web-dist` artifact from `check.yml`'s frontend job showed up as `index.html`/`sw.js`/`workbox-*.js` release assets; scope the download with `pattern: msp-*` and always inspect the published asset list after a release, not just the run conclusion [CI]
+[2026-10-11] Local `govulncheck` reports the *toolchain's* stdlib CVEs (`go1.26.4` on this box) mixed with real dependency findings → separate them before acting; only the module findings are actionable in-repo (bump the dep), the stdlib ones need a newer Go on the runner [Security]
