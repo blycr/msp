@@ -4,6 +4,11 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # Required: .github/workflows/release.yml consumes this workflow via
+  # `uses: ./.github/workflows/check.yml`. Dropping this trigger makes the
+  # release workflow fail at startup with "workflow_call event trigger is not
+  # found in on:" and zero jobs.
+  workflow_call:
 
 permissions:
   contents: read
