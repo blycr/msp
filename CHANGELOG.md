@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 1.12.2
+
+- **播放**：
+  - 桌面端展开播放列表时歌曲封面不再跳出封面区：封面移入 `audioCoverSlot` 槽内左右居中，中间列变窄时等比缩小（`object-fit: contain`），歌词布局不受影响
+- **行尾与格式（仓库级一次性归一化）**：
+  - 新增 `.gitattributes`（`* text=auto eol=lf`，二进制资源显式声明），仓库中 170 个以 CRLF 提交的文本文件归一化为 LF；此后 Windows 与 Linux 检出一致，`gofmt`/`git diff` 不再因行尾产生假差异
+  - `internal/handler/middleware.go` 此前以 CRLF 提交，是唯一一个一旦加入 gofmt 门禁即失败的 Go 文件；现统一为 LF
+- **代码质量**：
+  - `lint` 门禁扩展：新增 `errorlint`、`bodyclose`、`rowserrcheck`、`sqlclosecheck`、`nilerr`、`unconvert`、`wastedassign`、`gocritic`，并启用 `gofmt` + `goimports` formatter（CONTRIBUTING 一直声明"严格强制 gofmt"，此前 CI 并未检查）
+  - 修掉新门禁暴露的实际问题：`internal/config/validate.go` 三处 `fmt.Errorf("%v", err)` 改为 `%w`（保留错误链）；`internal/storage/sqlite.go` 两处 `err == gorm.ErrRecordNotFound` 改为 `errors.Is`（包装后的错误此前会被漏判）；`internal/scanner/scanner.go` 的 `append(head, ...)` 改为 `append(b, ...)`（避免复用 `head` 底层数组）；`internal/util/util.go`、`internal/config/validate.go`、`internal/scanner/subtitle.go` 的 if-else 链改为 switch；`internal/util/util.go` 清掉两处行尾空白
+  - 有意保留并标注：`internal/handler/config.go` 的 copy-on-write 切片复制处 `//nolint:gocritic`（`appendAssign` 是刻意为之，避免并发读看到半追加的 `Shares`）
+- **CI / 依赖**：
+  - 前端只在新增的 `frontend` job 构建一次并以 artifact 下发，`test` 与 `build-check` 矩阵（8 个目标）改为下载，不再重复 `bun install && bun run build` 八次
+  - 新增 `vulncheck` job（`govulncheck`），`continue-on-error` 仅作告警，不让新 CVE 或 vuln.go.dev 抖动阻塞发布
+  - Bun 缓存 key 由 `package.json` 改为 `bun.lock`；`push` 触发不再重复跑同仓 PR 的两遍
+  - Dependabot 新增 `docker` 生态，覆盖 `Dockerfile` 的三个基础镜像
+
 ## 1.12.1
 
 - **播放**：
