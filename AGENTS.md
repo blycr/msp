@@ -65,7 +65,7 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 - **Lint**: `.golangci.yml` v2 (errcheck, govet, ineffassign, staticcheck, unused, gosec, gocyclo, misspell, errorlint, nilerr, bodyclose, rowserrcheck, sqlclosecheck, unconvert, wastedassign, gocritic) + `gofmt`/`goimports` formatters. Timeout 5m. Validate workflow edits with `actionlint`.
 - **CI**: `check.yml` — jobs `frontend` (builds `web/dist` once, uploads it as the `web-dist` artifact), then `test` (race + coverage), `lint`, `vulncheck` (advisory, `continue-on-error`), and `build-check` (8-target matrix, downloads `web-dist`). Must keep its `workflow_call` trigger: `release.yml` reuses it via `uses:`. `release.yml` runs on `v*` tags. Release notes from `docs/release/<tag>.md`.
-- **Docker**: Multi-stage (`oven/bun:1.3-alpine` → `golang:1.25-alpine` → `alpine:3.24`). CGO_ENABLED=0. Volumes: `/data`, `/media`. The backend image tag is stale relative to `go.mod`'s `go 1.26.0`; `go` auto-fetches the newer toolchain there, so it builds, but consider bumping the tag.
+- **Docker**: Multi-stage (`oven/bun:1.3-alpine` → `golang:1.26-alpine` → `alpine:3.24`). CGO_ENABLED=0. Volumes: `/data`, `/media`. Keep the `golang` tag in step with `go.mod`'s `go` directive; a lower tag makes the Go toolchain download itself at build time.
 - **Release checklist**: Update `CHANGELOG.md` → create `docs/release/vX.Y.Z.md` → verify `bun run build && go build` → commit → tag → push.
 - **Common release mistakes**: forgetting release notes file; tagging before commit; skipping frontend build before `go build`.
 

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 1.12.3
+
+本轮是**工具链与依赖收口**：无用户可见的功能或行为变化，交付的是安全性与可维护性更新。
+
+- **工具链 / 安全**：
+  - `go.mod` 的 `go` 指令由 1.25.0 升到 **1.26.0**；从源码构建现在需要 Go 1.26 或更新（此前自行构建用 1.25 亦可）
+  - 直接依赖升级：`github.com/stretchr/testify` 1.11.1 → 1.12.1、`golang.org/x/crypto` 0.51.0 → 0.57.0、`gorm.io/gorm` 1.31.1 → 1.31.2
+  - 间接依赖升级：`golang.org/x/text` 0.37.0 → **0.42.0**、`golang.org/x/sys` 0.44.0 → 0.48.0，`gopkg.in/yaml.v3` → `go.yaml.in/yaml/v3` 3.0.5
+- **前端依赖**：
+  - `vite` 8.0.12 → 8.3.4，`vite-plugin-pwa` 1.3.0 → **2.0.0**（大版本）
+  - 已在本地隔离构建核验：生成的 Service Worker 与升级前**语义一致**（`skipWaiting` / `clientsClaim` / `/api/` navigate denylist / `NetworkOnly` 运行时缓存 / 9 项 precache），仅内容 hash 不同
+- **Docker**：
+  - 后端构建基镜像 `golang:1.25-alpine` → `golang:1.26-alpine`，与 `go.mod` 的 `go 1.26.0` 对齐，避免构建时让 Go 自行下载 toolchain
+  - 运行基镜像 `alpine:3.21` → `alpine:3.24`
+- **CI / 依赖自动化**：
+  - `actions/setup-go` v5 → v7
+  - 前端依赖的 Dependabot 生态由 `npm` 改为 **`bun`**：`web/` 只跟踪 `bun.lock`，`npm_and_yarn` 更新器此前以 `misconfigured_tooling` 中止，导致前端依赖长期收不到更新 PR
+  - 至此 Go / Bun / GitHub Actions / Docker 基础镜像四类依赖的自动更新全部可用
+
 ## 1.12.2
 
 - **安全**：
