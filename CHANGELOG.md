@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **工具链**：`go.mod` 的 `go` 指令 `1.26.0` → **`1.27.0`**（跟随最新稳定版；Go 没有 2.x）
+  - `Dockerfile` 后端构建镜像 `golang:1.26-alpine` → **`golang:1.27-alpine`**，与 `go` 指令对齐
+  - CI 的 `golangci-lint` `v2.12.2` → **`v2.15.0`**：旧版读不了 Go 1.27 的 export data（`export data version 5 is greater than maximum supported version 4`），且 action 版本必须 ≥ `go` 指令
+  - 从源码构建需要 Go 1.27+；**发布二进制不受影响**
 - **CI**：修正"发布时跳过重复构建"的判断（v1.13.0 里那版无效）
   - v1.13.0 用了 `if: github.event_name != 'workflow_call'`，但 reusable workflow 里的 `github` 上下文属于**调用方**，`event_name` 实际是 `push`，条件恒为真 —— 发布流程仍然跑了 `Test & Lint / Build` ×8 与 `Build` ×8，共 16 次编译
   - 改为给 `check.yml` 的 `workflow_call` 增加布尔输入 `skip_build_check`，由 `release.yml` 显式传 `true`；不再依赖事件名判断

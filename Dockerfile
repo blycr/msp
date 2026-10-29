@@ -12,7 +12,7 @@ RUN bun run build
 # Stage 2: Build Backend
 # Keep in step with the `go` directive in go.mod: a lower tag makes the Go
 # toolchain download itself at build time.
-FROM golang:1.26-alpine AS backend-builder
+FROM golang:1.27-alpine AS backend-builder
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /app
 

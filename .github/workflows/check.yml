@@ -118,7 +118,7 @@ jobs:
           # older Go refuses to lint a module targeting a newer one and exits 3
           # with "can't load config: the Go language version (goX) used to build
           # golangci-lint is lower than the targeted Go version (goY)".
-          version: v2.12.2
+          version: v2.15.0
           args: --timeout=5m
 
   vulncheck:

@@ -27,7 +27,12 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 ## Architecture
 
-- **Go 1.26** (`go.mod`), pure Go, no CGO. Entrypoint: `cmd/msp/main.go` (HTTP `:8099`).
+- **Go 1.27** (`go.mod`), pure Go, no CGO. Entrypoint: `cmd/msp/main.go` (HTTP `:8099`).
+- **Go 版本策略**: `go.mod` 的 `go` 指令**始终跟随最新稳定 1.x**（Go 不存在 2.x，官方最新见 `golang.org/toolchain`）。升它必须在**同一提交**里同步三处，否则 CI 必崩：
+  1. `go.mod` 的 `go` 指令
+  2. `Dockerfile` 的 `golang:<ver>-alpine`
+  3. `.github/workflows/check.yml` 的 `golangci-lint` 版本（**必须 >= 前者**；旧版读不了新 Go 的 export data，会报 `export data version N is greater than maximum supported version M`）
+  同步更新 README / CONTRIBUTING / docs/README_CN / docs/CodeMap 里的版本号。
 - **Embed**: `web/embed.go` → `//go:embed dist`.
 - **Config**: `<exe_dir>/config.json`, hot-reloaded. Template: `config.example.json`.
 - **DB**: SQLite (`glebarez/sqlite`, pure Go, no CGO). File: `<exe_dir>/msp.db`.
@@ -64,7 +69,7 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 
 - **Lint**: `.golangci.yml` v2 (errcheck, govet, ineffassign, staticcheck, unused, gosec, gocyclo, misspell, errorlint, nilerr, bodyclose, rowserrcheck, sqlclosecheck, unconvert, wastedassign, gocritic) + `gofmt`/`goimports` formatters. Timeout 5m. Validate workflow edits with `actionlint`.
 - **CI**: `check.yml` — jobs `frontend` (builds `web/dist` once, uploads it as the `web-dist` artifact), then `test` (race + coverage), `lint`, `vulncheck` (advisory, `continue-on-error`), and `build-check` (8-target matrix, downloads `web-dist`). Must keep its `workflow_call` trigger: `release.yml` reuses it via `uses:`. `release.yml` runs on `v*` tags. Release notes from `docs/release/<tag>.md`.
-- **Docker**: Multi-stage (`oven/bun:1.3-alpine` → `golang:1.26-alpine` → `alpine:3.24`). CGO_ENABLED=0. Volumes: `/data`, `/media`. Keep the `golang` tag in step with `go.mod`'s `go` directive; a lower tag makes the Go toolchain download itself at build time.
+- **Docker**: Multi-stage (`oven/bun:1.3-alpine` → `golang:1.27-alpine` → `alpine:3.24`). CGO_ENABLED=0. Volumes: `/data`, `/media`. Keep the `golang` tag in step with `go.mod`'s `go` directive; a lower tag makes the Go toolchain download itself at build time.
 - **Release checklist**: Update `CHANGELOG.md` → create `docs/release/vX.Y.Z.md` → verify `bun run build && go build` → commit → tag → push.
 - **Common release mistakes**: forgetting release notes file; tagging before commit; skipping frontend build before `go build`.
 

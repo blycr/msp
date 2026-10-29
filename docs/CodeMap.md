@@ -12,7 +12,7 @@ MSP 是一个基于 Go + 原生 JavaScript 的媒体共享与预览服务，支�
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 后端 | Go 1.26 | 纯 Go 实现，无 CGO 依赖 |
+| 后端 | Go 1.27 | 纯 Go 实现，无 CGO 依赖 |
 | 数据库 | SQLite (glebarez/sqlite) | 纯 Go SQLite 驱动 |
 | 前端 | Vite 8 + Vanilla JS | 无框架依赖 |
 | 转码 | FFmpeg | 支持硬件加速 (NVENC/QSV/AMF/VAAPI) |
@@ -813,7 +813,7 @@ WithSecurity 中间件
 ```dockerfile
 # 多阶段构建
 1. 前端构建（oven/bun:1.3-alpine）
-2. 后端编译（golang:1.26-alpine）
+2. 后端编译（golang:1.27-alpine）
 3. 运行时（alpine + ffmpeg）
 ```
 
