@@ -98,6 +98,10 @@ msp.db
 msp.db-shm
 msp.db-wal
 *.db-journal
+
+# 媒体 ID 的 AES-GCM 密钥（<exe_dir>/msp.key）。泄露它等于泄露全部媒体路径，
+# 且所有已存进度/收藏的 media_id 都会失效，务必不要提交。
+msp.key
 *.db-wal
 *.sqlite
 *.sqlite3
@@ -149,9 +153,11 @@ netlify.toml
 .agent/
 
 # Docker compose / runtime data dirs
-data/
-media/
-thumbs/
+# 必须锚定到仓库根：写成 `media/` 会匹配任意层级的 media 目录，
+# 连 internal/media/ 下的**新增**文件也会被静默忽略（已跟踪的文件不受影响）。
+/data/
+/media/
+/thumbs/
 
 # Generated codemap
 codemap.html
