@@ -27,6 +27,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 
 - Zero setup: no external database or complex deployment.
 - Smart playback: direct play first, transcode only when needed.
+- Embedded subtitles: pick text tracks (SRT/ASS) muxed inside MKV/MP4 files.
 - Resume playback: continue from last position across devices.
 - Cross-platform server: Windows, Linux, macOS.
 - Browser client: desktop and mobile modern browsers.
@@ -75,7 +76,7 @@ Run it on your PC, share local folders, and play media from any modern browser i
 
 ## Build from Source
 
-Requirements: `Go 1.25+`, `bun 1.3.x` (frontend build), and `PowerShell 7+ (pwsh)` on Windows (`.ps1` scripts auto re-exec from 5.1).  
+Requirements: `Go 1.26+`, `bun 1.3.x` (frontend build), and `PowerShell 7+ (pwsh)` on Windows (`.ps1` scripts auto re-exec from 5.1).  
 See [Scripts Guide](scripts/README.md) for detailed build and dev script options.
 
 ```bash

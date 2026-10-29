@@ -44,7 +44,6 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 | `internal/server` | Server orchestration & config mgmt |
 | `internal/service` | Business logic services |
 | `internal/storage` | SQLite/GORM store & interfaces |
-| `internal/types` | Shared type definitions |
 | `internal/util` | Utilities |
 | `internal/web` | Embedded web serving logic |
 | `web/` | Frontend (Vite 8 + vanilla JS + PWA, bun 1.3) |

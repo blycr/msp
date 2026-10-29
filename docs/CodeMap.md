@@ -12,7 +12,7 @@ MSP 是一个基于 Go + 原生 JavaScript 的媒体共享与预览服务，支�
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 后端 | Go 1.25 | 纯 Go 实现，无 CGO 依赖 |
+| 后端 | Go 1.26 | 纯 Go 实现，无 CGO 依赖 |
 | 数据库 | SQLite (glebarez/sqlite) | 纯 Go SQLite 驱动 |
 | 前端 | Vite 8 + Vanilla JS | 无框架依赖 |
 | 转码 | FFmpeg | 支持硬件加速 (NVENC/QSV/AMF/VAAPI) |
@@ -65,11 +65,9 @@ msp/
 │   │   ├── logger.go           # 异步缓冲日志服务（logChan + writeLoop）
 │   │   └── config.go           # 配置业务逻辑
 │   ├── storage/                # 数据持久化
-│   │   ├── sqlite.go           # SQLite 初始化与操作（连接池按 GOMAXPROCS，含表达式索引）
+│   │   ├── sqlite.go           # SQLite 初始化与操作（连接池上限 4，含表达式索引）
 │   │   ├── store.go            # Store 抽象层
 │   │   └── interface.go        # 存储接口定义
-│   ├── types/                  # 类型别名（向后兼容）
-│   │   └── types.go            # domain 包的类型重导出
 │   ├── util/                   # 工具函数
 │   │   └── util.go             # 通用工具：路径处理、ID 编解码等
 │   └── web/                    # Web 服务工具
@@ -815,7 +813,7 @@ WithSecurity 中间件
 ```dockerfile
 # 多阶段构建
 1. 前端构建（oven/bun:1.3-alpine）
-2. 后端编译（golang:1.25-alpine）
+2. 后端编译（golang:1.26-alpine）
 3. 运行时（alpine + ffmpeg）
 ```
 

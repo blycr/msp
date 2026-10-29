@@ -120,8 +120,9 @@
 - **参数**:
   - `id`: 媒体文件 ID (必须)。
   - `transcode`: `1` 请求服务端转码 (默认返回原文件)。
-  - `hls`: `1` 视频转码使用 HLS 会话（v1.11.0+，原生 seek/Range）。与 `transcode=1` 同时传递，响应为 JSON `{ "m3u8": "/api/hls/<sessionID>/index.m3u8" }`。
-  - `start`: 转码流的起始时间（秒，仅渐进式转码模式有效）。
+  - `hls`: `1` 视频转码使用 HLS 会话（v1.11.0+，原生 seek/Range）。与 `transcode=1` 同时传递，响应为 JSON `{ "m3u8": "/api/hls/<sessionID>/index.m3u8", "start": 0 }`。
+  - `start`: 转码流的起播位置（秒）。渐进式转码一直支持；**HLS 自 v1.13.0 起才真正生效**（此前该参数被忽略，回退转码总是从 0:00 重播）。
+    HLS 的播放列表时间线**仍从 0 开始**，所以客户端落点应为 `currentTime - start`（`start` 由 HLS 响应回传）。
   - `format`: 强制转码格式 (如 `mp4`, `mp3`)。
   - `bitrate`: 限制转码码率 (如 `2M`)。
 - **响应**: 二进制媒体流 (video/mp4, audio/mpeg 等)；HLS 模式返回播放列表 JSON。
@@ -149,7 +150,7 @@
 - **端点**: `GET /api/subtitle`
 - **参数**:
   - `id`: 字幕文件 ID；若同时携带 `track`，则为媒体文件 ID。
-  - `track`: 内嵌字幕轨道号（0-63，v1.11.0+）。从媒体文件内提取该文本字幕轨道并转换为 WebVTT。
+  - `track`: 内嵌字幕的**全局 stream index**（ffmpeg 流序号，0-63；**不是**"第几条字幕流"）。取值直接来自 `/api/probe` 返回的 `subtitles[].src`。从媒体文件内提取该轨道并转换为 WebVTT。
 - **响应**: `text/vtt` 内容。
 - **补充**: 也支持 `HEAD` 请求（仅返回头信息，不返回内容）。
 

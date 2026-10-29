@@ -270,7 +270,13 @@ ffmpeg -i input.mp4 \
 
 视频转码输出使用 **HLS**（HTTP Live Streaming）替代单 URL 渐进式流，以支持原生 seek / Range 请求：
 
-- ffmpeg 输出 4 秒分段的 `.ts` 文件与 `index.m3u8` 播放列表（`-hls_list_size 0` 保留全量段，支持回看）
+- ffmpeg 输出 `.ts` 分段与 `index.m3u8` 播放列表（`-hls_list_size 0` 保留全量段，支持回看）
+- **分段时长（v1.13.0 修正）**：HLS 只能在关键帧处切片，`-hls_time 4` 只是下限。
+  v1.13.0 起重新编码时附加 `-force_key_frames "expr:gte(t,n_forced*4)"`，分段才是真正的 4 秒；
+  在此之前因 libx264 默认 `keyint=250`（25fps 约 10 秒一个关键帧），实际分段一直是 ~10 秒。
+  **视频流拷贝时无法插入关键帧**，分段长度仍等于源的关键帧间隔，这是设计约束。
+- **起播偏移（v1.13.0 新增）**：`&start=<秒>` 会转成 `-ss`（放在 `-i` 之前），只转码该位置之后的内容；
+  播放列表时间线从 0 开始，因此响应里回传 `start`，客户端落点取 `currentTime - start`
 - 段文件写入系统临时目录 `msp_hls_*`，经 `GET /api/hls/<sessionID>/<file>` 服务（`http.ServeContent`，原生 Range）
 - 会话生命周期：5 分钟无请求自动清理（杀 ffmpeg + 删除临时目录）；服务启动时清理上次异常退出的残留目录；优雅关停时 `KillAllTranscodeProcesses` 一并终止 HLS 会话
 - 前端通过 vendored hls.js 播放；Safari 回退原生 HLS；浏览器不支持时回退渐进式 `transcode=1`
@@ -283,7 +289,7 @@ GET /api/stream?id=...&transcode=1&hls=1
 processor.StartHLSStream()  →  ffmpeg -f hls 写段文件
     │
     ▼
-{ "m3u8": "/api/hls/<sessionID>/index.m3u8" }
+{ "m3u8": "/api/hls/<sessionID>/index.m3u8", "start": 0 }
     │
     ▼
 hls.js 请求 m3u8 / 段文件（Range 支持）→ 原生 seek

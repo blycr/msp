@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 1.13.0
+
+本轮修复**媒体探测链路上三个串联的缺陷**——它们让「按真实编码智能转码」和「内嵌字幕」这两项已宣传的能力实际不生效。
+
+- **修复：ffprobe 探测整体失败（根因）**：
+  - `probeCodecInfo` 使用 `-select_streams v:0,a:0,s`。该参数只接受**单个** stream specifier，逗号并列会让 `avformat_match_stream_specifier` 返回 `EINVAL`，ffprobe 的 `CHECK_END` 直接放弃整次探测，**进程以退出码 1 结束**
+  - 后果链：`GetCodecInfo` 永远返回错误 → `HandleProbe` 回退到字节嗅探（只覆盖 mkv/mp4/m4v/mov）→ 内嵌字幕永远为空、AVI/TS/WMV/WebM 编码未知、`TranscodeStream` 的 `-vcodec copy` 成为死代码（H.264 也被整段重编）
+  - 改为一次性输出全部 stream 后自行筛选；同时修正 `-show_entries`：`language`/`title` 属于 stream 的 tags，必须用 `stream_tags=` 前缀，原写法会被静默忽略（不报错、但也没有输出）
+  - 顺带过滤 `attached_pic`：带封面的 `.m4a`/`.mp3` 第一个 video 流是 mjpeg，不过滤会把纯音频判成「需要转码」
+- **修复：内嵌字幕按错的索引提取**：
+  - URL 里的 `track` 是 ffprobe 的**全局 stream index**，而提取时用的是 `-map 0:s:<n>`（第 n 条字幕流的相对序号）。单字幕文件匹配不到任何流（404），多字幕文件会取到别的轨道
+  - 改为 `-map 0:<index>`；`API_REFERENCE` 同步说明 `track` 的语义
+- **修复：HLS 的分段时长与起播位置**：
+  - `-hls_time 4` 只是下限，实际分段长度由关键帧间隔决定（libx264 默认 `keyint=250`，25fps 约 10 秒）。重编码时新增 `-force_key_frames "expr:gte(t,n_forced*4)"`，分段才是 4 秒；流拷贝无法插入关键帧，仍按源的关键帧间隔
+  - `start` 此前被完全忽略（`buildHLSArgs` 没有引用 `opts.Offset`），直连失败回退转码总是从 0:00 重播。现在 `-ss` 生效，响应回传 `start`，前端落点取 `currentTime - start`
+- **行为变化**（升级时留意）：
+  - H.264 视频转码改为**流拷贝**：不再二次损失画质，CPU 占用显著下降
+  - HLS 分段由 ~10 秒变为 4 秒：拖动更精细、起播更快
+  - 内嵌字幕开始真正出现在字幕菜单里
+- **测试**：
+  - 新增需要真实媒体文件的集成测试（无 ffmpeg 时跳过）：`TestGetCodecInfoRealFile`、`TestGetCodecInfoIgnoresAttachedPic`、`TestHandleSubtitleEmbeddedRealFile`，以及不依赖 ffmpeg 的 `TestParseProbeJSONIgnoresAttachedPic`
+  - `TestParseProbeJSONWithSubtitles` 的 fixture 修正：原先用扁平 `language`/`title`，是 ffprobe 不会产出的形状（假绿）
+- **工程**：
+  - `.gitignore`：`media/`、`data/`、`thumbs/` 未锚定根目录，会匹配任意层级的同名目录 —— `internal/media/` 下的**新增文件会被静默忽略**（本次新增的测试就中招了）；同时补上 `msp.key`
+  - CI：`check.yml` 的 `build-check` 在 `workflow_call`（发布）时跳过，避免与 `release.yml` 自己的 8 目标矩阵重复，每次发布少 8 个构建任务
+- **文档修正**：Go 版本要求（README / CONTRIBUTING / README_CN 仍写 1.25）、CodeMap 的技术栈与 Docker 镜像、CodeMap / AGENTS 里已删除的 `internal/types` 包、SQLite 连接池描述（早已改为上限 4 而非 `GOMAXPROCS`）、`API_REFERENCE` 的 `track` 语义与 HLS 的 `start` 字段、`TRANSCODING` 的 HLS 分段说明
+
 ## 1.12.3
 
 本轮是**工具链与依赖收口**：无用户可见的功能或行为变化，交付的是安全性与可维护性更新。
