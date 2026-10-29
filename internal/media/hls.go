@@ -20,6 +20,12 @@ const (
 	hlssessionTimeout     = 5 * time.Minute // 无访问自动清理
 	hlssessionJanitorTick = 30 * time.Second
 	hlssessionSegmentTime = "4" // 段时长（秒），决定 seek 精度
+
+	// hlsForceKeyFrames 保证关键帧落在分段边界上。
+	// -hls_time 只是切片的“下限”：HLS 只能在关键帧处下刀，而 libx264
+	// 默认 keyint=250（25fps 下约 10 秒一个关键帧），不强制的话
+	// 4 秒的分段实际会变成 10 秒。
+	hlsForceKeyFrames = "expr:gte(t,n_forced*" + hlssessionSegmentTime + ")"
 )
 
 // HLSSession represents one live video-transcode-to-HLS session. The ffmpeg
@@ -211,7 +217,15 @@ func (mp *MediaProcessor) buildHLSArgs(inputPath, dir string, opts TranscodeOpti
 
 	args := []string{"-hide_banner", "-loglevel", "error"}
 
-	if codec.VideoCodec == "h264" {
+	// 起播偏移：放在 -i 之前，让 ffmpeg 用 demuxer seek（快）。
+	// 输出时间线仍从 0 开始，调用方需要把播放器的 currentTime
+	// 减去同一个偏移量（见 /api/stream 的 hls 响应里的 start 字段）。
+	if opts.Offset > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%f", opts.Offset))
+	}
+
+	reencode := codec.VideoCodec != "h264"
+	if !reencode {
 		args = append(args, "-i", inputPath, "-vcodec", "copy")
 	} else {
 		initArgs, codecArgs := mp.BuildVideoArgs(opts.Bitrate)
@@ -224,6 +238,13 @@ func (mp *MediaProcessor) buildHLSArgs(inputPath, dir string, opts TranscodeOpti
 		args = append(args, "-acodec", "copy")
 	} else {
 		args = append(args, "-acodec", "aac")
+	}
+
+	// 强制关键帧：HLS 只能在关键帧处切片，而 libx264 默认 keyint=250，
+	// 25fps 下约 10 秒才有一个关键帧，于是 -hls_time 4 会退化成 10 秒分段。
+	// 重新编码时必须显式对齐；流拷贝时源的关键帧间隔无法改变，不做处理。
+	if reencode {
+		args = append(args, "-force_key_frames", hlsForceKeyFrames)
 	}
 
 	args = append(args,

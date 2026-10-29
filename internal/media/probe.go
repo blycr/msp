@@ -316,10 +316,18 @@ func (mp *MediaProcessor) probeCodecInfo(ctx context.Context, inputPath string) 
 		return CodecInfo{}, fmt.Errorf("ffprobe not found")
 	}
 
+	// 不要用 -select_streams：它只接受单个 stream specifier，逗号并列
+	// （v:0,a:0,s）会让 avformat_match_stream_specifier 返回 EINVAL，
+	// ffprobe 的 CHECK_END 直接 goto end，进程以非零码退出，整次探测失败。
+	// 这里改为一次性输出全部 stream，由 parseProbeJSON 自行筛选。
+	//
+	// 另：language/title 属于 stream 的 tags，必须用 stream_tags= 前缀取；
+	// 写成 stream=language,title 会被静默忽略（不会报错，但也不会有输出）。
+	// disposition 用来识别 attached_pic（封面图），否则带封面的音频文件
+	// 第一个 video 流会是 mjpeg，被误判成"需要转码的视频"。
 	args := []string{
 		"-v", "error",
-		"-select_streams", "v:0,a:0,s",
-		"-show_entries", "stream=index,codec_name,codec_type,language,title",
+		"-show_entries", "stream=index,codec_name,codec_type:stream_tags=language,title:stream_disposition=attached_pic",
 		"-of", "json",
 		inputPath,
 	}
@@ -335,12 +343,20 @@ func (mp *MediaProcessor) probeCodecInfo(ctx context.Context, inputPath string) 
 }
 
 // probeStream represents a single stream in ffprobe JSON output.
+//
+// language / title 在 ffprobe 的 JSON 里是嵌套在 streams[].tags 下的，
+// attached_pic 在 streams[].disposition 下，都不是顶层字段。
 type probeStream struct {
 	Index     int    `json:"index"`
 	CodecName string `json:"codec_name"`
 	CodecType string `json:"codec_type"`
-	Language  string `json:"language"`
-	Title     string `json:"title"`
+	Tags      struct {
+		Language string `json:"language"`
+		Title    string `json:"title"`
+	} `json:"tags"`
+	Disposition struct {
+		AttachedPic int `json:"attached_pic"`
+	} `json:"disposition"`
 }
 
 // probeResult represents the overall ffprobe JSON output structure.
@@ -360,6 +376,12 @@ func parseProbeJSON(data []byte) (CodecInfo, error) {
 	for _, s := range result.Streams {
 		switch s.CodecType {
 		case "video":
+			// 跳过封面图（attached_pic）。带封面的音频（.m4a/.mp3）里
+			// 第一个 video 流往往是 mjpeg 封面，若计为视频编码，
+			// decidePlaybackMode 会把纯音频判成"需要转码"。
+			if s.Disposition.AttachedPic != 0 {
+				continue
+			}
 			if info.VideoCodec == "" {
 				info.VideoCodec = s.CodecName
 			}
@@ -374,8 +396,8 @@ func parseProbeJSON(data []byte) (CodecInfo, error) {
 			info.Subtitles = append(info.Subtitles, SubtitleTrack{
 				Index:     s.Index,
 				CodecName: s.CodecName,
-				Language:  s.Language,
-				Title:     s.Title,
+				Language:  s.Tags.Language,
+				Title:     s.Tags.Title,
 			})
 		}
 	}

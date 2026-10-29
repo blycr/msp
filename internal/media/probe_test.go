@@ -209,13 +209,16 @@ func TestProbeCacheHit(t *testing.T) {
 }
 
 func TestParseProbeJSONWithSubtitles(t *testing.T) {
+	// 注意：language / title 在 ffprobe 的 JSON 里嵌套于 streams[].tags，
+	// 不是顶层字段。之前这里写成扁平字段，等于在测一个 ffprobe 不会产出的
+	// 形状，所以内嵌字幕的标签一直是空的却测不出来。
 	data := []byte(`{
 		"streams": [
 			{"index": 0, "codec_name": "h264", "codec_type": "video"},
 			{"index": 1, "codec_name": "aac", "codec_type": "audio"},
-			{"index": 2, "codec_name": "subrip", "codec_type": "subtitle", "language": "chi", "title": "简体中文"},
-			{"index": 3, "codec_name": "ass", "codec_type": "subtitle", "language": "eng"},
-			{"index": 4, "codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle", "language": "eng"},
+			{"index": 2, "codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "chi", "title": "简体中文"}},
+			{"index": 3, "codec_name": "ass", "codec_type": "subtitle", "tags": {"language": "eng"}},
+			{"index": 4, "codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle", "tags": {"language": "eng"}},
 			{"index": 5, "codec_name": "dvd_subtitle", "codec_type": "subtitle"}
 		]
 	}`)
@@ -231,6 +234,23 @@ func TestParseProbeJSONWithSubtitles(t *testing.T) {
 	assert.Equal(t, "简体中文", info.Subtitles[0].Title)
 	assert.Equal(t, "ass", info.Subtitles[1].CodecName)
 	assert.Equal(t, "eng", info.Subtitles[1].Language)
+}
+
+// TestParseProbeJSONIgnoresAttachedPic 校验封面图不会被当成视频编码。
+// 带封面的音频（.m4a/.mp3）第一个 video 流是 mjpeg + attached_pic=1，
+// 若计为 VideoCodec，纯音频会被 decidePlaybackMode 判成需要转码。
+func TestParseProbeJSONIgnoresAttachedPic(t *testing.T) {
+	data := []byte(`{
+		"streams": [
+			{"index": 0, "codec_name": "mjpeg", "codec_type": "video", "disposition": {"attached_pic": 1}},
+			{"index": 1, "codec_name": "aac", "codec_type": "audio"}
+		]
+	}`)
+
+	info, err := parseProbeJSON(data)
+	assert.NoError(t, err)
+	assert.Equal(t, "", info.VideoCodec, "封面图必须被忽略")
+	assert.Equal(t, "aac", info.AudioCodec)
 }
 
 func TestParseFFmpegVersionLine(t *testing.T) {

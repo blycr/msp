@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"os"
@@ -226,13 +227,21 @@ func (h *Handler) tryServeHLS(w http.ResponseWriter, r *http.Request, target str
 	if h.processor == nil {
 		return false
 	}
-	session, err := h.processor.StartHLSStream(target, media.TranscodeOptions{Format: "mp4"})
+	// 起播位置：前端回退转码时把当前播放位置带上来，避免"出错后从 0:00 重播"。
+	start, _ := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
+	if start < 0 || math.IsNaN(start) || math.IsInf(start, 0) {
+		start = 0
+	}
+	session, err := h.processor.StartHLSStream(target, media.TranscodeOptions{Format: "mp4", Offset: start})
 	if err != nil {
 		h.logger.Log(service.LogLevelWarning, fmt.Sprintf("HLS stream error: %v", err))
 		return false
 	}
-	writeJSON(w, http.StatusOK, map[string]string{
-		"m3u8": "/api/hls/" + session.ID + "/index.m3u8",
+	// start 回传：HLS 播放列表的时间线从 0 开始，客户端要把 currentTime
+	// 减去这个偏移量才是正确落点。
+	writeJSON(w, http.StatusOK, map[string]any{
+		"m3u8":  "/api/hls/" + session.ID + "/index.m3u8",
+		"start": start,
 	})
 	return true
 }

@@ -196,6 +196,10 @@ var subtitleLabelMap = map[string]string{
 	"zh-cn":   "中文",
 	"zh-hans": "中文",
 	"zh-chs":  "中文",
+	// ISO 639-2 的代码：Matroska 里中文轨几乎都用 "chi"（639-2/B），
+	// 偶尔 "zho"（639-2/T）。缺这两个键时标签会直接显示 "chi"。
+	"chi":     "中文",
+	"zho":     "中文",
 	"sc":      "简体中文",
 	"chs":     "简体中文",
 	"gb":      "简体中文",

@@ -108,11 +108,13 @@ export function probeText(p) {
 }
 
 // 创建 HLS 转码会话（视频 seek/Range 支持）：
-// 返回 { m3u8: "/api/hls/<sessionID>/index.m3u8" }，失败返回 null。
-export async function startHlsSession(id) {
+// 返回 { m3u8, start }，start 是服务端实际使用的起播偏移（秒）。
+// 播放列表的时间线从 0 开始，落点应为 currentTime - start。
+export async function startHlsSession(id, start) {
   if (!id) return null;
   try {
-    return await apiGet(`/api/stream?id=${encodeURIComponent(id)}&transcode=1&hls=1`);
+    const off = Number(start) > 0 ? Number(start) : 0;
+    return await apiGet(`/api/stream?id=${encodeURIComponent(id)}&transcode=1&hls=1&start=${off}`);
   } catch {
     return null;
   }

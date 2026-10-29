@@ -135,14 +135,17 @@ export function setupErrorHandler(element, onMediaEnded) {
 
           logRemote("info", `Fallback to transcode: ${state.current.name} @ ${currentTime}s`);
           if (isVideo) {
-            // 视频：创建 HLS 会话（原生 seek），完成后异步切换
-            startHlsSession(state.current.id).then((hi) => {
+            // 视频：创建 HLS 会话（原生 seek），完成后异步切换。
+            // 带上当前位置，服务端用 -ss 从该处起转；输出时间线从 0 开始，
+            // 所以落点要减去服务端返回的 start，否则会退回片头。
+            startHlsSession(state.current.id, currentTime).then((hi) => {
               if (!hi?.m3u8) {
                 console.error("HLS session creation failed");
                 showPreviewError(t("err_unsupported") + " (Transcode Failed)");
                 return;
               }
-              switchToTranscodeSource(element, true, hi.m3u8, currentTime);
+              const rel = Math.max(0, currentTime - (Number(hi.start) || 0));
+              switchToTranscodeSource(element, true, hi.m3u8, rel);
             }).catch(() => {
               showPreviewError(t("err_unsupported") + " (Transcode Failed)");
             });

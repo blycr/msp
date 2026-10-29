@@ -67,7 +67,11 @@ func (h *Handler) serveEmbeddedSubtitle(w http.ResponseWriter, r *http.Request, 
 	args := []string{
 		"-hide_banner", "-loglevel", "error",
 		"-i", target,
-		"-map", fmt.Sprintf("0:s:%d", track),
+		// track 是媒体文件的**全局 stream index**（/api/probe 下发的
+		// subtitle.id 就是 ffprobe 的 index），所以必须用 0:<index>。
+		// 写成 0:s:<n> 会被解释成"第 n 条字幕流"（相对序号），
+		// 单字幕文件直接 matches no streams，多字幕文件还会取错轨。
+		"-map", fmt.Sprintf("0:%d", track),
 		"-c:s", "webvtt",
 		"-f", "webvtt",
 		"pipe:1",
