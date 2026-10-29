@@ -26,6 +26,9 @@ jobs:
   quality:
     name: Test & Lint
     uses: ./.github/workflows/check.yml
+    # 本工作流下面有自己的 8 目标构建矩阵，让被调用的 check.yml 跳过它。
+    with:
+      skip_build_check: true
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})

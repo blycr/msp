@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **CI**：修正"发布时跳过重复构建"的判断（v1.13.0 里那版无效）
+  - v1.13.0 用了 `if: github.event_name != 'workflow_call'`，但 reusable workflow 里的 `github` 上下文属于**调用方**，`event_name` 实际是 `push`，条件恒为真 —— 发布流程仍然跑了 `Test & Lint / Build` ×8 与 `Build` ×8，共 16 次编译
+  - 改为给 `check.yml` 的 `workflow_call` 增加布尔输入 `skip_build_check`，由 `release.yml` 显式传 `true`；不再依赖事件名判断
+
 ## 1.13.0
 
 本轮修复**媒体探测链路上三个串联的缺陷**——它们让「按真实编码智能转码」和「内嵌字幕」这两项已宣传的能力实际不生效。
@@ -26,7 +30,6 @@
   - `TestParseProbeJSONWithSubtitles` 的 fixture 修正：原先用扁平 `language`/`title`，是 ffprobe 不会产出的形状（假绿）
 - **工程**：
   - `.gitignore`：`media/`、`data/`、`thumbs/` 未锚定根目录，会匹配任意层级的同名目录 —— `internal/media/` 下的**新增文件会被静默忽略**（本次新增的测试就中招了）；同时补上 `msp.key`
-  - CI：`check.yml` 的 `build-check` 在 `workflow_call`（发布）时跳过，避免与 `release.yml` 自己的 8 目标矩阵重复，每次发布少 8 个构建任务
 - **文档修正**：Go 版本要求（README / CONTRIBUTING / README_CN 仍写 1.25）、CodeMap 的技术栈与 Docker 镜像、CodeMap / AGENTS 里已删除的 `internal/types` 包、SQLite 连接池描述（早已改为上限 4 而非 `GOMAXPROCS`）、`API_REFERENCE` 的 `track` 语义与 HLS 的 `start` 字段、`TRANSCODING` 的 HLS 分段说明
 
 ## 1.12.3
