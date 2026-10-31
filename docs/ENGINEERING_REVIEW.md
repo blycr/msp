@@ -166,6 +166,11 @@ checksum 文件名跟着错。应在 matrix 里显式写文件名，与 `scripts
 
 ### 4.7 打 tag 不会跑测试
 
+> **2026-10-31 补充**：本条已过时。`release.yml` 的 `quality` job 现在通过
+> `uses: ./.github/workflows/check.yml` 复用 check，tag 时会跑 test + lint；
+> 同时 `check.yml` 已去掉 `push: branches` 触发，只剩 `pull_request` +
+> `workflow_call`（日常 push 不再消耗 12 个 job）。原文保留作为当时状态的记录。
+
 `check.yml` 的 `on.push.branches: ["**"]` 不包含 tag。`release.yml` 只编译、不测试不 lint。`git tag && git push --tags` 可以发出未经门禁的提交。
 
 tag push 时若缺 `docs/release/$TAG.md`，会降级成 *See commit history* 然后继续发版。`AGENTS.md` 把这件事列为常见事故，CI 却抓不住。

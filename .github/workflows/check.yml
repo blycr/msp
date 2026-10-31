@@ -1,8 +1,13 @@
 name: check
 
 on:
-  push:
-    branches: ["**"]
+  # 只在开 PR 时自动跑。日常 push 到任何分支都不触发 —— 一次 push 会起 12 个
+  # job（frontend + test + lint + vulncheck + 8 目标构建矩阵），配额消耗过大。
+  #
+  # 打 v* tag 时的检查由 release.yml 保证：它的 quality job 通过
+  # `uses: ./.github/workflows/check.yml` 复用本工作流（并传
+  # skip_build_check: true，因为 release 自己有构建矩阵）。所以这里**不要**
+  # 再加 `push: tags`，否则一次 tag 会把同样的检查跑两遍。
   pull_request:
   # Required: .github/workflows/release.yml consumes this workflow via
   # `uses: ./.github/workflows/check.yml`. Dropping this trigger makes the

@@ -8,10 +8,13 @@
 # tight interval plus a hard deadline returns as soon as the answer exists.
 #
 # Usage:
-#   pwsh -File scripts/ci-wait.ps1 -Ref main
-#   pwsh -File scripts/ci-wait.ps1 -Ref main -Event push -Workflow check
 #   pwsh -File scripts/ci-wait.ps1 -Ref v1.12.3 -Event push -Workflow release
+#   pwsh -File scripts/ci-wait.ps1 -Ref main -Event pull_request
 #   pwsh -File scripts/ci-wait.ps1 -Ref main -TimeoutSec 1800
+#
+# Note: check.yml only runs on pull_request and workflow_call (plain branch
+# pushes no longer trigger it), so `-Ref main -Event push` will usually find a
+# release run or nothing. Use -Event pull_request for PR checks.
 #
 # Exit codes: 0 = terminal state reached (print it; NOT necessarily success),
 #             1 = could not talk to gh / bad response,
