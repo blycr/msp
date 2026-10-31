@@ -51,7 +51,7 @@ Both set `MSP_NO_AUTO_OPEN=1`. Build options: `-P` profiles, `-T` skip tests, `-
 | `internal/storage` | SQLite/GORM store & interfaces |
 | `internal/util` | Utilities |
 | `internal/web` | Embedded web serving logic |
-| `web/` | Frontend (Vite 8 + vanilla JS + PWA, bun 1.3) |
+| `web/` | Frontend (Vite 8 + vanilla JS + PWA, bun 1.4) |
 | `web/src/modules/` | JS modules: player, playlist, api, state, ui, i18n |
 | `web/src/styles/` | Componentized CSS |
 
@@ -205,3 +205,4 @@ list and a downloaded binary's contents, not just `conclusion: success`. A one s
 [2026-10-11] User correction → when the network is slow or blocked, route through the local SOCKS5 proxy on port 7890 instead of retrying direct; this applies to GitHub API/release-asset downloads and `gh` calls, same fallback role as `GOPROXY=https://goproxy.cn,direct` for Go modules [Tooling]
 [2026-10-11] User correction (biggest measured waste in this repo's history) → do NOT poll long-running CI/releases with fixed multi-minute `Start-Sleep` spread across turns: each turn replays the whole conversation prefix, so the cost is turns, not wall-clock; put the wait AND the check in ONE invocation via `scripts/ci-wait.ps1` (GitHub) or `job_output(wait: true)` (local commands) with early exit + honest deadline, and use 15–30 s intervals so the answer is not missed [Process]
 [2026-10-11] Self-test design error worth remembering → a throwaway tag named without the `v*` prefix produced no run at all, so the wait only proved the timeout path; when testing a wait, first assert that the thing being waited for can actually happen, and make the waiter fail fast (`ci-wait.ps1` exit 3) instead of burning the full deadline on a ref that matches no trigger [Process]
+[2026-10-31] Installing gcc silently flips Go's `CGO_ENABLED` default from 0 to 1 (Go probes PATH for a C compiler), turning every local `go build` from static to dynamic linking and diverging from the CI/Docker `CGO_ENABLED=0` artefacts → `go env -w CGO_ENABLED=0` pins the old behaviour while `CGO_ENABLED=1 go test -race` still opts in explicitly; also note `go test -race` needs cgo even with zero `import "C"` in the repo, and MSYS2's mingw64 gcc is posix-thread-model (not win32) [Tooling]
