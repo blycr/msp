@@ -14,10 +14,18 @@
 #   pwsh -File scripts/ci-wait.ps1 -Ref main -TimeoutSec 1800
 #
 # Exit codes: 0 = terminal state reached (print it; NOT necessarily success),
+#             1 = could not talk to gh / bad response,
 #             2 = deadline hit while still queued/in progress,
 #             3 = no run ever appeared; the ref does not match the workflow's
 #                 trigger (e.g. a tag that does not match `tags: v*`), so waiting
 #                 longer cannot help.
+#
+# Encoding note: GitHub returns UTF-8, but Windows PowerShell's
+# [Console]::OutputEncoding defaults to the OEM/ANSI code page (936/GBK on a
+# zh-CN box). Piping `gh` output straight into ConvertFrom-Json therefore mangles
+# any non-ASCII commit title ("docs: 记录 ...") and the parser dies with
+# "unexpected character ... Path 'display_title'". Every gh call below goes
+# through Invoke-GhJson, which reads raw bytes and decodes them as UTF-8.
 
 [CmdletBinding()]
 param(
@@ -34,21 +42,43 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = 'blycr/msp'
 $repoPath = Split-Path -Parent $PSScriptRoot
-$envLine = ''
 
-function Get-GhEnv {
-    if ($script:envLine) { return $script:envLine }
-    Push-Location $repoPath
-    try {
-        $lines = & gh api "repos/$repo/actions/runs?per_page=1" 2>&1
-        $token = ''
-        foreach ($l in $lines) {
-            if ($l -match 'HTTP_TOKEN:\s*(\S+)') { $token = $Matches[1] }
-        }
-        if (-not $token) { throw "could not read the GitHub token from 'gh api -i' output (gh not authenticated?)" }
-        $script:envLine = "HTTP_TOKEN:$token"
-    } finally { Pop-Location }
-    return $script:envLine
+# Decode gh's UTF-8 bytes explicitly. Setting [Console]::OutputEncoding also
+# helps for any stray native output, but the explicit decode below is what makes
+# this correct regardless of the host's code page.
+try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
+
+function Invoke-GhJson {
+    <#
+      Run `gh api <uri>` and return the parsed object, decoding stdout as UTF-8
+      by hand so a non-ASCII commit title cannot break ConvertFrom-Json.
+      Throws on a non-zero exit code.
+    #>
+    param([Parameter(Mandatory = $true)][string]$Uri)
+
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = 'gh'
+    $psi.Arguments = "api $Uri"
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $psi.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+    $psi.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
+
+    $p = [Diagnostics.Process]::Start($psi)
+    $out = $p.StandardOutput.ReadToEnd()
+    $err = $p.StandardError.ReadToEnd()
+    $p.WaitForExit()
+
+    if ($p.ExitCode -ne 0) {
+        throw "gh api $Uri failed (exit $($p.ExitCode)): $($err.Trim())"
+    }
+    if (-not $out.Trim()) {
+        throw "gh api $Uri returned no output"
+    }
+    # Strip a UTF-8 BOM if one sneaks in; ConvertFrom-Json chokes on it.
+    $out = $out.TrimStart([char]0xFEFF)
+    return ($out | ConvertFrom-Json)
 }
 
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
@@ -62,7 +92,7 @@ while ($true) {
     $uri = "repos/$repo/actions/runs?per_page=20&branch=$Ref"
     if ($Event) { $uri += "&event=$Event" }
 
-    $resp = & gh api $uri | ConvertFrom-Json
+    $resp = Invoke-GhJson -Uri $uri
     $run = $resp.workflow_runs | Where-Object { $_.head_branch -eq $Ref } | Select-Object -First 1
     if ($Workflow) {
         $run = $resp.workflow_runs | Where-Object { $_.head_branch -eq $Ref -and $_.name -eq $Workflow } | Select-Object -First 1
@@ -83,14 +113,15 @@ while ($true) {
     } else {
         Write-Output "RESULT: $($run.name) [$($run.event)] for '$Ref' -> $($run.conclusion)"
         Write-Output "run id: $($run.id)"
+        Write-Output "title: $($run.display_title)"
         Write-Output "url: $($run.html_url)"
 
-        $jobs = & gh api "repos/$repo/actions/runs/$($run.id)/jobs" | ConvertFrom-Json
+        $jobs = Invoke-GhJson -Uri "repos/$repo/actions/runs/$($run.id)/jobs"
         foreach ($j in $jobs.jobs) {
             $line = '  {0,-26} {1}' -f $j.name, $j.conclusion
             Write-Output $line
         }
-        $notGreen = $jobs.jobs | Where-Object { $_.conclusion -ne 'success' }
+        $notGreen = $jobs.jobs | Where-Object { $_.conclusion -ne 'success' -and $_.conclusion -ne 'skipped' }
         if ($notGreen) {
             Write-Output ''
             Write-Output 'NON-SUCCESS JOBS:'
