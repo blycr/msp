@@ -16,7 +16,7 @@ MSP 是一个基于 Go + 原生 JavaScript 的媒体共享与预览服务，支�
 | 数据库 | SQLite (glebarez/sqlite) | 纯 Go SQLite 驱动 |
 | 前端 | Vite 8 + Vanilla JS | 无框架依赖 |
 | 转码 | FFmpeg | 支持硬件加速 (NVENC/QSV/AMF/VAAPI) |
-| 包管理 | bun 1.3 | 前端依赖管理 |
+| 包管理 | bun 1.4 | 前端依赖管理 |
 
 ---
 

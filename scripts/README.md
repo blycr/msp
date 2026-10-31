@@ -236,8 +236,8 @@ chmod +x ./scripts/dev.sh
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.25+ | Backend compilation |
-| bun | 1.3.x | Frontend package manager |
+| Go | 1.27+ | Backend compilation |
+| bun | 1.4.x | Frontend package manager |
 | PowerShell | 7+ (`pwsh`) | Windows `.ps1` scripts (auto re-exec from 5.1; `build.ps1` fails without it, `dev.ps1` falls back to 5.1) |
 
 ### Optional
