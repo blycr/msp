@@ -1,7 +1,7 @@
 # Multi-stage build
 
 # Stage 1: Build Frontend
-FROM oven/bun:1.3-alpine AS frontend-builder
+FROM oven/bun:1.4-alpine AS frontend-builder
 ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
