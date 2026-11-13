@@ -7,7 +7,7 @@ Thank you for your interest in contributing to MSP! We welcome contributions fro
 To contribute to this project, you will need:
 
 *   **Go**: Version 1.27 or higher.
-*   **bun**: Version 1.3 or higher (frontend build).
+*   **bun**: Version 1.4.x or higher (frontend build).
 
 ## Getting Started
 

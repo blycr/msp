@@ -2,13 +2,21 @@
 
 ## Unreleased
 
-- **工具链**：`go.mod` 的 `go` 指令 `1.26.0` → **`1.27.0`**（跟随最新稳定版；Go 没有 2.x）
-  - `Dockerfile` 后端构建镜像 `golang:1.26-alpine` → **`golang:1.27-alpine`**，与 `go` 指令对齐
-  - CI 的 `golangci-lint` `v2.12.2` → **`v2.15.0`**：旧版读不了 Go 1.27 的 export data（`export data version 5 is greater than maximum supported version 4`），且 action 版本必须 ≥ `go` 指令
-  - 从源码构建需要 Go 1.27+；**发布二进制不受影响**
-- **CI**：修正"发布时跳过重复构建"的判断（v1.13.0 里那版无效）
-  - v1.13.0 用了 `if: github.event_name != 'workflow_call'`，但 reusable workflow 里的 `github` 上下文属于**调用方**，`event_name` 实际是 `push`，条件恒为真 —— 发布流程仍然跑了 `Test & Lint / Build` ×8 与 `Build` ×8，共 16 次编译
-  - 改为给 `check.yml` 的 `workflow_call` 增加布尔输入 `skip_build_check`，由 `release.yml` 显式传 `true`；不再依赖事件名判断
+- **依赖与工具链**：
+  - `go.mod` 的 `go` 指令 `1.26.0` → **`1.27.0`**（跟随最新稳定版；Go 没有 2.x）
+    - `Dockerfile` 后端构建镜像 `golang:1.26-alpine` → **`golang:1.27-alpine`**，与 `go` 指令对齐
+    - CI 的 `golangci-lint` `v2.12.2` → **`v2.15.0`**：旧版读不了 Go 1.27 的 export data（`export data version 5 is greater than maximum supported version 4`），且 action 版本必须 ≥ `go` 指令
+    - 从源码构建需要 Go 1.27+；**发布二进制不受影响**
+  - Go 依赖升级：`modernc.org/sqlite` v1.50.0 → v1.61.0、`modernc.org/libc` v1.72.1 → v1.79.1、`glebarez/go-sqlite` v1.22.0 → v1.23.0、`golang.org/x/crypto` v0.57.0 → v0.58.0、`golang.org/x/sys` v0.48.0 → v0.49.0、`golang.org/x/text` v0.42.0 → v0.43.0 等
+  - 前端依赖升级：`vite` 8.3.4 → 8.3.5；CI 与文档要求的 `bun` 版本由 `1.3.11` 对齐至 **`1.4.2`**（`Dockerfile` 的 `oven/bun:1.3-alpine` 保持不变）
+- **CI / 脚本**：
+  - 修正"发布时跳过重复构建"的判断（v1.13.0 里那版无效）：v1.13.0 用了 `if: github.event_name != 'workflow_call'`，但 reusable workflow 里的 `github` 上下文属于**调用方**，`event_name` 实际是 `push`，条件恒为真；改为给 `check.yml` 的 `workflow_call` 增加布尔输入 `skip_build_check`，由 `release.yml` 显式传 `true`
+  - `check.yml` 改为仅在 `pull_request` 与 `workflow_call` 触发（不再响应普通分支 `push`），避免日常提交消耗 12 个 job 配额；发布 tag 时仍由 `release.yml` 复用该工作流执行完整门禁
+  - `scripts/ci-wait.ps1` 改为用 UTF-8 解码 `gh` 输出，修复中文提交标题导致 JSON 解析失败；补上 `display_title` 输出、`NON-SUCCESS` 判定跳过 `skipped`、移除未使用的 `Get-GhEnv`
+- **文档**：
+  - 收敛公开仓库文档范围：仅保留代码与面向使用者/贡献者的技术文档，移除 `docs/SECURITY.md` 失效链接
+  - `CONTRIBUTING.md` 补充贡献者构建须知（`CGO_ENABLED` 默认值与发布件差异、构建脚本、避免网络挂载、`bun test` 本地执行说明）
+  - 同步补全 `docs/README_CN.md` 界面预览图、修正 `docs/API_REFERENCE.md`（`/api/thumbnail` 的 `Cache-Control: private` 与 `/healthz` 的 `version` 字段）与 `docs/CodeMap.md` 目录/流程清单
 
 ## 1.13.0
 

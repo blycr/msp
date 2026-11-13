@@ -42,17 +42,23 @@ msp/
 │   │   ├── handler.go          # Handler 结构体与依赖注入
 │   │   ├── media.go            # /api/media 接口
 │   │   ├── stream.go           # /api/stream 流媒体传输
+│   │   ├── hls.go              # /api/hls/ HLS 播放列表与分段服务
+│   │   ├── thumbnail.go        # /api/thumbnail 缩略图生成与扫描后预热
+│   │   ├── favorite.go         # /api/favorites 收藏管理
 │   │   ├── config.go           # /api/config 配置接口
 │   │   ├── progress.go         # /api/progress 播放进度
 │   │   ├── subtitle.go         # /api/subtitle 字幕处理
 │   │   ├── auth.go             # /api/pin 认证接口
-│   │   ├── middleware.go       # HTTP 中间件（Gzip、安全头、日志）
+│   │   ├── middleware.go       # HTTP 中间件（Gzip、安全头、限流、管理锁定）
 │   │   └── common.go           # 通用响应工具
 │   ├── media/                  # 媒体处理核心
+│   │   ├── processor.go        # MediaProcessor 核心结构体与生命周期控制
 │   │   ├── media.go            # 媒体响应构建
 │   │   ├── transcoder.go       # FFmpeg 转码流处理
+│   │   ├── hls.go              # HLS 转码会话管理
 │   │   ├── hwaccel.go          # 硬件加速检测与配置
 │   │   ├── probe.go            # 媒体探测 + FFmpeg 多路径发现
+│   │   ├── codecname.go        # 编码名称映射与格式化
 │   │   └── store.go            # 媒体数据库存储操作
 │   ├── scanner/                # 文件扫描器
 │   │   ├── scanner.go          # 目录遍历与文件分类
@@ -69,24 +75,31 @@ msp/
 │   │   ├── store.go            # Store 抽象层
 │   │   └── interface.go        # 存储接口定义
 │   ├── util/                   # 工具函数
-│   │   └── util.go             # 通用工具：路径处理、ID 编解码等
+│   │   ├── util.go             # 通用工具：路径处理、网络与格式化
+│   │   ├── crypto_id.go        # 媒体 ID 加解密（AES-GCM + 确定性 nonce）
+│   │   └── qr.go               # 终端二维码生成
 │   └── web/                    # Web 服务工具
-│       └── web.go              # 嵌入式静态资源服务
+│       ├── web.go              # 嵌入式静态资源服务
+│       └── web_test.go         # 静态资源服务测试
 ├── web/                        # 前端应用
 │   ├── src/
 │   │   ├── app.js              # 应用入口
-│   │   ├── app.css             # 全局样式
+│   │   ├── app.css             # 全局样式入口
+│   │   ├── styles/             # 组件化 CSS（base/layout/responsive/other/components/vendor）
 │   │   └── modules/            # 功能模块
 │   │       ├── actions.js      # 应用启动与配置加载
 │   │       ├── api.js          # API 请求封装
 │   │       ├── state.js        # 全局状态管理
 │   │       ├── eventbus.js     # 事件总线
+│   │       ├── folder.js       # 文件夹视图状态与导航
 │   │       ├── i18n.js         # 国际化
 │   │       ├── theme.js        # 主题管理
 │   │       ├── pin.js          # PIN 码验证
 │   │       ├── lyrics.js       # 歌词显示
 │   │       ├── icons.js        # 统一 SVG 图标库（icon(name) 单出口）
 │   │       ├── utils.js        # 前端工具函数
+│   │       ├── utils.test.js   # 前端单元测试（bun test）
+│   │       ├── player.js       # 播放器兼容重导出入口
 │   │       ├── player/         # 播放器模块
 │   │       │   ├── index.js    # 播放器入口（re-export + bus 监听）
 │   │       │   ├── play.js     # 播放编排（playItem + getPlaybackUrl + onMediaEnded）
@@ -95,14 +108,18 @@ msp/
 │   │       │   ├── transcode.js# 转码回退（错误兜底）
 │   │       │   ├── audio-track.js # 音轨切换
 │   │       │   └── resume.js   # 续播功能
+│   │       ├── playlist.js     # 播放列表兼容重导出入口
 │   │       ├── playlist/       # 播放列表模块
 │   │       │   ├── index.js    # 播放列表入口
 │   │       │   ├── navigation.js # 导航控制
 │   │       │   ├── sort-filter.js # 排序过滤
 │   │       │   └── render.js   # 列表渲染
+│   │       ├── ui.js           # UI 兼容重导出入口
 │   │       └── ui/             # UI 模块
 │   │           ├── index.js    # UI 入口
 │   │           ├── bindings.js # 事件绑定
+│   │           ├── delegate.js # 事件委托工具
+│   │           ├── diff.js     # DOM 列表差异更新
 │   │           ├── render.js   # 界面渲染
 │   │           ├── pager.js    # 通用分页器组件（文件列表/播放列表共用）
 │   │           ├── panel.js    # 桌面端播放列表列折叠/展开（>1024px）
@@ -110,18 +127,24 @@ msp/
 │   │           ├── settings.js # 设置面板
 │   │           └── shares.js   # 共享目录管理
 │   ├── public/                 # 静态资源
+│   │   ├── logo.svg            # 应用 Logo
 │   │   └── assets/             # 第三方库（Plyr、pinyin-pro、hls.js）
 │   ├── index.html              # HTML 模板
-│   └── vite.config.js          # Vite 配置
-├── scripts/                    # 构建脚本
+│   ├── package.json            # 前端依赖与脚本定义
+│   ├── vite.config.js          # Vite 配置
+│   ├── embed.go                # 前端资源嵌入（go:embed）
+│   └── web_test.go             # 嵌入 FS 编译校验
+├── scripts/                    # 构建与 CI 辅助脚本
+│   ├── build-profiles.json     # 跨平台编译预设
 │   ├── dev.ps1 / dev.sh        # 开发服务器
-│   └── build.ps1 / build.sh    # 生产构建
+│   ├── build.ps1 / build.sh    # 生产构建
+│   ├── ci-wait.ps1             # GitHub Actions 状态轮询脚本
+│   └── README.md / README_CN.md# 脚本说明文档
 ├── docs/                       # 文档
 │   └── release/                # 版本发布说明
 ├── .github/workflows/          # CI/CD
-│   ├── check.yml               # PR 检查
+│   ├── check.yml               # PR 与 release 质量门禁
 │   └── release.yml             # 发布流程
-├── web/embed.go                # 前端资源嵌入（go:embed）
 ├── config.example.json         # 配置示例
 ├── go.mod                      # Go 模块定义
 └── Dockerfile                  # 容器构建
@@ -219,6 +242,13 @@ main.go
     │       └── util.NewIDCodec(key) — 加载/生成 msp.key
     │           └── 确定性 nonce：HMAC-SHA256(key, path)[:gcm.NonceSize()]
     │
+    ├──► 创建 MediaProcessor + 清理残留 HLS 临时目录
+    │       └── media.NewMediaProcessor(sq, idCodec)
+    │           └── CleanupStaleHLSTempDirs()
+    │
+    ├──► 迁移历史播放进度 ID（如存在旧随机 nonce 记录）
+    │       └── migrateProgressMediaIDs(sq, idCodec)
+    │
     ├──► 创建 Server 实例
     │       └── New(cfgPath, processor)
     │           ├── 初始化 SessionService
@@ -231,7 +261,7 @@ main.go
     │
     ├──► 设置日志 SetupLogger()
     │
-    ├──► FFmpeg 路径发现 + 硬件加速检测 initHWAccel(processor)
+    ├──► FFmpeg 路径发现 + 硬件加速检测 initHWAccel(processor, s)
     │       ├── processor.CheckFFmpeg()
     │       │       └── resolveFFmpegPaths() — 7 层搜索
     │       │           ├── MSP_FFMPEG_PATH 环境变量
@@ -239,11 +269,9 @@ main.go
     │       │           ├── 当前工作目录 / bin/ 子目录
     │       │           ├── 平台特定路径
     │       │           └── 系统 PATH
-    │       └── processor.MediaProcessor.DetectHWAccel(mode)
+    │       └── processor.DetectHWAccel(mode)
     │           ├── 探测 NVENC/QSV/AMF/VAAPI/VideoToolbox
     │           └── 返回可用的硬件编码器（无 FFmpeg 时并发上限归零）
-    │
-    ├──► 初始化数据库 InitSQLite()
     │
     ├──► 启动配置热重载 WatchConfig()
     │
@@ -602,7 +630,7 @@ type PrefsStore interface {
 }
 
 // FavoriteStore - 收藏存储
- FavoriteStore interface {
+type FavoriteStore interface {
     ListFavorites(ctx context.Context) ([]domain.Favorite, error)
     AddFavorite(ctx context.Context, mediaID string) error
     RemoveFavorite(ctx context.Context, mediaID string) error
@@ -710,7 +738,7 @@ MediaProcessor.TranscodeStream(ctx, inputPath, opts)
 | `/api/shares` | POST | 共享目录操作（增删改） | op, label, path |
 | `/api/media` | GET | 获取媒体列表 | refresh, limit |
 | `/api/stream` | GET/HEAD | 流媒体传输 | id, transcode, hls, format, bitrate, start |
-| `/api/subtitle` | GET | 获取字幕内容 | id |
+| `/api/subtitle` | GET/HEAD | 获取字幕内容（外挂/内嵌提取） | id, track |
 | `/api/probe` | GET | 探测媒体信息 | id |
 | /api/progress | GET/POST | 获取/更新播放进度 | id, time |
 | /api/progress/recent | GET | 最近播放记录 | limit |
@@ -824,9 +852,10 @@ WithSecurity 中间件
 | 类型 | 位置 | 说明 |
 |------|------|------|
 | 单元测试 | `*_test.go` | 各包的单元测试 |
-| 集成测试 | `internal/handler/*_test.go` | HTTP 处理器测试 |
+| 集成测试 | `internal/handler/*_test.go`、`internal/media/*_integration_test.go` | HTTP 处理器与媒体集成测试 |
 | 安全测试 | `internal/handler/*_safety_test.go` | 安全相关测试 |
-| 前端测试 | `web/web_test.go` | 仅验证嵌入 FS 编译 |
+| 嵌入校验 | `web/web_test.go`、`internal/web/web_test.go` | 嵌入 FS 编译与静态资源服务测试 |
+| 前端测试 | `web/src/modules/utils.test.js` | `bun test`（仅本地运行，CI 不自动执行） |
 
 ---
 
@@ -867,5 +896,5 @@ WithSecurity 中间件
 
 ---
 
-*文档版本: 1.3*
-*最后更新: 2026-08-08*
+*文档版本: 1.4*
+*最后更新: 2026-11-14*

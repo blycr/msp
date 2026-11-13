@@ -290,7 +290,7 @@
 
 - **端点**: `GET /api/thumbnail`
 - **参数**: `id` — 媒体文件 ID（视频或图片）
-- **响应**: JPEG 图片；生成队列超时返回 503（`Cache-Control: no-store`，前端会重试）；成功响应 `Cache-Control: public, max-age=604800`
+- **响应**: JPEG 图片；生成队列超时返回 503（`Cache-Control: no-store`，前端会重试）；成功响应 `Cache-Control: private, max-age=604800`
 - **缓存**: `<exe_dir>/thumbs/<sha256(绝对路径)>.jpg`，按源文件 mtime 判断新鲜度，内容变化后自动重新生成
 
 ---
@@ -300,7 +300,7 @@
 ### 健康检查
 
 - **端点**: `GET /healthz`（无需 PIN）
-- **响应**: `{"status": "ok", "db": true, "uptime": 123}`（`db` 反映 SQLite 可用性）
+- **响应**: `{"status": "ok", "db": true, "uptime": 123, "version": "dev"}`（`db` 反映 SQLite 可用性）
 
 ### 速率限制（仅非本地/LAN 客户端；Local 与 LAN 豁免）
 
