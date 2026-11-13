@@ -148,6 +148,19 @@ vercel.json
 .vercel/
 netlify.toml
 
+# ------------------------------------------------------------
+# Internal process docs — kept on disk, never published
+# ------------------------------------------------------------
+# This repo is public. Only product-facing material (source code,
+# user/API/architecture docs, release notes) belongs in it. Agent
+# instructions, engineering self-reviews, archived AI review reports
+# and session handoffs are working artifacts: they carry machine-local
+# details (paths, users, environment) and change constantly.
+AGENTS.md
+HANDOFF.md
+docs/ENGINEERING_REVIEW.md
+docs/archive/
+
 # Shared local folders
 .shared/
 .agent/

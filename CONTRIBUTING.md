@@ -35,6 +35,17 @@ go test ./...
 go build ./cmd/msp
 ```
 
+### Build notes
+
+- **CGO**: this project is pure Go and releases are built with `CGO_ENABLED=0`. If your machine has
+  a C compiler, Go defaults `CGO_ENABLED` to 1 and `go build` produces a *dynamically linked*
+  binary that differs from the released artefact. Pin it once with `go env -w CGO_ENABLED=0`.
+  The race detector needs cgo, so opt back in explicitly: `CGO_ENABLED=1 go test -race ./...`.
+- **Build scripts**: `./scripts/build.sh` (Linux/macOS) and `.\scripts\build.ps1` (Windows) wrap the
+  whole target matrix plus tests and lint. Run either with `-h` for options.
+- **Network mounts**: don't build or test from a 9p/network path (e.g. `/mnt/*` under WSL). The
+  media scanner is file-walk heavy, so `go test` timings stop being meaningful.
+
 ## Running Tests
 
 Please ensure all tests pass before submitting a Pull Request.
@@ -45,7 +56,14 @@ go test ./...
 
 # Run linting
 golangci-lint run
+
+# Run frontend tests locally — CI does not run these
+cd web && bun test
 ```
+
+CI runs the Go suite with the race detector, `go vet`, `golangci-lint`, and a build across every
+supported target. It does **not** run `bun test`, so a failing frontend test will not turn your PR
+red — run it yourself before pushing.
 
 ## Code Style
 
